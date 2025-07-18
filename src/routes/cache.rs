@@ -1,0 +1,76 @@
+use rocket::{get, delete, State};
+use rocket::serde::json::Json;
+use serde_json;
+use crate::state::AppState;
+use crate::error::ApiError;
+use crate::models::CacheStatsResponse;
+
+#[get("/cache/stats")]
+pub async fn get_cache_stats(state: &State<AppState>) -> Result<Json<CacheStatsResponse>, ApiError> {
+    let stats = state.cache.get_stats().await
+        .map_err(|e| ApiError::ParseError(format!("Failed to get cache stats: {}", e)))?;
+
+    let total_requests = stats.hit_count + stats.miss_count;
+    let hit_rate = if total_requests > 0 {
+        stats.hit_count as f64 / total_requests as f64 * 100.0
+    } else {
+        0.0
+    };
+
+    let response = CacheStatsResponse {
+        enabled: state.config.cache_enabled,
+        total_entries: stats.total_entries,
+        total_size_bytes: stats.total_size_bytes,
+        total_size_mb: stats.total_size_bytes as f64 / 1024.0 / 1024.0,
+        hit_count: stats.hit_count,
+        miss_count: stats.miss_count,
+        hit_rate,
+        cache_dir: state.config.cache_dir.clone(),
+        max_size_mb: state.config.cache_max_size_mb,
+        ttl_hours: state.config.cache_ttl_hours,
+    };
+
+    Ok(Json(response))
+}
+
+#[delete("/cache")]
+pub async fn clear_cache(state: &State<AppState>) -> Result<Json<serde_json::Value>, ApiError> {
+    if !state.config.cache_enabled {
+        return Err(ApiError::ParseError("Cache is disabled".to_string()));
+    }
+
+    state.cache.clear().await
+        .map_err(|e| ApiError::ParseError(format!("Failed to clear cache: {}", e)))?;
+
+    Ok(Json(serde_json::json!({
+        "message": "Cache cleared successfully"
+    })))
+}
+
+#[get("/cache/health")]
+pub async fn cache_health(state: &State<AppState>) -> Result<Json<serde_json::Value>, ApiError> {
+    let stats = state.cache.get_stats().await
+        .map_err(|e| ApiError::ParseError(format!("Failed to get cache stats: {}", e)))?;
+
+    let health_status = if state.config.cache_enabled {
+        let size_usage_percent = (stats.total_size_bytes as f64 / (state.config.cache_max_size_mb * 1024 * 1024) as f64) * 100.0;
+
+        if size_usage_percent > 90.0 {
+            "warning"
+        } else {
+            "healthy"
+        }
+    } else {
+        "disabled"
+    };
+
+    Ok(Json(serde_json::json!({
+        "status": health_status,
+        "enabled": state.config.cache_enabled,
+        "size_usage_percent": if state.config.cache_enabled {
+            Some((stats.total_size_bytes as f64 / (state.config.cache_max_size_mb * 1024 * 1024) as f64) * 100.0)
+        } else {
+            None
+        }
+    })))
+}
