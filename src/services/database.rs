@@ -52,12 +52,59 @@ impl DatabaseService {
                 Box::new(e.to_string())
             ))?;
 
-        // Insert the package
+        // Check if package already exists
+        if let Some(existing_package) = self.get_package(&new_package.name, &new_package.filename)? {
+            // Package already exists, update access info and return it
+            self.update_access_info(existing_package.id)?;
+            return Ok(existing_package);
+        }
+
+        // Insert the package (only if it doesn't exist)
         diesel::insert_into(packages::table)
             .values(&new_package)
             .execute(&mut conn)?;
 
         // Get the inserted package by name and filename
+        packages::table
+            .filter(packages::name.eq(&new_package.name))
+            .filter(packages::filename.eq(&new_package.filename))
+            .first::<Package>(&mut conn)
+    }
+
+    /// Insert or update package using SQLite's INSERT OR REPLACE
+    pub fn upsert_package(&self, new_package: NewPackage) -> Result<Package, diesel::result::Error> {
+        let mut conn = self.get_connection()
+            .map_err(|e| diesel::result::Error::DatabaseError(
+                diesel::result::DatabaseErrorKind::UnableToSendCommand,
+                Box::new(e.to_string())
+            ))?;
+
+        // Use raw SQL for INSERT OR REPLACE to handle unique constraint gracefully
+        diesel::sql_query(
+            "INSERT OR REPLACE INTO packages (
+                name, version, filename, size_bytes, etag, content_type,
+                upstream_url, file_path, created_at, last_accessed, access_count,
+                author_id, description, package_json, is_private
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        )
+        .bind::<diesel::sql_types::Text, _>(&new_package.name)
+        .bind::<diesel::sql_types::Text, _>(&new_package.version)
+        .bind::<diesel::sql_types::Text, _>(&new_package.filename)
+        .bind::<diesel::sql_types::BigInt, _>(&new_package.size_bytes)
+        .bind::<diesel::sql_types::Nullable<diesel::sql_types::Text>, _>(&new_package.etag)
+        .bind::<diesel::sql_types::Nullable<diesel::sql_types::Text>, _>(&new_package.content_type)
+        .bind::<diesel::sql_types::Text, _>(&new_package.upstream_url)
+        .bind::<diesel::sql_types::Text, _>(&new_package.file_path)
+        .bind::<diesel::sql_types::Timestamp, _>(&new_package.created_at)
+        .bind::<diesel::sql_types::Timestamp, _>(&new_package.last_accessed)
+        .bind::<diesel::sql_types::Integer, _>(&new_package.access_count)
+        .bind::<diesel::sql_types::Nullable<diesel::sql_types::Integer>, _>(&new_package.author_id)
+        .bind::<diesel::sql_types::Nullable<diesel::sql_types::Text>, _>(&new_package.description)
+        .bind::<diesel::sql_types::Nullable<diesel::sql_types::Text>, _>(&new_package.package_json)
+        .bind::<diesel::sql_types::Bool, _>(&new_package.is_private)
+        .execute(&mut conn)?;
+
+        // Get the package by name and filename
         packages::table
             .filter(packages::name.eq(&new_package.name))
             .filter(packages::filename.eq(&new_package.filename))

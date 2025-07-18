@@ -249,7 +249,7 @@ impl CacheService {
                 cache_path.to_string_lossy().to_string(),
             );
 
-            if let Err(e) = db.insert_package(new_package) {
+            if let Err(e) = db.upsert_package(new_package) {
                 warn!("Failed to store package metadata in database: {}", e);
             } else {
                 debug!("Stored package metadata in database for {}/{}", package, filename);

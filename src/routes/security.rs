@@ -1,44 +1,44 @@
-use rocket::{post, State};
+use rocket::{post, State, Data};
 use rocket::serde::json::Json;
+use rocket::data::ToByteUnit;
+use rocket::tokio::io::AsyncReadExt;
 use serde_json::Value;
-use log::{info, error, debug, warn};
+use log::{info, error, debug};
 use crate::state::AppState;
 use crate::error::ApiError;
 
 
-#[post("/-/npm/v1/security/advisories/bulk", data = "<request>")]
+#[post("/-/npm/v1/security/advisories/bulk", data = "<data>")]
 pub async fn security_advisories_bulk(
-    request: Result<Json<Value>, rocket::serde::json::Error<'_>>,
+    data: Data<'_>,
     state: &State<AppState>,
 ) -> Result<Json<Value>, ApiError> {
     info!("Security advisories bulk request received");
 
-    let request_data = match request {
-        Ok(json) => {
-            debug!("Request payload: {}", serde_json::to_string_pretty(&json.0).unwrap_or_else(|_| "Invalid JSON".to_string()));
-            json.0
-        }
-        Err(e) => {
-            warn!("Failed to parse security advisories request as JSON: {}", e);
-            // Return empty request if parsing fails
-            serde_json::json!({})
-        }
-    };
+    // Read the raw request body
+    let mut body = Vec::new();
+    let mut stream = data.open(2_u32.megabytes());
+    stream.read_to_end(&mut body).await.map_err(|e| {
+        error!("Failed to read request body: {}", e);
+        ApiError::BadRequest(format!("Failed to read request body: {}", e))
+    })?;
+
+    debug!("Read {} bytes of request data", body.len());
 
     let url = format!("{}/-/npm/v1/security/advisories/bulk", state.config.upstream_registry);
 
-    // Forward the request to the upstream npm registry
-    let response = state.client
+    // Build the request with proper headers for gzip content
+    let req_builder = state.client
         .post(&url)
-        .header("Content-Type", "application/json")
         .header("User-Agent", "pnrs-proxy/1.0")
-        .json(&request_data)
-        .send()
-        .await
-        .map_err(|e| {
-            error!("Failed to send security advisories request to upstream: {}", e);
-            ApiError::NetworkError(format!("Failed to contact upstream registry: {}", e))
-        })?;
+        .header("Content-Type", "application/json")
+        .header("Content-Encoding", "gzip")
+        .body(body);
+
+    let response = req_builder.send().await.map_err(|e| {
+        error!("Failed to send security advisories request to upstream: {}", e);
+        ApiError::NetworkError(format!("Failed to contact upstream registry: {}", e))
+    })?;
 
     if response.status().is_success() {
         match response.json::<Value>().await {
@@ -66,39 +66,37 @@ pub async fn security_advisories_bulk(
 }
 
 // Alternative endpoint path that some npm versions might use
-#[post("/-/npm/v1/security/audits/quick", data = "<request>")]
+#[post("/-/npm/v1/security/audits/quick", data = "<data>")]
 pub async fn security_audits_quick(
-    request: Result<Json<Value>, rocket::serde::json::Error<'_>>,
+    data: Data<'_>,
     state: &State<AppState>,
 ) -> Result<Json<Value>, ApiError> {
     info!("Security audits quick request received");
 
-    let request_data = match request {
-        Ok(json) => {
-            debug!("Request payload: {}", serde_json::to_string_pretty(&json.0).unwrap_or_else(|_| "Invalid JSON".to_string()));
-            json.0
-        }
-        Err(e) => {
-            warn!("Failed to parse security audits request as JSON: {}", e);
-            // Return empty request if parsing fails
-            serde_json::json!({})
-        }
-    };
+    // Read the raw request body
+    let mut body = Vec::new();
+    let mut stream = data.open(2_u32.megabytes());
+    stream.read_to_end(&mut body).await.map_err(|e| {
+        error!("Failed to read request body: {}", e);
+        ApiError::BadRequest(format!("Failed to read request body: {}", e))
+    })?;
+
+    debug!("Read {} bytes of request data", body.len());
 
     let url = format!("{}/-/npm/v1/security/audits/quick", state.config.upstream_registry);
 
-    // Forward the request to the upstream npm registry
-    let response = state.client
+    // Build the request with proper headers for gzip content
+    let req_builder = state.client
         .post(&url)
-        .header("Content-Type", "application/json")
         .header("User-Agent", "pnrs-proxy/1.0")
-        .json(&request_data)
-        .send()
-        .await
-        .map_err(|e| {
-            error!("Failed to send security audits request to upstream: {}", e);
-            ApiError::NetworkError(format!("Failed to contact upstream registry: {}", e))
-        })?;
+        .header("Content-Type", "application/json")
+        .header("Content-Encoding", "gzip")
+        .body(body);
+
+    let response = req_builder.send().await.map_err(|e| {
+        error!("Failed to send security audits request to upstream: {}", e);
+        ApiError::NetworkError(format!("Failed to contact upstream registry: {}", e))
+    })?;
 
     if response.status().is_success() {
         match response.json::<Value>().await {

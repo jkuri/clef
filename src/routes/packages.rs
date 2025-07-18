@@ -1,5 +1,5 @@
 use rocket::serde::json::Value;
-use rocket::{get, head, State, request::{Request, FromRequest, Outcome}, response::Responder, Response};
+use rocket::{get, head, State, request::{Request, FromRequest, Outcome, FromParam}, response::Responder, Response};
 use rocket::http::{Status, ContentType};
 use std::io::Cursor;
 use log;
@@ -112,73 +112,69 @@ enum PackageRequestType {
 
 
 // Specific routes for scoped packages (higher priority)
-// Route for scoped package metadata: scope/package (where scope starts with @)
+// Route for scoped package metadata: @scope/package
 #[get("/<scope>/<package>", rank = 1)]
-pub async fn handle_scoped_package_metadata(scope: String, package: String, state: &State<AppState>) -> Result<PackageResponse, ApiError> {
-    // Only handle if scope starts with @ (scoped packages)
-    if scope.starts_with('@') {
-        let full_package_name = format!("{}/{}", scope, package);
-        log::info!("Scoped package metadata request: {}", full_package_name);
-        let result = RegistryService::get_package_metadata(&full_package_name, state).await?;
-        return Ok(PackageResponse::Json(result));
-    }
-    // Not a scoped package, let it fall through to regular package handling
-    Err(ApiError::BadRequest("Not a scoped package".to_string()))
+pub async fn handle_scoped_package_metadata(scope: ScopedPackageName, package: &str, state: &State<AppState>) -> Result<PackageResponse, ApiError> {
+    let full_package_name = format!("{}/{}", scope.0, package);
+    log::info!("Scoped package metadata request: {}", full_package_name);
+    let result = RegistryService::get_package_metadata(&full_package_name, state).await?;
+    Ok(PackageResponse::Json(result))
 }
 
-// Route for scoped package version: scope/package/version
+// Custom parameter type that only matches scoped package names (starting with @)
+pub struct ScopedPackageName(pub String);
+
+impl<'r> FromParam<'r> for ScopedPackageName {
+    type Error = &'r str;
+
+    fn from_param(param: &'r str) -> Result<Self, Self::Error> {
+        if param.starts_with('@') {
+            Ok(ScopedPackageName(param.to_string()))
+        } else {
+            Err(param)
+        }
+    }
+}
+
+// Route for scoped package version: @scope/package/version
+// Only match when scope actually starts with @
 #[get("/<scope>/<package>/<version>", rank = 1)]
-pub async fn handle_scoped_package_version(scope: String, package: String, version: String, state: &State<AppState>) -> Result<PackageResponse, ApiError> {
-    // Only handle if scope starts with @ (scoped packages)
-    if scope.starts_with('@') {
-        let full_package_name = format!("{}/{}", scope, package);
-        log::info!("Scoped package version request: {} version {}", full_package_name, version);
-        let result = RegistryService::get_package_version_metadata(&full_package_name, &version, state).await?;
-        return Ok(PackageResponse::Json(result));
-    }
-    // Not a scoped package, let it fall through
-    Err(ApiError::BadRequest("Not a scoped package".to_string()))
+pub async fn handle_scoped_package_version(scope: ScopedPackageName, package: &str, version: &str, state: &State<AppState>) -> Result<PackageResponse, ApiError> {
+    let full_package_name = format!("{}/{}", scope.0, package);
+    log::info!("Scoped package version request: {} version {}", full_package_name, version);
+    let result = RegistryService::get_package_version_metadata(&full_package_name, version, state).await?;
+    Ok(PackageResponse::Json(result))
 }
 
-// Route for scoped package tarball: scope/package/-/filename
+// Route for scoped package tarball: @scope/package/-/filename
 #[get("/<scope>/<package>/-/<filename>", rank = 1)]
-pub async fn handle_scoped_package_tarball(scope: String, package: String, filename: String, state: &State<AppState>) -> Result<PackageResponse, ApiError> {
-    // Only handle if scope starts with @ (scoped packages)
-    if scope.starts_with('@') {
-        let full_package_name = format!("{}/{}", scope, package);
-        log::info!("Scoped package tarball request: {} file {}", full_package_name, filename);
-        let result = RegistryService::get_package_tarball(&full_package_name, &filename, state).await?;
-        return Ok(PackageResponse::Binary(result));
-    }
-    // Not a scoped package, let it fall through
-    Err(ApiError::BadRequest("Not a scoped package".to_string()))
+pub async fn handle_scoped_package_tarball(scope: ScopedPackageName, package: &str, filename: &str, state: &State<AppState>) -> Result<PackageResponse, ApiError> {
+    let full_package_name = format!("{}/{}", scope.0, package);
+    log::info!("Scoped package tarball request: {} file {}", full_package_name, filename);
+    let result = RegistryService::get_package_tarball(&full_package_name, filename, state).await?;
+    Ok(PackageResponse::Binary(result))
 }
 
 // HEAD request for scoped package tarballs
 #[head("/<scope>/<package>/-/<filename>", rank = 1)]
-pub async fn handle_scoped_package_tarball_head(scope: String, package: String, filename: String, state: &State<AppState>) -> Result<PackageResponse, ApiError> {
-    // Only handle if scope starts with @ (scoped packages)
-    if scope.starts_with('@') {
-        let full_package_name = format!("{}/{}", scope, package);
-        log::info!("Scoped package tarball HEAD request: {} file {}", full_package_name, filename);
-        RegistryService::head_package_tarball(&full_package_name, &filename, state).await?;
-        return Ok(PackageResponse::Empty);
-    }
-    // Not a scoped package, let it fall through
-    Err(ApiError::BadRequest("Not a scoped package".to_string()))
+pub async fn handle_scoped_package_tarball_head(scope: ScopedPackageName, package: &str, filename: &str, state: &State<AppState>) -> Result<PackageResponse, ApiError> {
+    let full_package_name = format!("{}/{}", scope.0, package);
+    log::info!("Scoped package tarball HEAD request: {} file {}", full_package_name, filename);
+    RegistryService::head_package_tarball(&full_package_name, filename, state).await?;
+    Ok(PackageResponse::Empty)
 }
 
 // Regular package routes (lower priority)
 // Route for regular package metadata: package
 #[get("/<package>", rank = 2)]
-pub async fn handle_regular_package_metadata(package: String, state: &State<AppState>) -> Result<PackageResponse, ApiError> {
+pub async fn handle_regular_package_metadata(package: &str, state: &State<AppState>) -> Result<PackageResponse, ApiError> {
     log::info!("Regular package metadata handler received: '{}'", package);
 
     // Check if this is a decoded scoped package (starts with @ and contains /)
     // This happens when npm sends @types%2fnode-forge and Rocket decodes it to @types/node-forge
     if package.starts_with('@') && package.contains('/') {
         log::info!("Decoded scoped package metadata request: {}", package);
-        let result = RegistryService::get_package_metadata(&package, state).await?;
+        let result = RegistryService::get_package_metadata(package, state).await?;
         return Ok(PackageResponse::Json(result));
     }
     // Skip if this looks like a regular scoped package (starts with @ but no /)
@@ -187,43 +183,43 @@ pub async fn handle_regular_package_metadata(package: String, state: &State<AppS
         return Err(ApiError::BadRequest("Invalid scoped package format".to_string()));
     }
     log::info!("Regular package metadata request: {}", package);
-    let result = RegistryService::get_package_metadata(&package, state).await?;
+    let result = RegistryService::get_package_metadata(package, state).await?;
     Ok(PackageResponse::Json(result))
 }
 
 // Route for regular package version: package/version
 #[get("/<package>/<version>", rank = 2)]
-pub async fn handle_regular_package_version(package: String, version: String, state: &State<AppState>) -> Result<PackageResponse, ApiError> {
+pub async fn handle_regular_package_version(package: &str, version: &str, state: &State<AppState>) -> Result<PackageResponse, ApiError> {
     // Skip if this looks like a scoped package (starts with @)
     if package.starts_with('@') {
         return Err(ApiError::BadRequest("Use scoped package route".to_string()));
     }
     log::info!("Regular package version request: {} version {}", package, version);
-    let result = RegistryService::get_package_version_metadata(&package, &version, state).await?;
+    let result = RegistryService::get_package_version_metadata(package, version, state).await?;
     Ok(PackageResponse::Json(result))
 }
 
 // Route for regular package tarball: package/-/filename
 #[get("/<package>/-/<filename>", rank = 2)]
-pub async fn handle_regular_package_tarball(package: String, filename: String, state: &State<AppState>) -> Result<PackageResponse, ApiError> {
+pub async fn handle_regular_package_tarball(package: &str, filename: &str, state: &State<AppState>) -> Result<PackageResponse, ApiError> {
     // Skip if this looks like a scoped package (starts with @)
     if package.starts_with('@') {
         return Err(ApiError::BadRequest("Use scoped package route".to_string()));
     }
     log::info!("Regular package tarball request: {} file {}", package, filename);
-    let result = RegistryService::get_package_tarball(&package, &filename, state).await?;
+    let result = RegistryService::get_package_tarball(package, filename, state).await?;
     Ok(PackageResponse::Binary(result))
 }
 
 // HEAD request for regular package tarballs
 #[head("/<package>/-/<filename>", rank = 2)]
-pub async fn handle_regular_package_tarball_head(package: String, filename: String, state: &State<AppState>) -> Result<PackageResponse, ApiError> {
+pub async fn handle_regular_package_tarball_head(package: &str, filename: &str, state: &State<AppState>) -> Result<PackageResponse, ApiError> {
     // Skip if this looks like a scoped package (starts with @)
     if package.starts_with('@') {
         return Err(ApiError::BadRequest("Use scoped package route".to_string()));
     }
     log::info!("Regular package tarball HEAD request: {} file {}", package, filename);
-    RegistryService::head_package_tarball(&package, &filename, state).await?;
+    RegistryService::head_package_tarball(package, filename, state).await?;
     Ok(PackageResponse::Empty)
 }
 
