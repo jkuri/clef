@@ -50,9 +50,6 @@ npm config set registry http://localhost:8000/registry
 # Login (creates account if needed)
 npm login --registry http://localhost:8000/registry
 
-# For scoped packages
-npm login --registry http://localhost:8000/registry --scope=@myorg
-
 # Publish package
 npm publish
 
