@@ -1,19 +1,17 @@
+use crate::error::ApiError;
+use crate::models::{LoginRequest, NewUser, NewUserToken, RegisterRequest, User, UserToken};
+use crate::schema::{user_tokens, users};
+use crate::services::DatabaseService;
 use diesel::prelude::*;
 use log::debug;
-use crate::models::{User, NewUser, UserToken, NewUserToken, LoginRequest, RegisterRequest};
-use crate::schema::{users, user_tokens};
-use crate::services::DatabaseService;
-use crate::error::ApiError;
 
 pub struct AuthService;
 
 impl AuthService {
-    pub fn register_user(
-        db: &DatabaseService,
-        request: RegisterRequest,
-    ) -> Result<User, ApiError> {
-        let mut conn = db.get_connection()
-            .map_err(|e| ApiError::InternalServerError(format!("Database connection error: {}", e)))?;
+    pub fn register_user(db: &DatabaseService, request: RegisterRequest) -> Result<User, ApiError> {
+        let mut conn = db.get_connection().map_err(|e| {
+            ApiError::InternalServerError(format!("Database connection error: {}", e))
+        })?;
 
         // Check if username already exists
         let existing_user = users::table
@@ -50,7 +48,9 @@ impl AuthService {
         let user = users::table
             .filter(users::username.eq(&new_user.username))
             .first::<User>(&mut conn)
-            .map_err(|e| ApiError::InternalServerError(format!("Failed to retrieve created user: {}", e)))?;
+            .map_err(|e| {
+                ApiError::InternalServerError(format!("Failed to retrieve created user: {}", e))
+            })?;
 
         debug!("User registered successfully: {}", user.username);
         Ok(user)
@@ -60,8 +60,9 @@ impl AuthService {
         db: &DatabaseService,
         request: LoginRequest,
     ) -> Result<(User, String), ApiError> {
-        let mut conn = db.get_connection()
-            .map_err(|e| ApiError::InternalServerError(format!("Database connection error: {}", e)))?;
+        let mut conn = db.get_connection().map_err(|e| {
+            ApiError::InternalServerError(format!("Database connection error: {}", e))
+        })?;
 
         // Find user by username
         let user = users::table
@@ -73,11 +74,14 @@ impl AuthService {
             .ok_or_else(|| ApiError::Unauthorized("Invalid username or password".to_string()))?;
 
         // Verify password
-        let password_valid = user.verify_password(&request.password)
-            .map_err(|e| ApiError::InternalServerError(format!("Password verification error: {}", e)))?;
+        let password_valid = user.verify_password(&request.password).map_err(|e| {
+            ApiError::InternalServerError(format!("Password verification error: {}", e))
+        })?;
 
         if !password_valid {
-            return Err(ApiError::Unauthorized("Invalid username or password".to_string()));
+            return Err(ApiError::Unauthorized(
+                "Invalid username or password".to_string(),
+            ));
         }
 
         // Create authentication token
@@ -93,12 +97,10 @@ impl AuthService {
         Ok((user, token_value))
     }
 
-    pub fn validate_token(
-        db: &DatabaseService,
-        token: &str,
-    ) -> Result<User, ApiError> {
-        let mut conn = db.get_connection()
-            .map_err(|e| ApiError::InternalServerError(format!("Database connection error: {}", e)))?;
+    pub fn validate_token(db: &DatabaseService, token: &str) -> Result<User, ApiError> {
+        let mut conn = db.get_connection().map_err(|e| {
+            ApiError::InternalServerError(format!("Database connection error: {}", e))
+        })?;
 
         // Find active token
         let user_token = user_tokens::table
@@ -122,17 +124,17 @@ impl AuthService {
             .filter(users::id.eq(user_token.user_id))
             .filter(users::is_active.eq(true))
             .first::<User>(&mut conn)
-            .map_err(|e| ApiError::InternalServerError(format!("Failed to retrieve user: {}", e)))?;
+            .map_err(|e| {
+                ApiError::InternalServerError(format!("Failed to retrieve user: {}", e))
+            })?;
 
         Ok(user)
     }
 
-    pub fn revoke_token(
-        db: &DatabaseService,
-        token: &str,
-    ) -> Result<(), ApiError> {
-        let mut conn = db.get_connection()
-            .map_err(|e| ApiError::InternalServerError(format!("Database connection error: {}", e)))?;
+    pub fn revoke_token(db: &DatabaseService, token: &str) -> Result<(), ApiError> {
+        let mut conn = db.get_connection().map_err(|e| {
+            ApiError::InternalServerError(format!("Database connection error: {}", e))
+        })?;
 
         diesel::update(user_tokens::table.filter(user_tokens::token.eq(token)))
             .set(user_tokens::is_active.eq(false))
@@ -147,8 +149,9 @@ impl AuthService {
         db: &DatabaseService,
         username: &str,
     ) -> Result<Option<User>, ApiError> {
-        let mut conn = db.get_connection()
-            .map_err(|e| ApiError::InternalServerError(format!("Database connection error: {}", e)))?;
+        let mut conn = db.get_connection().map_err(|e| {
+            ApiError::InternalServerError(format!("Database connection error: {}", e))
+        })?;
 
         let user = users::table
             .filter(users::username.eq(username))

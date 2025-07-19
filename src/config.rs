@@ -42,34 +42,31 @@ impl AppConfig {
             .parse::<u16>()
             .unwrap_or(8000);
 
-        let host = env::var("PNRS_HOST")
-            .unwrap_or_else(|_| "127.0.0.1".to_string());
+        let host = env::var("PNRS_HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
 
         // Auto-detect scheme based on port or explicit configuration
-        let scheme = env::var("PNRS_SCHEME")
-            .unwrap_or_else(|_| {
-                if port == 443 {
-                    "https".to_string()
-                } else {
-                    "http".to_string()
-                }
-            });
+        let scheme = env::var("PNRS_SCHEME").unwrap_or_else(|_| {
+            if port == 443 {
+                "https".to_string()
+            } else {
+                "http".to_string()
+            }
+        });
 
         let cache_enabled = env::var("PNRS_CACHE_ENABLED")
             .unwrap_or_else(|_| "true".to_string())
             .parse::<bool>()
             .unwrap_or(true);
 
-        let cache_dir = env::var("PNRS_CACHE_DIR")
-            .unwrap_or_else(|_| "./data".to_string());
+        let cache_dir = env::var("PNRS_CACHE_DIR").unwrap_or_else(|_| "./data".to_string());
 
         let cache_ttl_hours = env::var("PNRS_CACHE_TTL_HOURS")
             .unwrap_or_else(|_| "24".to_string())
             .parse::<u64>()
             .unwrap_or(24);
 
-        let database_url = env::var("PNRS_DATABASE_URL")
-            .unwrap_or_else(|_| format!("{}/pnrs.db", cache_dir));
+        let database_url =
+            env::var("PNRS_DATABASE_URL").unwrap_or_else(|_| format!("{}/pnrs.db", cache_dir));
 
         info!("Configuration loaded:");
         info!("  Upstream Registry: {}", upstream_registry);

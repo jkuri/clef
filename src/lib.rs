@@ -1,20 +1,20 @@
 pub mod config;
-pub mod routes;
-pub mod fairings;
-pub mod state;
 pub mod error;
-pub mod services;
+pub mod fairings;
 pub mod models;
+pub mod routes;
 pub mod schema;
+pub mod services;
+pub mod state;
 
 use rocket::Config;
 use rocket_cors::{AllowedOrigins, CorsOptions};
 use std::sync::Arc;
 
 pub use config::AppConfig;
-pub use state::AppState;
 pub use fairings::RequestLogger;
 pub use services::{CacheService, DatabaseService};
+pub use state::AppState;
 
 pub fn create_rocket() -> rocket::Rocket<rocket::Build> {
     // Load configuration from environment
@@ -27,7 +27,9 @@ pub fn create_rocket() -> rocket::Rocket<rocket::Build> {
     let cache = Arc::new(CacheService::new(config.clone()).expect("Failed to initialize cache"));
 
     // Initialize database service
-    let database = Arc::new(DatabaseService::new(&config.database_url).expect("Failed to initialize database"));
+    let database = Arc::new(
+        DatabaseService::new(&config.database_url).expect("Failed to initialize database"),
+    );
 
     // Create app state
     let state = AppState {

@@ -33,7 +33,10 @@ mod tests {
                 println!("Package metadata format is compatible");
             }
             Ok(response) => {
-                println!("Package metadata request failed with status: {}", response.status());
+                println!(
+                    "Package metadata request failed with status: {}",
+                    response.status()
+                );
             }
             Err(e) => {
                 println!("Package metadata request error: {}", e);
@@ -96,18 +99,26 @@ mod tests {
 
         // Test endpoints that different package managers use
         let endpoints = [
-            "/lodash",                           // Package metadata (all managers)
-            "/lodash/-/lodash-4.17.21.tgz",    // Package tarball (all managers)
-            "/-/npm/v1/security/audits",       // Security audits (pnpm, npm)
+            "/lodash",                            // Package metadata (all managers)
+            "/lodash/-/lodash-4.17.21.tgz",       // Package tarball (all managers)
+            "/-/npm/v1/security/audits",          // Security audits (pnpm, npm)
             "/-/npm/v1/security/advisories/bulk", // Security advisories (npm)
         ];
 
         for endpoint in &endpoints {
             match client.get(endpoint).send() {
                 Ok(response) => {
-                    println!("Endpoint {} returned status: {}", endpoint, response.status());
+                    println!(
+                        "Endpoint {} returned status: {}",
+                        endpoint,
+                        response.status()
+                    );
                     // Endpoints should either succeed or return proper HTTP error codes
-                    assert!(response.status().as_u16() < 500, "Endpoint {} returned server error", endpoint);
+                    assert!(
+                        response.status().as_u16() < 500,
+                        "Endpoint {} returned server error",
+                        endpoint
+                    );
                 }
                 Err(e) => {
                     println!("Endpoint {} error: {}", endpoint, e);
@@ -132,7 +143,10 @@ mod tests {
         assert!(npmrc_content.contains(&server.base_url));
         assert!(npmrc_content.contains("registry="));
 
-        println!("Registry configuration is consistent: {}", npmrc_content.trim());
+        println!(
+            "Registry configuration is consistent: {}",
+            npmrc_content.trim()
+        );
 
         // Verify package.json is properly formatted
         let package_json_content = fs::read_to_string(&project.package_json_path).unwrap();
@@ -182,7 +196,10 @@ mod tests {
 
         println!("Concurrent requests: {} succeeded", success_count);
         // Should handle concurrent requests without server errors
-        assert!(success_count > 0, "At least some concurrent requests should succeed");
+        assert!(
+            success_count > 0,
+            "At least some concurrent requests should succeed"
+        );
     }
 
     #[test]
@@ -212,7 +229,8 @@ mod tests {
                         let version_url = format!("/lodash/{}", latest);
                         match client.get(&version_url).send() {
                             Ok(version_response) if version_response.status().is_success() => {
-                                let version_data: serde_json::Value = version_response.json().unwrap();
+                                let version_data: serde_json::Value =
+                                    version_response.json().unwrap();
                                 assert_eq!(version_data["version"], latest);
                                 println!("Version resolution is consistent for {}", latest);
                             }
@@ -222,7 +240,10 @@ mod tests {
                 }
             }
             Ok(response) => {
-                println!("Package metadata request failed with status: {}", response.status());
+                println!(
+                    "Package metadata request failed with status: {}",
+                    response.status()
+                );
             }
             Err(e) => {
                 println!("Package metadata request error: {}", e);
@@ -241,17 +262,25 @@ mod tests {
 
         // Test scoped package endpoints that all package managers use
         let scoped_endpoints = [
-            "/@types%2fnode",                    // URL-encoded scoped package
-            "/@types/node",                      // Direct scoped package
-            "/@types/node/-/node-18.15.0.tgz",  // Scoped package tarball
+            "/@types%2fnode",                  // URL-encoded scoped package
+            "/@types/node",                    // Direct scoped package
+            "/@types/node/-/node-18.15.0.tgz", // Scoped package tarball
         ];
 
         for endpoint in &scoped_endpoints {
             match client.get(endpoint).send() {
                 Ok(response) => {
-                    println!("Scoped endpoint {} returned status: {}", endpoint, response.status());
+                    println!(
+                        "Scoped endpoint {} returned status: {}",
+                        endpoint,
+                        response.status()
+                    );
                     // Should handle scoped packages properly (success or proper error)
-                    assert!(response.status().as_u16() < 500, "Scoped endpoint {} returned server error", endpoint);
+                    assert!(
+                        response.status().as_u16() < 500,
+                        "Scoped endpoint {} returned server error",
+                        endpoint
+                    );
                 }
                 Err(e) => {
                     println!("Scoped endpoint {} error: {}", endpoint, e);
@@ -280,9 +309,11 @@ mod tests {
             "date": "2025-07-18T00:00:00.000Z"
         });
 
-        let response = client.put("/-/user/org.couchdb.user:crossuser")
+        let response = client
+            .put("/-/user/org.couchdb.user:crossuser")
             .json(&npm_user_doc)
-            .send().unwrap();
+            .send()
+            .unwrap();
 
         if response.status().is_success() {
             let result: serde_json::Value = response.json().unwrap();
@@ -360,24 +391,34 @@ mod tests {
 
         // Test error handling by making HTTP requests for non-existent packages
         let error_endpoints = [
-            "/nonexistent-package-12345",                    // Non-existent package
+            "/nonexistent-package-12345", // Non-existent package
             "/nonexistent-package-12345/-/nonexistent-package-12345-1.0.0.tgz", // Non-existent tarball
-            "/@nonexistent-scope/nonexistent-package",       // Non-existent scoped package
+            "/@nonexistent-scope/nonexistent-package", // Non-existent scoped package
         ];
 
         for endpoint in &error_endpoints {
             match client.get(endpoint).send() {
                 Ok(response) => {
-                    println!("Error endpoint {} returned status: {}", endpoint, response.status());
+                    println!(
+                        "Error endpoint {} returned status: {}",
+                        endpoint,
+                        response.status()
+                    );
 
                     // Should return proper HTTP error codes (4xx or 5xx)
-                    assert!(response.status().as_u16() >= 400,
-                           "Error endpoint {} should return error status", endpoint);
+                    assert!(
+                        response.status().as_u16() >= 400,
+                        "Error endpoint {} should return error status",
+                        endpoint
+                    );
 
                     // Should not crash the server (no 5xx errors ideally, but acceptable)
                     if response.status().as_u16() >= 500 {
-                        println!("Server error for {}: {} (acceptable if upstream unavailable)",
-                                endpoint, response.status());
+                        println!(
+                            "Server error for {}: {} (acceptable if upstream unavailable)",
+                            endpoint,
+                            response.status()
+                        );
                     }
                 }
                 Err(e) => {

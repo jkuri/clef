@@ -23,11 +23,17 @@ mod tests {
                 assert!(metadata["versions"].is_object());
             }
             Ok(response) => {
-                println!("Package metadata request failed with status: {}", response.status());
+                println!(
+                    "Package metadata request failed with status: {}",
+                    response.status()
+                );
                 // Don't fail the test - this might be due to network issues
             }
             Err(e) => {
-                println!("Package metadata request failed: {}. This may be due to network issues.", e);
+                println!(
+                    "Package metadata request failed: {}. This may be due to network issues.",
+                    e
+                );
                 // Don't fail the test - this might be due to network issues
             }
         }
@@ -45,21 +51,33 @@ mod tests {
         // Test npm-style package requests (what npm would make during installation)
         match client.get("/lodash").send() {
             Ok(response) => {
-                println!("npm-style package metadata request returned: {}", response.status());
+                println!(
+                    "npm-style package metadata request returned: {}",
+                    response.status()
+                );
                 if response.status().is_success() {
                     // Test tarball download (what npm would do next)
                     match client.get("/lodash/-/lodash-4.17.21.tgz").send() {
                         Ok(tarball_response) => {
-                            println!("npm-style tarball download returned: {}", tarball_response.status());
-                            assert!(tarball_response.status().is_success() || tarball_response.status().as_u16() < 500);
+                            println!(
+                                "npm-style tarball download returned: {}",
+                                tarball_response.status()
+                            );
+                            assert!(
+                                tarball_response.status().is_success()
+                                    || tarball_response.status().as_u16() < 500
+                            );
                         }
-                        Err(e) => println!("npm-style tarball request error: {} (acceptable)", e)
+                        Err(e) => println!("npm-style tarball request error: {} (acceptable)", e),
                     }
                 } else {
-                    println!("npm-style metadata request failed: {} (acceptable)", response.status());
+                    println!(
+                        "npm-style metadata request failed: {} (acceptable)",
+                        response.status()
+                    );
                 }
             }
-            Err(e) => println!("npm-style request error: {} (acceptable)", e)
+            Err(e) => println!("npm-style request error: {} (acceptable)", e),
         }
     }
 
@@ -73,27 +91,43 @@ mod tests {
         let client = ApiClient::new(server.base_url.clone());
 
         // Test pnpm-style package requests (what pnpm would make during installation)
-        match client.get("/lodash")
+        match client
+            .get("/lodash")
             .header("User-Agent", "pnpm/7.14.0 node/v18.12.1 linux x64")
-            .send() {
+            .send()
+        {
             Ok(response) => {
-                println!("pnpm-style package metadata request returned: {}", response.status());
+                println!(
+                    "pnpm-style package metadata request returned: {}",
+                    response.status()
+                );
                 if response.status().is_success() {
                     // Test tarball download with pnpm user agent
-                    match client.get("/lodash/-/lodash-4.17.21.tgz")
+                    match client
+                        .get("/lodash/-/lodash-4.17.21.tgz")
                         .header("User-Agent", "pnpm/7.14.0 node/v18.12.1 linux x64")
-                        .send() {
+                        .send()
+                    {
                         Ok(tarball_response) => {
-                            println!("pnpm-style tarball download returned: {}", tarball_response.status());
-                            assert!(tarball_response.status().is_success() || tarball_response.status().as_u16() < 500);
+                            println!(
+                                "pnpm-style tarball download returned: {}",
+                                tarball_response.status()
+                            );
+                            assert!(
+                                tarball_response.status().is_success()
+                                    || tarball_response.status().as_u16() < 500
+                            );
                         }
-                        Err(e) => println!("pnpm-style tarball request error: {} (acceptable)", e)
+                        Err(e) => println!("pnpm-style tarball request error: {} (acceptable)", e),
                     }
                 } else {
-                    println!("pnpm-style metadata request failed: {} (acceptable)", response.status());
+                    println!(
+                        "pnpm-style metadata request failed: {} (acceptable)",
+                        response.status()
+                    );
                 }
             }
-            Err(e) => println!("pnpm-style request error: {} (acceptable)", e)
+            Err(e) => println!("pnpm-style request error: {} (acceptable)", e),
         }
     }
 
@@ -107,27 +141,43 @@ mod tests {
         let client = ApiClient::new(server.base_url.clone());
 
         // Test yarn-style package requests (what yarn would make during installation)
-        match client.get("/lodash")
+        match client
+            .get("/lodash")
             .header("User-Agent", "yarn/1.22.19 npm/? node/v18.12.1 linux x64")
-            .send() {
+            .send()
+        {
             Ok(response) => {
-                println!("yarn-style package metadata request returned: {}", response.status());
+                println!(
+                    "yarn-style package metadata request returned: {}",
+                    response.status()
+                );
                 if response.status().is_success() {
                     // Test tarball download with yarn user agent
-                    match client.get("/lodash/-/lodash-4.17.21.tgz")
+                    match client
+                        .get("/lodash/-/lodash-4.17.21.tgz")
                         .header("User-Agent", "yarn/1.22.19 npm/? node/v18.12.1 linux x64")
-                        .send() {
+                        .send()
+                    {
                         Ok(tarball_response) => {
-                            println!("yarn-style tarball download returned: {}", tarball_response.status());
-                            assert!(tarball_response.status().is_success() || tarball_response.status().as_u16() < 500);
+                            println!(
+                                "yarn-style tarball download returned: {}",
+                                tarball_response.status()
+                            );
+                            assert!(
+                                tarball_response.status().is_success()
+                                    || tarball_response.status().as_u16() < 500
+                            );
                         }
-                        Err(e) => println!("yarn-style tarball request error: {} (acceptable)", e)
+                        Err(e) => println!("yarn-style tarball request error: {} (acceptable)", e),
                     }
                 } else {
-                    println!("yarn-style metadata request failed: {} (acceptable)", response.status());
+                    println!(
+                        "yarn-style metadata request failed: {} (acceptable)",
+                        response.status()
+                    );
                 }
             }
-            Err(e) => println!("yarn-style request error: {} (acceptable)", e)
+            Err(e) => println!("yarn-style request error: {} (acceptable)", e),
         }
     }
 
@@ -148,10 +198,16 @@ mod tests {
                 assert_eq!(metadata["version"], "4.18.2");
             }
             Ok(response) => {
-                println!("Version metadata request failed with status: {}", response.status());
+                println!(
+                    "Version metadata request failed with status: {}",
+                    response.status()
+                );
             }
             Err(e) => {
-                println!("Version metadata request failed: {}. This may be due to network issues.", e);
+                println!(
+                    "Version metadata request failed: {}. This may be due to network issues.",
+                    e
+                );
             }
         }
     }
@@ -183,7 +239,10 @@ mod tests {
                 println!("Tarball download failed with status: {}", response.status());
             }
             Err(e) => {
-                println!("Tarball download failed: {}. This may be due to network issues.", e);
+                println!(
+                    "Tarball download failed: {}. This may be due to network issues.",
+                    e
+                );
             }
         }
     }
@@ -198,7 +257,11 @@ mod tests {
         // Test HEAD request for package tarball
         let client = ApiClient::new(server.base_url.clone());
 
-        match client.client.head(&format!("{}/lodash/-/lodash-4.17.21.tgz", server.base_url)).send() {
+        match client
+            .client
+            .head(&format!("{}/lodash/-/lodash-4.17.21.tgz", server.base_url))
+            .send()
+        {
             Ok(response) if response.status().is_success() => {
                 // Should have content-length header
                 assert!(response.headers().contains_key("content-length"));
@@ -207,7 +270,10 @@ mod tests {
                 println!("HEAD request failed with status: {}", response.status());
             }
             Err(e) => {
-                println!("HEAD request failed: {}. This may be due to network issues.", e);
+                println!(
+                    "HEAD request failed: {}. This may be due to network issues.",
+                    e
+                );
             }
         }
     }
@@ -228,18 +294,29 @@ mod tests {
         for package in &packages {
             match client.get(&format!("/{}", package)).send() {
                 Ok(response) => {
-                    println!("Package {} metadata request returned: {}", package, response.status());
+                    println!(
+                        "Package {} metadata request returned: {}",
+                        package,
+                        response.status()
+                    );
                     if response.status().is_success() {
                         success_count += 1;
                     }
                 }
-                Err(e) => println!("Package {} request error: {} (acceptable)", package, e)
+                Err(e) => println!("Package {} request error: {} (acceptable)", package, e),
             }
         }
 
-        println!("Multiple package test: {}/{} packages accessible", success_count, packages.len());
+        println!(
+            "Multiple package test: {}/{} packages accessible",
+            success_count,
+            packages.len()
+        );
         // At least some packages should be accessible
-        assert!(success_count > 0, "At least one package should be accessible");
+        assert!(
+            success_count > 0,
+            "At least one package should be accessible"
+        );
     }
 
     #[test]
@@ -277,7 +354,10 @@ mod tests {
         let client = ApiClient::new(server.base_url.clone());
 
         // Test requesting non-existent package
-        match client.get("/this-package-definitely-does-not-exist-12345").send() {
+        match client
+            .get("/this-package-definitely-does-not-exist-12345")
+            .send()
+        {
             Ok(response) => {
                 // Should return an error status for non-existent packages
                 // Could be 404 (not found) or 502 (bad gateway if upstream fails)
@@ -285,7 +365,10 @@ mod tests {
                 // Status is expected to be an error - no need to print it
             }
             Err(e) => {
-                println!("Invalid package request failed: {}. This may be due to network issues.", e);
+                println!(
+                    "Invalid package request failed: {}. This may be due to network issues.",
+                    e
+                );
                 // Don't fail the test - network issues are acceptable
             }
         }
@@ -307,10 +390,16 @@ mod tests {
                 assert_eq!(metadata["name"], "@types/node");
             }
             Ok(response) => {
-                println!("Scoped package request failed with status: {}", response.status());
+                println!(
+                    "Scoped package request failed with status: {}",
+                    response.status()
+                );
             }
             Err(e) => {
-                println!("Scoped package request failed: {}. This may be due to network issues.", e);
+                println!(
+                    "Scoped package request failed: {}. This may be due to network issues.",
+                    e
+                );
             }
         }
     }

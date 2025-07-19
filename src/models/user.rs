@@ -1,7 +1,7 @@
+use crate::schema::{user_tokens, users};
+use chrono::NaiveDateTime;
 use diesel::prelude::*;
 use rocket::serde::{Deserialize, Serialize};
-use chrono::NaiveDateTime;
-use crate::schema::{users, user_tokens};
 
 // User authentication models
 #[derive(Queryable, Selectable, Serialize, Deserialize, Debug, Clone)]
@@ -70,7 +70,11 @@ pub struct UpdateUserToken {
 }
 
 impl NewUser {
-    pub fn new(username: String, email: String, password: String) -> Result<Self, bcrypt::BcryptError> {
+    pub fn new(
+        username: String,
+        email: String,
+        password: String,
+    ) -> Result<Self, bcrypt::BcryptError> {
         let password_hash = bcrypt::hash(password, bcrypt::DEFAULT_COST)?;
         let now = chrono::Utc::now().naive_utc();
 

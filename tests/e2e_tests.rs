@@ -4,24 +4,24 @@ use e2e::*;
 use serial_test::serial;
 
 // Import all test modules
-#[path = "e2e/package_management.rs"]
-mod package_management;
-#[path = "e2e/authentication.rs"]
-mod authentication;
-#[path = "e2e/publishing.rs"]
-mod publishing;
-#[path = "e2e/cache_management.rs"]
-mod cache_management;
 #[path = "e2e/analytics.rs"]
 mod analytics;
-#[path = "e2e/security.rs"]
-mod security;
-#[path = "e2e/scoped_packages.rs"]
-mod scoped_packages;
+#[path = "e2e/authentication.rs"]
+mod authentication;
+#[path = "e2e/cache_management.rs"]
+mod cache_management;
 #[path = "e2e/compatibility.rs"]
 mod compatibility;
+#[path = "e2e/package_management.rs"]
+mod package_management;
 #[path = "e2e/performance.rs"]
 mod performance;
+#[path = "e2e/publishing.rs"]
+mod publishing;
+#[path = "e2e/scoped_packages.rs"]
+mod scoped_packages;
+#[path = "e2e/security.rs"]
+mod security;
 
 #[cfg(test)]
 mod tests {
@@ -38,7 +38,10 @@ mod tests {
         let client = ApiClient::new(server.base_url.clone());
         let response = client.get("/").send().unwrap();
         assert!(response.status().is_success());
-        assert_eq!(response.text().unwrap(), "PNRS - Private NPM Registry Server is running!");
+        assert_eq!(
+            response.text().unwrap(),
+            "PNRS - Private NPM Registry Server is running!"
+        );
     }
 
     #[test]
@@ -58,10 +61,17 @@ mod tests {
 
             match output {
                 Ok(output) if output.status.success() => {
-                    println!("{} version: {}", manager.command(), String::from_utf8_lossy(&output.stdout));
+                    println!(
+                        "{} version: {}",
+                        manager.command(),
+                        String::from_utf8_lossy(&output.stdout)
+                    );
                 }
                 _ => {
-                    println!("Warning: {} is not available for testing", manager.command());
+                    println!(
+                        "Warning: {} is not available for testing",
+                        manager.command()
+                    );
                 }
             }
         }

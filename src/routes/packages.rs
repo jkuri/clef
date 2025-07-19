@@ -1,11 +1,15 @@
-use rocket::serde::json::Value;
-use rocket::{get, head, State, request::{Request, FromRequest, Outcome, FromParam}, response::Responder, Response};
-use rocket::http::{Status, ContentType};
-use std::io::Cursor;
-use log;
-use crate::state::AppState;
 use crate::error::ApiError;
 use crate::services::RegistryService;
+use crate::state::AppState;
+use log;
+use rocket::http::{ContentType, Status};
+use rocket::serde::json::Value;
+use rocket::{
+    Response, State, get, head,
+    request::{FromParam, FromRequest, Outcome, Request},
+    response::Responder,
+};
+use std::io::Cursor;
 
 // Custom request guard to extract URI path
 pub struct UriPath(pub String);
@@ -31,23 +35,15 @@ pub enum PackageResponse {
 impl<'r> Responder<'r, 'static> for PackageResponse {
     fn respond_to(self, _: &'r Request<'_>) -> rocket::response::Result<'static> {
         match self {
-            PackageResponse::Json(json) => {
-                Response::build()
-                    .header(ContentType::JSON)
-                    .sized_body(json.to_string().len(), Cursor::new(json.to_string()))
-                    .ok()
-            },
-            PackageResponse::Binary(data) => {
-                Response::build()
-                    .header(ContentType::Binary)
-                    .sized_body(data.len(), Cursor::new(data))
-                    .ok()
-            },
-            PackageResponse::Empty => {
-                Response::build()
-                    .status(Status::Ok)
-                    .ok()
-            }
+            PackageResponse::Json(json) => Response::build()
+                .header(ContentType::JSON)
+                .sized_body(json.to_string().len(), Cursor::new(json.to_string()))
+                .ok(),
+            PackageResponse::Binary(data) => Response::build()
+                .header(ContentType::Binary)
+                .sized_body(data.len(), Cursor::new(data))
+                .ok(),
+            PackageResponse::Empty => Response::build().status(Status::Ok).ok(),
         }
     }
 }
@@ -82,8 +78,14 @@ fn parse_package_path(path: &str) -> Option<(String, PackageRequestType)> {
 
         match remaining {
             [] => Some((package_name, PackageRequestType::Metadata)),
-            [version] if !version.starts_with('-') => Some((package_name, PackageRequestType::Version(version.to_string()))),
-            ["-", filename] => Some((package_name, PackageRequestType::Tarball(filename.to_string()))),
+            [version] if !version.starts_with('-') => Some((
+                package_name,
+                PackageRequestType::Version(version.to_string()),
+            )),
+            ["-", filename] => Some((
+                package_name,
+                PackageRequestType::Tarball(filename.to_string()),
+            )),
             _ => None,
         }
     } else {
@@ -93,8 +95,14 @@ fn parse_package_path(path: &str) -> Option<(String, PackageRequestType)> {
 
         match remaining {
             [] => Some((package_name, PackageRequestType::Metadata)),
-            [version] if !version.starts_with('-') => Some((package_name, PackageRequestType::Version(version.to_string()))),
-            ["-", filename] => Some((package_name, PackageRequestType::Tarball(filename.to_string()))),
+            [version] if !version.starts_with('-') => Some((
+                package_name,
+                PackageRequestType::Version(version.to_string()),
+            )),
+            ["-", filename] => Some((
+                package_name,
+                PackageRequestType::Tarball(filename.to_string()),
+            )),
             _ => None,
         }
     }
@@ -107,14 +115,14 @@ enum PackageRequestType {
     Tarball(String),
 }
 
-
-
-
-
 // Specific routes for scoped packages (higher priority)
 // Route for scoped package metadata: @scope/package
 #[get("/<scope>/<package>", rank = 1)]
-pub async fn handle_scoped_package_metadata(scope: ScopedPackageName, package: &str, state: &State<AppState>) -> Result<PackageResponse, ApiError> {
+pub async fn handle_scoped_package_metadata(
+    scope: ScopedPackageName,
+    package: &str,
+    state: &State<AppState>,
+) -> Result<PackageResponse, ApiError> {
     let full_package_name = format!("{}/{}", scope.0, package);
     log::info!("Scoped package metadata request: {}", full_package_name);
     let result = RegistryService::get_package_metadata(&full_package_name, state).await?;
@@ -139,27 +147,55 @@ impl<'r> FromParam<'r> for ScopedPackageName {
 // Route for scoped package version: @scope/package/version
 // Only match when scope actually starts with @
 #[get("/<scope>/<package>/<version>", rank = 1)]
-pub async fn handle_scoped_package_version(scope: ScopedPackageName, package: &str, version: &str, state: &State<AppState>) -> Result<PackageResponse, ApiError> {
+pub async fn handle_scoped_package_version(
+    scope: ScopedPackageName,
+    package: &str,
+    version: &str,
+    state: &State<AppState>,
+) -> Result<PackageResponse, ApiError> {
     let full_package_name = format!("{}/{}", scope.0, package);
-    log::info!("Scoped package version request: {} version {}", full_package_name, version);
-    let result = RegistryService::get_package_version_metadata(&full_package_name, version, state).await?;
+    log::info!(
+        "Scoped package version request: {} version {}",
+        full_package_name,
+        version
+    );
+    let result =
+        RegistryService::get_package_version_metadata(&full_package_name, version, state).await?;
     Ok(PackageResponse::Json(result))
 }
 
 // Route for scoped package tarball: @scope/package/-/filename
 #[get("/<scope>/<package>/-/<filename>", rank = 1)]
-pub async fn handle_scoped_package_tarball(scope: ScopedPackageName, package: &str, filename: &str, state: &State<AppState>) -> Result<PackageResponse, ApiError> {
+pub async fn handle_scoped_package_tarball(
+    scope: ScopedPackageName,
+    package: &str,
+    filename: &str,
+    state: &State<AppState>,
+) -> Result<PackageResponse, ApiError> {
     let full_package_name = format!("{}/{}", scope.0, package);
-    log::info!("Scoped package tarball request: {} file {}", full_package_name, filename);
+    log::info!(
+        "Scoped package tarball request: {} file {}",
+        full_package_name,
+        filename
+    );
     let result = RegistryService::get_package_tarball(&full_package_name, filename, state).await?;
     Ok(PackageResponse::Binary(result))
 }
 
 // HEAD request for scoped package tarballs
 #[head("/<scope>/<package>/-/<filename>", rank = 1)]
-pub async fn handle_scoped_package_tarball_head(scope: ScopedPackageName, package: &str, filename: &str, state: &State<AppState>) -> Result<PackageResponse, ApiError> {
+pub async fn handle_scoped_package_tarball_head(
+    scope: ScopedPackageName,
+    package: &str,
+    filename: &str,
+    state: &State<AppState>,
+) -> Result<PackageResponse, ApiError> {
     let full_package_name = format!("{}/{}", scope.0, package);
-    log::info!("Scoped package tarball HEAD request: {} file {}", full_package_name, filename);
+    log::info!(
+        "Scoped package tarball HEAD request: {} file {}",
+        full_package_name,
+        filename
+    );
     RegistryService::head_package_tarball(&full_package_name, filename, state).await?;
     Ok(PackageResponse::Empty)
 }
@@ -167,7 +203,10 @@ pub async fn handle_scoped_package_tarball_head(scope: ScopedPackageName, packag
 // Regular package routes (lower priority)
 // Route for regular package metadata: package
 #[get("/<package>", rank = 2)]
-pub async fn handle_regular_package_metadata(package: &str, state: &State<AppState>) -> Result<PackageResponse, ApiError> {
+pub async fn handle_regular_package_metadata(
+    package: &str,
+    state: &State<AppState>,
+) -> Result<PackageResponse, ApiError> {
     log::info!("Regular package metadata handler received: '{}'", package);
 
     // Check if this is a decoded scoped package (starts with @ and contains /)
@@ -180,7 +219,9 @@ pub async fn handle_regular_package_metadata(package: &str, state: &State<AppSta
     // Skip if this looks like a regular scoped package (starts with @ but no /)
     if package.starts_with('@') {
         log::info!("Rejecting malformed scoped package: {}", package);
-        return Err(ApiError::BadRequest("Invalid scoped package format".to_string()));
+        return Err(ApiError::BadRequest(
+            "Invalid scoped package format".to_string(),
+        ));
     }
     log::info!("Regular package metadata request: {}", package);
     let result = RegistryService::get_package_metadata(package, state).await?;
@@ -189,58 +230,97 @@ pub async fn handle_regular_package_metadata(package: &str, state: &State<AppSta
 
 // Route for regular package version: package/version
 #[get("/<package>/<version>", rank = 2)]
-pub async fn handle_regular_package_version(package: &str, version: &str, state: &State<AppState>) -> Result<PackageResponse, ApiError> {
+pub async fn handle_regular_package_version(
+    package: &str,
+    version: &str,
+    state: &State<AppState>,
+) -> Result<PackageResponse, ApiError> {
     // Skip if this looks like a scoped package (starts with @)
     if package.starts_with('@') {
         return Err(ApiError::BadRequest("Use scoped package route".to_string()));
     }
-    log::info!("Regular package version request: {} version {}", package, version);
+    log::info!(
+        "Regular package version request: {} version {}",
+        package,
+        version
+    );
     let result = RegistryService::get_package_version_metadata(package, version, state).await?;
     Ok(PackageResponse::Json(result))
 }
 
 // Route for regular package tarball: package/-/filename
 #[get("/<package>/-/<filename>", rank = 2)]
-pub async fn handle_regular_package_tarball(package: &str, filename: &str, state: &State<AppState>) -> Result<PackageResponse, ApiError> {
+pub async fn handle_regular_package_tarball(
+    package: &str,
+    filename: &str,
+    state: &State<AppState>,
+) -> Result<PackageResponse, ApiError> {
     // Skip if this looks like a scoped package (starts with @)
     if package.starts_with('@') {
         return Err(ApiError::BadRequest("Use scoped package route".to_string()));
     }
-    log::info!("Regular package tarball request: {} file {}", package, filename);
+    log::info!(
+        "Regular package tarball request: {} file {}",
+        package,
+        filename
+    );
     let result = RegistryService::get_package_tarball(package, filename, state).await?;
     Ok(PackageResponse::Binary(result))
 }
 
 // HEAD request for regular package tarballs
 #[head("/<package>/-/<filename>", rank = 2)]
-pub async fn handle_regular_package_tarball_head(package: &str, filename: &str, state: &State<AppState>) -> Result<PackageResponse, ApiError> {
+pub async fn handle_regular_package_tarball_head(
+    package: &str,
+    filename: &str,
+    state: &State<AppState>,
+) -> Result<PackageResponse, ApiError> {
     // Skip if this looks like a scoped package (starts with @)
     if package.starts_with('@') {
         return Err(ApiError::BadRequest("Use scoped package route".to_string()));
     }
-    log::info!("Regular package tarball HEAD request: {} file {}", package, filename);
+    log::info!(
+        "Regular package tarball HEAD request: {} file {}",
+        package,
+        filename
+    );
     RegistryService::head_package_tarball(package, filename, state).await?;
     Ok(PackageResponse::Empty)
 }
 
 // Catch-all route for any remaining requests (lowest priority)
 #[get("/<path..>", rank = 3)]
-pub async fn handle_package_request(path: std::path::PathBuf, uri_path: UriPath, state: &State<AppState>) -> Result<PackageResponse, ApiError> {
-    log::info!("Package request received: {} (path: {})", uri_path.0, path.display());
+pub async fn handle_package_request(
+    path: std::path::PathBuf,
+    uri_path: UriPath,
+    state: &State<AppState>,
+) -> Result<PackageResponse, ApiError> {
+    log::info!(
+        "Package request received: {} (path: {})",
+        uri_path.0,
+        path.display()
+    );
 
     if let Some((package_name, request_type)) = parse_package_path(&uri_path.0) {
-        log::info!("Parsed package: {} with request type: {:?}", package_name, request_type);
+        log::info!(
+            "Parsed package: {} with request type: {:?}",
+            package_name,
+            request_type
+        );
         match request_type {
             PackageRequestType::Metadata => {
                 let result = RegistryService::get_package_metadata(&package_name, state).await?;
                 Ok(PackageResponse::Json(result))
-            },
+            }
             PackageRequestType::Version(version) => {
-                let result = RegistryService::get_package_version_metadata(&package_name, &version, state).await?;
+                let result =
+                    RegistryService::get_package_version_metadata(&package_name, &version, state)
+                        .await?;
                 Ok(PackageResponse::Json(result))
-            },
+            }
             PackageRequestType::Tarball(filename) => {
-                let result = RegistryService::get_package_tarball(&package_name, &filename, state).await?;
+                let result =
+                    RegistryService::get_package_tarball(&package_name, &filename, state).await?;
                 Ok(PackageResponse::Binary(result))
             }
         }
@@ -252,14 +332,20 @@ pub async fn handle_package_request(path: std::path::PathBuf, uri_path: UriPath,
 
 // HEAD request handler
 #[head("/<_path..>")]
-pub async fn handle_package_head_request(_path: std::path::PathBuf, uri_path: UriPath, state: &State<AppState>) -> Result<PackageResponse, ApiError> {
+pub async fn handle_package_head_request(
+    _path: std::path::PathBuf,
+    uri_path: UriPath,
+    state: &State<AppState>,
+) -> Result<PackageResponse, ApiError> {
     if let Some((package_name, request_type)) = parse_package_path(&uri_path.0) {
         match request_type {
             PackageRequestType::Tarball(filename) => {
                 RegistryService::head_package_tarball(&package_name, &filename, state).await?;
                 Ok(PackageResponse::Empty)
-            },
-            _ => Err(ApiError::BadRequest("HEAD only supported for tarballs".to_string()))
+            }
+            _ => Err(ApiError::BadRequest(
+                "HEAD only supported for tarballs".to_string(),
+            )),
         }
     } else {
         Err(ApiError::BadRequest("Invalid package path".to_string()))

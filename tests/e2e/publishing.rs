@@ -1,7 +1,7 @@
 use super::*;
-use serial_test::serial;
-use serde_json::json;
 use base64::prelude::*;
+use serde_json::json;
+use serial_test::serial;
 
 #[cfg(test)]
 mod tests {
@@ -24,9 +24,11 @@ mod tests {
             "date": "2025-07-18T00:00:00.000Z"
         });
 
-        let response = client.put("/-/user/org.couchdb.user:publisher")
+        let response = client
+            .put("/-/user/org.couchdb.user:publisher")
             .json(&npm_user_doc)
-            .send().ok()?;
+            .send()
+            .ok()?;
 
         if response.status().is_success() {
             let result: serde_json::Value = response.json().ok()?;
@@ -82,9 +84,11 @@ mod tests {
                 }
             });
 
-            let response = client.put("/test-package")
+            let response = client
+                .put("/test-package")
                 .json(&publish_request)
-                .send().unwrap();
+                .send()
+                .unwrap();
 
             if response.status().is_success() {
                 let result: serde_json::Value = response.json().unwrap();
@@ -124,9 +128,11 @@ mod tests {
             }
         });
 
-        let response = client.put("/unauthorized-package")
+        let response = client
+            .put("/unauthorized-package")
             .json(&publish_request)
-            .send().unwrap();
+            .send()
+            .unwrap();
 
         // Should fail without authentication
         assert!(!response.status().is_success());
@@ -175,9 +181,11 @@ mod tests {
                 }
             });
 
-            let response = client.put("/@testscope/scoped-package")
+            let response = client
+                .put("/@testscope/scoped-package")
                 .json(&publish_request)
-                .send().unwrap();
+                .send()
+                .unwrap();
 
             if response.status().is_success() {
                 let result: serde_json::Value = response.json().unwrap();
@@ -226,9 +234,11 @@ mod tests {
                 }
             });
 
-            let response_v1 = client.put("/versioned-package")
+            let response_v1 = client
+                .put("/versioned-package")
                 .json(&publish_request_v1)
-                .send().unwrap();
+                .send()
+                .unwrap();
 
             if response_v1.status().is_success() {
                 // Then publish version 1.1.0
@@ -266,9 +276,11 @@ mod tests {
                     }
                 });
 
-                let response_v2 = client.put("/versioned-package")
+                let response_v2 = client
+                    .put("/versioned-package")
                     .json(&publish_request_v2)
-                    .send().unwrap();
+                    .send()
+                    .unwrap();
 
                 if response_v2.status().is_success() {
                     let result: serde_json::Value = response_v2.json().unwrap();
@@ -312,9 +324,11 @@ mod tests {
                 }
             });
 
-            let response = client.put("/Invalid%20Package%20Name!")
+            let response = client
+                .put("/Invalid%20Package%20Name!")
                 .json(&publish_request)
-                .send().unwrap();
+                .send()
+                .unwrap();
 
             // Should fail with invalid package name
             assert!(!response.status().is_success());
@@ -346,9 +360,11 @@ mod tests {
                 // Missing _attachments field
             });
 
-            let response = client.put("/no-attachments-package")
+            let response = client
+                .put("/no-attachments-package")
                 .json(&publish_request)
-                .send().unwrap();
+                .send()
+                .unwrap();
 
             // Should fail without attachments
             assert!(!response.status().is_success());
@@ -375,9 +391,11 @@ mod tests {
             "date": "2025-07-18T00:00:00.000Z"
         });
 
-        let response1 = client1.put("/-/user/org.couchdb.user:owner1")
+        let response1 = client1
+            .put("/-/user/org.couchdb.user:owner1")
             .json(&npm_user_doc1)
-            .send().unwrap();
+            .send()
+            .unwrap();
 
         if response1.status().is_success() {
             let result1: serde_json::Value = response1.json().unwrap();
@@ -394,9 +412,11 @@ mod tests {
                 "date": "2025-07-18T00:00:00.000Z"
             });
 
-            let response2 = client2.put("/-/user/org.couchdb.user:owner2")
+            let response2 = client2
+                .put("/-/user/org.couchdb.user:owner2")
                 .json(&npm_user_doc2)
-                .send().unwrap();
+                .send()
+                .unwrap();
 
             if response2.status().is_success() {
                 let result2: serde_json::Value = response2.json().unwrap();
@@ -424,15 +444,19 @@ mod tests {
                     }
                 });
 
-                let publish_response = client1.put("/ownership-test-package")
+                let publish_response = client1
+                    .put("/ownership-test-package")
                     .json(&publish_request)
-                    .send().unwrap();
+                    .send()
+                    .unwrap();
 
                 if publish_response.status().is_success() {
                     // Second user tries to publish to the same package (should fail)
-                    let unauthorized_response = client2.put("/ownership-test-package")
+                    let unauthorized_response = client2
+                        .put("/ownership-test-package")
                         .json(&publish_request)
-                        .send().unwrap();
+                        .send()
+                        .unwrap();
 
                     assert!(!unauthorized_response.status().is_success());
                 }

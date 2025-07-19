@@ -1,6 +1,6 @@
 use super::*;
-use serial_test::serial;
 use serde_json::json;
+use serial_test::serial;
 
 #[cfg(test)]
 mod tests {
@@ -50,11 +50,16 @@ mod tests {
         let advisories_request = create_security_advisories_request();
 
         // Use a timeout and handle errors gracefully
-        match client.post("/-/npm/v1/security/advisories/bulk")
+        match client
+            .post("/-/npm/v1/security/advisories/bulk")
             .json(&advisories_request)
-            .send() {
+            .send()
+        {
             Ok(response) => {
-                println!("Security advisories endpoint returned status: {}", response.status());
+                println!(
+                    "Security advisories endpoint returned status: {}",
+                    response.status()
+                );
                 // Should not crash the server (accept any response)
                 if response.status().is_success() {
                     match response.json::<serde_json::Value>() {
@@ -62,10 +67,13 @@ mod tests {
                             println!("Security advisories response received");
                             assert!(result.is_object() || result.is_array());
                         }
-                        Err(_) => println!("Response not JSON (acceptable)")
+                        Err(_) => println!("Response not JSON (acceptable)"),
                     }
                 } else {
-                    println!("Security advisories request failed: {} (acceptable)", response.status());
+                    println!(
+                        "Security advisories request failed: {} (acceptable)",
+                        response.status()
+                    );
                 }
             }
             Err(e) => {
@@ -86,11 +94,16 @@ mod tests {
         // Test main security audits endpoint (used by pnpm) with minimal request
         let audit_request = json!({"name": "test", "version": "1.0.0"});
 
-        match client.post("/-/npm/v1/security/audits")
+        match client
+            .post("/-/npm/v1/security/audits")
             .json(&audit_request)
-            .send() {
+            .send()
+        {
             Ok(response) => {
-                println!("Security audits endpoint returned status: {}", response.status());
+                println!(
+                    "Security audits endpoint returned status: {}",
+                    response.status()
+                );
                 // Should not crash the server
                 if response.status().is_success() {
                     match response.json::<serde_json::Value>() {
@@ -98,10 +111,13 @@ mod tests {
                             println!("Security audits response received");
                             assert!(result.is_object());
                         }
-                        Err(_) => println!("Response not JSON (acceptable)")
+                        Err(_) => println!("Response not JSON (acceptable)"),
                     }
                 } else {
-                    println!("Security audits request failed: {} (acceptable)", response.status());
+                    println!(
+                        "Security audits request failed: {} (acceptable)",
+                        response.status()
+                    );
                 }
             }
             Err(e) => {
@@ -122,11 +138,16 @@ mod tests {
         // Test security audits quick endpoint with minimal request
         let audit_request = json!({"name": "test", "version": "1.0.0"});
 
-        match client.post("/-/npm/v1/security/audits/quick")
+        match client
+            .post("/-/npm/v1/security/audits/quick")
             .json(&audit_request)
-            .send() {
+            .send()
+        {
             Ok(response) => {
-                println!("Security audits quick endpoint returned status: {}", response.status());
+                println!(
+                    "Security audits quick endpoint returned status: {}",
+                    response.status()
+                );
                 // Should not crash the server
                 if response.status().is_success() {
                     match response.json::<serde_json::Value>() {
@@ -134,10 +155,13 @@ mod tests {
                             println!("Security audits quick response received");
                             assert!(result.is_object());
                         }
-                        Err(_) => println!("Response not JSON (acceptable)")
+                        Err(_) => println!("Response not JSON (acceptable)"),
                     }
                 } else {
-                    println!("Security audits quick request failed: {} (acceptable)", response.status());
+                    println!(
+                        "Security audits quick request failed: {} (acceptable)",
+                        response.status()
+                    );
                 }
             }
             Err(e) => {
@@ -160,16 +184,34 @@ mod tests {
         project.add_dependency("express", "^4.18.2");
 
         // First install dependencies to create package-lock.json
-        let install_output = project.run_command(&PackageManager::Npm, &PackageManager::Npm.install_args().iter().map(|s| s.to_string()).collect::<Vec<_>>());
+        let install_output = project.run_command(
+            &PackageManager::Npm,
+            &PackageManager::Npm
+                .install_args()
+                .iter()
+                .map(|s| s.to_string())
+                .collect::<Vec<_>>(),
+        );
 
         if install_output.status.success() {
             // Now try running npm audit (should work since we have a lockfile)
-            let audit_output = project.run_command(&PackageManager::Npm, &PackageManager::Npm.audit_args().iter().map(|s| s.to_string()).collect::<Vec<_>>());
+            let audit_output = project.run_command(
+                &PackageManager::Npm,
+                &PackageManager::Npm
+                    .audit_args()
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect::<Vec<_>>(),
+            );
 
             if audit_output.status.success() {
                 let stdout = String::from_utf8_lossy(&audit_output.stdout);
                 // Should contain audit information or indicate no vulnerabilities
-                assert!(stdout.contains("audit") || stdout.contains("vulnerabilities") || stdout.contains("found"));
+                assert!(
+                    stdout.contains("audit")
+                        || stdout.contains("vulnerabilities")
+                        || stdout.contains("found")
+                );
             } else {
                 // npm audit failed - might be due to network issues or upstream problems
                 // This is acceptable since we mainly test that our server handles the requests
@@ -192,10 +234,12 @@ mod tests {
         // Test that pnpm audit endpoint works by making HTTP request with pnpm user agent
         let audit_request = json!({"name": "test", "version": "1.0.0"});
 
-        match client.post("/-/npm/v1/security/audits")
+        match client
+            .post("/-/npm/v1/security/audits")
             .header("User-Agent", "pnpm/7.14.0 node/v18.12.1 linux x64")
             .json(&audit_request)
-            .send() {
+            .send()
+        {
             Ok(response) => {
                 println!("pnpm audit endpoint returned status: {}", response.status());
                 // Should handle pnpm requests without crashing
@@ -205,10 +249,13 @@ mod tests {
                             println!("pnpm audit response received");
                             assert!(result.is_object());
                         }
-                        Err(_) => println!("Response not JSON (acceptable)")
+                        Err(_) => println!("Response not JSON (acceptable)"),
                     }
                 } else {
-                    println!("pnpm audit request failed: {} (acceptable)", response.status());
+                    println!(
+                        "pnpm audit request failed: {} (acceptable)",
+                        response.status()
+                    );
                 }
             }
             Err(e) => {
@@ -231,16 +278,34 @@ mod tests {
         project.add_dependency("express", "^4.18.2");
 
         // First install dependencies to create yarn.lock
-        let install_output = project.run_command(&PackageManager::Yarn, &PackageManager::Yarn.install_args().iter().map(|s| s.to_string()).collect::<Vec<_>>());
+        let install_output = project.run_command(
+            &PackageManager::Yarn,
+            &PackageManager::Yarn
+                .install_args()
+                .iter()
+                .map(|s| s.to_string())
+                .collect::<Vec<_>>(),
+        );
 
         if install_output.status.success() {
             // Now try running yarn audit (should work since we have a lockfile)
-            let audit_output = project.run_command(&PackageManager::Yarn, &PackageManager::Yarn.audit_args().iter().map(|s| s.to_string()).collect::<Vec<_>>());
+            let audit_output = project.run_command(
+                &PackageManager::Yarn,
+                &PackageManager::Yarn
+                    .audit_args()
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect::<Vec<_>>(),
+            );
 
             if audit_output.status.success() {
                 let stdout = String::from_utf8_lossy(&audit_output.stdout);
                 // Should contain audit information
-                assert!(stdout.contains("audit") || stdout.contains("vulnerabilities") || stdout.len() > 0);
+                assert!(
+                    stdout.contains("audit")
+                        || stdout.contains("vulnerabilities")
+                        || stdout.len() > 0
+                );
             } else {
                 // yarn audit failed - might be due to network issues or upstream problems
                 // This is acceptable since we mainly test that our server handles the requests
@@ -261,10 +326,12 @@ mod tests {
         let client = ApiClient::new(server.base_url.clone());
 
         // Test with malformed JSON
-        let response = client.post("/-/npm/v1/security/advisories/bulk")
+        let response = client
+            .post("/-/npm/v1/security/advisories/bulk")
             .header("Content-Type", "application/json")
             .body("invalid json")
-            .send().unwrap();
+            .send()
+            .unwrap();
 
         // Should handle malformed requests gracefully
         if response.status().is_success() {
@@ -294,7 +361,7 @@ mod tests {
                 json!({
                     "version": "1.0.0",
                     "requires": {}
-                })
+                }),
             );
         }
 
@@ -304,9 +371,11 @@ mod tests {
             "dependencies": large_dependencies
         });
 
-        let response = client.post("/-/npm/v1/security/audits/quick")
+        let response = client
+            .post("/-/npm/v1/security/audits/quick")
             .json(&large_request)
-            .send().unwrap();
+            .send()
+            .unwrap();
 
         // Should handle large requests without crashing
         if response.status().is_success() {
@@ -330,9 +399,11 @@ mod tests {
         // Test with empty request
         let empty_request = json!({});
 
-        match client.post("/-/npm/v1/security/advisories/bulk")
+        match client
+            .post("/-/npm/v1/security/advisories/bulk")
             .json(&empty_request)
-            .send() {
+            .send()
+        {
             Ok(response) => {
                 println!("Empty request returned status: {}", response.status());
                 // Should handle empty requests without crashing
@@ -356,12 +427,17 @@ mod tests {
         // Test that our server properly handles different content encodings
         let audit_request = json!({"name": "test", "version": "1.0.0"});
 
-        match client.post("/-/npm/v1/security/audits/quick")
+        match client
+            .post("/-/npm/v1/security/audits/quick")
             .header("Content-Encoding", "gzip")
             .json(&audit_request)
-            .send() {
+            .send()
+        {
             Ok(response) => {
-                println!("Content-Encoding test returned status: {}", response.status());
+                println!(
+                    "Content-Encoding test returned status: {}",
+                    response.status()
+                );
                 // Should handle the request regardless of content encoding
                 assert!(response.status().as_u16() < 500 || response.status().as_u16() == 502);
             }
@@ -384,16 +460,18 @@ mod tests {
         let user_agents = [
             "npm/8.19.2 node/v18.12.1 linux x64 workspaces/false",
             "pnpm/7.14.0 node/v18.12.1 linux x64",
-            "yarn/1.22.19 npm/? node/v18.12.1 linux x64"
+            "yarn/1.22.19 npm/? node/v18.12.1 linux x64",
         ];
 
         let audit_request = create_security_audit_request();
 
         for user_agent in &user_agents {
-            let response = client.post("/-/npm/v1/security/audits/quick")
+            let response = client
+                .post("/-/npm/v1/security/audits/quick")
                 .header("User-Agent", *user_agent)
                 .json(&audit_request)
-                .send().unwrap();
+                .send()
+                .unwrap();
 
             // Should handle requests from different package managers
             if response.status().is_success() {
@@ -413,16 +491,19 @@ mod tests {
         let audit_request = json!({"name": "test", "version": "1.0.0"});
 
         // Simulate concurrent security audit requests
-        let handles: Vec<_> = (0..5).map(|_| {
-            let base_url = server.base_url.clone();
-            let request = audit_request.clone();
-            std::thread::spawn(move || {
-                let client = ApiClient::new(base_url);
-                client.post("/-/npm/v1/security/audits/quick")
-                    .json(&request)
-                    .send()
+        let handles: Vec<_> = (0..5)
+            .map(|_| {
+                let base_url = server.base_url.clone();
+                let request = audit_request.clone();
+                std::thread::spawn(move || {
+                    let client = ApiClient::new(base_url);
+                    client
+                        .post("/-/npm/v1/security/audits/quick")
+                        .json(&request)
+                        .send()
+                })
             })
-        }).collect();
+            .collect();
 
         // Wait for all requests to complete
         let mut success_count = 0;
@@ -437,8 +518,14 @@ mod tests {
         }
 
         // Should handle concurrent requests without server errors
-        println!("Concurrent security requests: {}/{} handled gracefully", success_count, total_count);
-        assert!(success_count > 0, "At least some concurrent requests should be handled");
+        println!(
+            "Concurrent security requests: {}/{} handled gracefully",
+            success_count, total_count
+        );
+        assert!(
+            success_count > 0,
+            "At least some concurrent requests should be handled"
+        );
     }
 
     #[test]
@@ -453,21 +540,29 @@ mod tests {
         // Test that security endpoints provide fallback responses when upstream fails
         let audit_request = json!({"name": "test", "version": "1.0.0"});
 
-        match client.post("/-/npm/v1/security/audits/quick")
+        match client
+            .post("/-/npm/v1/security/audits/quick")
             .json(&audit_request)
-            .send() {
+            .send()
+        {
             Ok(response) => {
-                println!("Security fallback test returned status: {}", response.status());
+                println!(
+                    "Security fallback test returned status: {}",
+                    response.status()
+                );
                 if response.status().is_success() {
                     match response.json::<serde_json::Value>() {
                         Ok(result) => {
                             println!("Security fallback response received");
                             assert!(result.is_object());
                         }
-                        Err(_) => println!("Response not JSON (acceptable)")
+                        Err(_) => println!("Response not JSON (acceptable)"),
                     }
                 } else {
-                    println!("Security fallback request failed: {} (acceptable)", response.status());
+                    println!(
+                        "Security fallback request failed: {} (acceptable)",
+                        response.status()
+                    );
                 }
             }
             Err(e) => {

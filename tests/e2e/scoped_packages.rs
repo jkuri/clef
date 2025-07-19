@@ -54,7 +54,10 @@ mod tests {
         let client = ApiClient::new(server.base_url.clone());
 
         // Test downloading scoped package tarball
-        let response = client.get("/@types/node/-/node-18.11.9.tgz").send().unwrap();
+        let response = client
+            .get("/@types/node/-/node-18.11.9.tgz")
+            .send()
+            .unwrap();
 
         if response.status().is_success() {
             let content = response.bytes().unwrap();
@@ -75,9 +78,14 @@ mod tests {
         let client = ApiClient::new(server.base_url.clone());
 
         // Test HEAD request for scoped package tarball
-        let response = client.client
-            .head(&format!("{}/@types/node/-/node-18.11.9.tgz", server.base_url))
-            .send().unwrap();
+        let response = client
+            .client
+            .head(&format!(
+                "{}/@types/node/-/node-18.11.9.tgz",
+                server.base_url
+            ))
+            .send()
+            .unwrap();
 
         if response.status().is_success() {
             assert!(response.headers().contains_key("content-length"));
@@ -96,21 +104,35 @@ mod tests {
         // Test npm-style scoped package requests (what npm would make during installation)
         match client.get("/@types/node").send() {
             Ok(response) => {
-                println!("npm-style scoped package metadata request returned: {}", response.status());
+                println!(
+                    "npm-style scoped package metadata request returned: {}",
+                    response.status()
+                );
                 if response.status().is_success() {
                     // Test tarball download for scoped package
                     match client.get("/@types/node/-/node-18.15.0.tgz").send() {
                         Ok(tarball_response) => {
-                            println!("npm-style scoped tarball download returned: {}", tarball_response.status());
-                            assert!(tarball_response.status().is_success() || tarball_response.status().as_u16() < 500);
+                            println!(
+                                "npm-style scoped tarball download returned: {}",
+                                tarball_response.status()
+                            );
+                            assert!(
+                                tarball_response.status().is_success()
+                                    || tarball_response.status().as_u16() < 500
+                            );
                         }
-                        Err(e) => println!("npm-style scoped tarball request error: {} (acceptable)", e)
+                        Err(e) => {
+                            println!("npm-style scoped tarball request error: {} (acceptable)", e)
+                        }
                     }
                 } else {
-                    println!("npm-style scoped metadata request failed: {} (acceptable)", response.status());
+                    println!(
+                        "npm-style scoped metadata request failed: {} (acceptable)",
+                        response.status()
+                    );
                 }
             }
-            Err(e) => println!("npm-style scoped request error: {} (acceptable)", e)
+            Err(e) => println!("npm-style scoped request error: {} (acceptable)", e),
         }
     }
 
@@ -124,7 +146,10 @@ mod tests {
         let project = TestProject::new(&server.base_url);
 
         // Test installing scoped package with pnpm
-        let output = project.run_command(&PackageManager::Pnpm, &PackageManager::Pnpm.add_args("@types/express"));
+        let output = project.run_command(
+            &PackageManager::Pnpm,
+            &PackageManager::Pnpm.add_args("@types/express"),
+        );
 
         if output.status.success() {
             let node_modules = project.path().join("node_modules");
@@ -136,7 +161,10 @@ mod tests {
             let package_json_content = fs::read_to_string(&project.package_json_path).unwrap();
             assert!(package_json_content.contains("@types/express"));
         } else {
-            println!("pnpm add @types/express failed: {}", String::from_utf8_lossy(&output.stderr));
+            println!(
+                "pnpm add @types/express failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
         }
     }
 
@@ -150,7 +178,10 @@ mod tests {
         let project = TestProject::new(&server.base_url);
 
         // Test installing scoped package with yarn
-        let output = project.run_command(&PackageManager::Yarn, &PackageManager::Yarn.add_args("@types/react"));
+        let output = project.run_command(
+            &PackageManager::Yarn,
+            &PackageManager::Yarn.add_args("@types/react"),
+        );
 
         if output.status.success() {
             let node_modules = project.path().join("node_modules");
@@ -162,7 +193,10 @@ mod tests {
             let package_json_content = fs::read_to_string(&project.package_json_path).unwrap();
             assert!(package_json_content.contains("@types/react"));
         } else {
-            println!("yarn add @types/react failed: {}", String::from_utf8_lossy(&output.stderr));
+            println!(
+                "yarn add @types/react failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
         }
     }
 
@@ -199,7 +233,14 @@ mod tests {
         project.add_dependency("@babel/core", "^7.20.0");
 
         // Test installing all dependencies
-        let output = project.run_command(&PackageManager::Npm, &PackageManager::Npm.install_args().iter().map(|s| s.to_string()).collect::<Vec<_>>());
+        let output = project.run_command(
+            &PackageManager::Npm,
+            &PackageManager::Npm
+                .install_args()
+                .iter()
+                .map(|s| s.to_string())
+                .collect::<Vec<_>>(),
+        );
 
         if output.status.success() {
             let node_modules = project.path().join("node_modules");
@@ -214,7 +255,10 @@ mod tests {
             assert!(node_modules.join("@babel").exists());
             assert!(node_modules.join("@babel").join("core").exists());
         } else {
-            println!("npm install failed: {}", String::from_utf8_lossy(&output.stderr));
+            println!(
+                "npm install failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
         }
     }
 
@@ -228,12 +272,7 @@ mod tests {
         let client = ApiClient::new(server.base_url.clone());
 
         // Test scoped packages with various special characters in names - use fewer packages for speed
-        let scoped_packages = [
-            "@babel/core",
-            "@types/node",
-            "@angular/core",
-            "@vue/cli"
-        ];
+        let scoped_packages = ["@babel/core", "@types/node", "@angular/core", "@vue/cli"];
 
         let mut success_count = 0;
         for package in &scoped_packages {
@@ -248,7 +287,7 @@ mod tests {
                                     println!("Successfully fetched scoped package: {}", package);
                                 }
                             }
-                            Err(_) => println!("Response not JSON for {} (acceptable)", package)
+                            Err(_) => println!("Response not JSON for {} (acceptable)", package),
                         }
                     }
                 }
@@ -259,7 +298,11 @@ mod tests {
         }
 
         // At least some scoped packages should be accessible
-        println!("Scoped packages test: {}/{} packages accessible", success_count, scoped_packages.len());
+        println!(
+            "Scoped packages test: {}/{} packages accessible",
+            success_count,
+            scoped_packages.len()
+        );
     }
 
     #[test]
@@ -300,18 +343,25 @@ mod tests {
                         // Just verify the endpoint works, don't assert specific content
                         assert!(packages.is_object() || packages.is_array());
                     }
-                    Err(_) => println!("Analytics response not JSON (acceptable)")
+                    Err(_) => println!("Analytics response not JSON (acceptable)"),
                 }
             }
             Ok(response) => {
-                println!("Analytics endpoint returned: {} (acceptable)", response.status());
+                println!(
+                    "Analytics endpoint returned: {} (acceptable)",
+                    response.status()
+                );
             }
             Err(e) => {
                 println!("Analytics endpoint error: {} (acceptable)", e);
             }
         }
 
-        println!("Scoped package analytics test: {}/{} requests processed", request_count, scoped_packages.len());
+        println!(
+            "Scoped package analytics test: {}/{} requests processed",
+            request_count,
+            scoped_packages.len()
+        );
     }
 
     #[test]
@@ -328,11 +378,17 @@ mod tests {
         std::thread::sleep(std::time::Duration::from_millis(100));
 
         // First request to scoped package - should be cache miss
-        let response1 = client.get("/@types/node/-/node-18.11.9.tgz").send().unwrap();
+        let response1 = client
+            .get("/@types/node/-/node-18.11.9.tgz")
+            .send()
+            .unwrap();
 
         if response1.status().is_success() {
             // Second request - should be cache hit
-            let response2 = client.get("/@types/node/-/node-18.11.9.tgz").send().unwrap();
+            let response2 = client
+                .get("/@types/node/-/node-18.11.9.tgz")
+                .send()
+                .unwrap();
             assert!(response2.status().is_success());
 
             // Check cache stats
@@ -356,8 +412,7 @@ mod tests {
         // Configure scoped package registry in .npmrc
         let npmrc_content = format!(
             "registry={}\n@testscope:registry={}\n",
-            server.base_url,
-            server.base_url
+            server.base_url, server.base_url
         );
         fs::write(&project.npmrc_path, npmrc_content).unwrap();
 
@@ -379,7 +434,10 @@ mod tests {
         // Test version resolution for scoped packages with faster approach
         match client.get("/@types/node").send() {
             Ok(response) => {
-                println!("Scoped package version resolution returned: {}", response.status());
+                println!(
+                    "Scoped package version resolution returned: {}",
+                    response.status()
+                );
                 if response.status().is_success() {
                     match response.json::<serde_json::Value>() {
                         Ok(metadata) => {
@@ -393,19 +451,30 @@ mod tests {
                                 // Check just the latest version for structure validation
                                 if let Some(latest) = metadata["dist-tags"]["latest"].as_str() {
                                     if let Some(latest_version) = versions.get(latest) {
-                                        assert!(latest_version["name"].as_str().unwrap() == "@types/node");
-                                        assert!(latest_version["version"].as_str().unwrap() == latest);
+                                        assert!(
+                                            latest_version["name"].as_str().unwrap()
+                                                == "@types/node"
+                                        );
+                                        assert!(
+                                            latest_version["version"].as_str().unwrap() == latest
+                                        );
                                     }
                                 }
                             }
                         }
-                        Err(_) => println!("Response not JSON (acceptable)")
+                        Err(_) => println!("Response not JSON (acceptable)"),
                     }
                 } else {
-                    println!("Scoped package version resolution failed: {} (acceptable)", response.status());
+                    println!(
+                        "Scoped package version resolution failed: {} (acceptable)",
+                        response.status()
+                    );
                 }
             }
-            Err(e) => println!("Scoped package version resolution error: {} (acceptable)", e)
+            Err(e) => println!(
+                "Scoped package version resolution error: {} (acceptable)",
+                e
+            ),
         }
     }
 
@@ -425,31 +494,47 @@ mod tests {
             "@scope",
             "@scope/",
             "@@scope/package",
-            "@scope//package"
+            "@scope//package",
         ];
 
         let mut processed_count = 0;
         for invalid_name in &invalid_names {
             // Use a timeout to prevent hanging on problematic names
-            match client.get(&format!("/{}", invalid_name))
+            match client
+                .get(&format!("/{}", invalid_name))
                 .timeout(std::time::Duration::from_secs(5))
-                .send() {
+                .send()
+            {
                 Ok(response) => {
-                    println!("Invalid name '{}' returned status: {}", invalid_name, response.status());
+                    println!(
+                        "Invalid name '{}' returned status: {}",
+                        invalid_name,
+                        response.status()
+                    );
                     processed_count += 1;
                     // Server should handle invalid names gracefully - any response is acceptable
                     assert!(response.status().as_u16() >= 400 || response.status().as_u16() < 600);
                 }
                 Err(e) => {
-                    println!("Request for invalid name '{}' failed: {} (acceptable)", invalid_name, e);
+                    println!(
+                        "Request for invalid name '{}' failed: {} (acceptable)",
+                        invalid_name, e
+                    );
                     processed_count += 1;
                     // Timeouts and network errors are acceptable for invalid names
                 }
             }
         }
 
-        println!("Invalid names test: {}/{} names processed", processed_count, invalid_names.len());
-        assert!(processed_count > 0, "At least some invalid names should be processed");
+        println!(
+            "Invalid names test: {}/{} names processed",
+            processed_count,
+            invalid_names.len()
+        );
+        assert!(
+            processed_count > 0,
+            "At least some invalid names should be processed"
+        );
     }
 
     #[test]
@@ -470,23 +555,39 @@ mod tests {
 
         let mut success_count = 0;
         for (manager, user_agent) in &user_agents {
-            match client.get("/@types/node")
+            match client
+                .get("/@types/node")
                 .header("User-Agent", *user_agent)
-                .send() {
+                .send()
+            {
                 Ok(response) => {
-                    println!("Scoped package with {} user agent returned: {}", manager, response.status());
+                    println!(
+                        "Scoped package with {} user agent returned: {}",
+                        manager,
+                        response.status()
+                    );
                     if response.status().is_success() {
                         success_count += 1;
                     }
                 }
                 Err(e) => {
-                    println!("Scoped package request with {} failed: {} (acceptable)", manager, e);
+                    println!(
+                        "Scoped package request with {} failed: {} (acceptable)",
+                        manager, e
+                    );
                 }
             }
         }
 
-        println!("Cross-manager compatibility: {}/{} managers handled scoped packages", success_count, user_agents.len());
+        println!(
+            "Cross-manager compatibility: {}/{} managers handled scoped packages",
+            success_count,
+            user_agents.len()
+        );
         // At least some managers should handle scoped packages
-        assert!(success_count > 0, "At least one package manager should handle scoped packages");
+        assert!(
+            success_count > 0,
+            "At least one package manager should handle scoped packages"
+        );
     }
 }

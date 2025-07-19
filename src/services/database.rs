@@ -1,12 +1,12 @@
+use chrono::Utc;
 use diesel::prelude::*;
-use diesel::sqlite::SqliteConnection;
 use diesel::r2d2::{ConnectionManager, Pool};
-use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
+use diesel::sqlite::SqliteConnection;
+use diesel_migrations::{EmbeddedMigrations, MigrationHarness, embed_migrations};
 use log::info;
 use std::path::Path;
-use chrono::Utc;
 
-use crate::models::{Package, NewPackage, UpdatePackage, PopularPackage, PackageVersions};
+use crate::models::{NewPackage, Package, PackageVersions, PopularPackage, UpdatePackage};
 use crate::schema::packages;
 
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
@@ -27,9 +27,7 @@ impl DatabaseService {
         }
 
         let manager = ConnectionManager::<SqliteConnection>::new(database_url);
-        let pool = Pool::builder()
-            .max_size(10)
-            .build(manager)?;
+        let pool = Pool::builder().max_size(10).build(manager)?;
 
         // Run migrations
         let mut conn = pool.get()?;
@@ -42,18 +40,26 @@ impl DatabaseService {
     }
 
     pub fn get_connection(&self) -> Result<DbConnection, Box<dyn std::error::Error>> {
-        self.pool.get().map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
+        self.pool
+            .get()
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
     }
 
-    pub fn insert_package(&self, new_package: NewPackage) -> Result<Package, diesel::result::Error> {
-        let mut conn = self.get_connection()
-            .map_err(|e| diesel::result::Error::DatabaseError(
+    pub fn insert_package(
+        &self,
+        new_package: NewPackage,
+    ) -> Result<Package, diesel::result::Error> {
+        let mut conn = self.get_connection().map_err(|e| {
+            diesel::result::Error::DatabaseError(
                 diesel::result::DatabaseErrorKind::UnableToSendCommand,
-                Box::new(e.to_string())
-            ))?;
+                Box::new(e.to_string()),
+            )
+        })?;
 
         // Check if package already exists
-        if let Some(existing_package) = self.get_package(&new_package.name, &new_package.filename)? {
+        if let Some(existing_package) =
+            self.get_package(&new_package.name, &new_package.filename)?
+        {
             // Package already exists, update access info and return it
             self.update_access_info(existing_package.id)?;
             return Ok(existing_package);
@@ -72,12 +78,16 @@ impl DatabaseService {
     }
 
     /// Insert or update package using SQLite's INSERT OR REPLACE
-    pub fn upsert_package(&self, new_package: NewPackage) -> Result<Package, diesel::result::Error> {
-        let mut conn = self.get_connection()
-            .map_err(|e| diesel::result::Error::DatabaseError(
+    pub fn upsert_package(
+        &self,
+        new_package: NewPackage,
+    ) -> Result<Package, diesel::result::Error> {
+        let mut conn = self.get_connection().map_err(|e| {
+            diesel::result::Error::DatabaseError(
                 diesel::result::DatabaseErrorKind::UnableToSendCommand,
-                Box::new(e.to_string())
-            ))?;
+                Box::new(e.to_string()),
+            )
+        })?;
 
         // Use raw SQL for INSERT OR REPLACE to handle unique constraint gracefully
         diesel::sql_query(
@@ -85,7 +95,7 @@ impl DatabaseService {
                 name, version, filename, size_bytes, etag, content_type,
                 upstream_url, file_path, created_at, last_accessed, access_count,
                 author_id, description, package_json, is_private
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind::<diesel::sql_types::Text, _>(&new_package.name)
         .bind::<diesel::sql_types::Text, _>(&new_package.version)
@@ -111,12 +121,17 @@ impl DatabaseService {
             .first::<Package>(&mut conn)
     }
 
-    pub fn get_package(&self, name: &str, filename: &str) -> Result<Option<Package>, diesel::result::Error> {
-        let mut conn = self.get_connection()
-            .map_err(|e| diesel::result::Error::DatabaseError(
+    pub fn get_package(
+        &self,
+        name: &str,
+        filename: &str,
+    ) -> Result<Option<Package>, diesel::result::Error> {
+        let mut conn = self.get_connection().map_err(|e| {
+            diesel::result::Error::DatabaseError(
                 diesel::result::DatabaseErrorKind::UnableToSendCommand,
-                Box::new(e.to_string())
-            ))?;
+                Box::new(e.to_string()),
+            )
+        })?;
 
         packages::table
             .filter(packages::name.eq(name))
@@ -126,11 +141,12 @@ impl DatabaseService {
     }
 
     pub fn update_access_info(&self, package_id: i32) -> Result<(), diesel::result::Error> {
-        let mut conn = self.get_connection()
-            .map_err(|e| diesel::result::Error::DatabaseError(
+        let mut conn = self.get_connection().map_err(|e| {
+            diesel::result::Error::DatabaseError(
                 diesel::result::DatabaseErrorKind::UnableToSendCommand,
-                Box::new(e.to_string())
-            ))?;
+                Box::new(e.to_string()),
+            )
+        })?;
 
         let update = UpdatePackage {
             last_accessed: Some(Utc::now().naive_utc()),
@@ -147,12 +163,16 @@ impl DatabaseService {
         Ok(())
     }
 
-    pub fn get_package_versions(&self, name: &str) -> Result<PackageVersions, diesel::result::Error> {
-        let mut conn = self.get_connection()
-            .map_err(|e| diesel::result::Error::DatabaseError(
+    pub fn get_package_versions(
+        &self,
+        name: &str,
+    ) -> Result<PackageVersions, diesel::result::Error> {
+        let mut conn = self.get_connection().map_err(|e| {
+            diesel::result::Error::DatabaseError(
                 diesel::result::DatabaseErrorKind::UnableToSendCommand,
-                Box::new(e.to_string())
-            ))?;
+                Box::new(e.to_string()),
+            )
+        })?;
 
         let versions = packages::table
             .filter(packages::name.eq(name))
@@ -169,33 +189,41 @@ impl DatabaseService {
     }
 
     pub fn list_all_packages(&self) -> Result<Vec<Package>, diesel::result::Error> {
-        let mut conn = self.get_connection()
-            .map_err(|e| diesel::result::Error::DatabaseError(
+        let mut conn = self.get_connection().map_err(|e| {
+            diesel::result::Error::DatabaseError(
                 diesel::result::DatabaseErrorKind::UnableToSendCommand,
-                Box::new(e.to_string())
-            ))?;
+                Box::new(e.to_string()),
+            )
+        })?;
 
         packages::table
             .order(packages::created_at.desc())
             .load::<Package>(&mut conn)
     }
 
-    pub fn get_popular_packages(&self, limit: i64) -> Result<Vec<PopularPackage>, diesel::result::Error> {
-        let mut conn = self.get_connection()
-            .map_err(|e| diesel::result::Error::DatabaseError(
+    pub fn get_popular_packages(
+        &self,
+        limit: i64,
+    ) -> Result<Vec<PopularPackage>, diesel::result::Error> {
+        let mut conn = self.get_connection().map_err(|e| {
+            diesel::result::Error::DatabaseError(
                 diesel::result::DatabaseErrorKind::UnableToSendCommand,
-                Box::new(e.to_string())
-            ))?;
+                Box::new(e.to_string()),
+            )
+        })?;
 
         // For now, let's use a simpler approach - get all packages and group in Rust
         let all_packages = packages::table
             .order(packages::access_count.desc())
             .load::<Package>(&mut conn)?;
 
-        let mut package_stats: std::collections::HashMap<String, (i64, i64, i64)> = std::collections::HashMap::new();
+        let mut package_stats: std::collections::HashMap<String, (i64, i64, i64)> =
+            std::collections::HashMap::new();
 
         for package in all_packages {
-            let entry = package_stats.entry(package.name.clone()).or_insert((0, 0, 0));
+            let entry = package_stats
+                .entry(package.name.clone())
+                .or_insert((0, 0, 0));
             entry.0 += package.access_count as i64; // total_downloads
             entry.1 += 1; // unique_versions
             entry.2 += package.size_bytes; // total_size_bytes
@@ -203,12 +231,14 @@ impl DatabaseService {
 
         let mut results: Vec<_> = package_stats
             .into_iter()
-            .map(|(name, (total_downloads, unique_versions, total_size_bytes))| PopularPackage {
-                name,
-                total_downloads,
-                unique_versions,
-                total_size_bytes,
-            })
+            .map(
+                |(name, (total_downloads, unique_versions, total_size_bytes))| PopularPackage {
+                    name,
+                    total_downloads,
+                    unique_versions,
+                    total_size_bytes,
+                },
+            )
             .collect();
 
         results.sort_by(|a, b| b.total_downloads.cmp(&a.total_downloads));
@@ -218,11 +248,12 @@ impl DatabaseService {
     }
 
     pub fn get_recent_packages(&self, limit: i64) -> Result<Vec<Package>, diesel::result::Error> {
-        let mut conn = self.get_connection()
-            .map_err(|e| diesel::result::Error::DatabaseError(
+        let mut conn = self.get_connection().map_err(|e| {
+            diesel::result::Error::DatabaseError(
                 diesel::result::DatabaseErrorKind::UnableToSendCommand,
-                Box::new(e.to_string())
-            ))?;
+                Box::new(e.to_string()),
+            )
+        })?;
 
         packages::table
             .order(packages::created_at.desc())
@@ -231,11 +262,12 @@ impl DatabaseService {
     }
 
     pub fn get_cache_stats(&self) -> Result<(i64, i64), diesel::result::Error> {
-        let mut conn = self.get_connection()
-            .map_err(|e| diesel::result::Error::DatabaseError(
+        let mut conn = self.get_connection().map_err(|e| {
+            diesel::result::Error::DatabaseError(
                 diesel::result::DatabaseErrorKind::UnableToSendCommand,
-                Box::new(e.to_string())
-            ))?;
+                Box::new(e.to_string()),
+            )
+        })?;
 
         let packages = packages::table.load::<Package>(&mut conn)?;
         let count = packages.len() as i64;
@@ -244,27 +276,33 @@ impl DatabaseService {
         Ok((count, total_size))
     }
 
-    pub fn delete_package(&self, name: &str, filename: &str) -> Result<usize, diesel::result::Error> {
-        let mut conn = self.get_connection()
-            .map_err(|e| diesel::result::Error::DatabaseError(
+    pub fn delete_package(
+        &self,
+        name: &str,
+        filename: &str,
+    ) -> Result<usize, diesel::result::Error> {
+        let mut conn = self.get_connection().map_err(|e| {
+            diesel::result::Error::DatabaseError(
                 diesel::result::DatabaseErrorKind::UnableToSendCommand,
-                Box::new(e.to_string())
-            ))?;
+                Box::new(e.to_string()),
+            )
+        })?;
 
         diesel::delete(
             packages::table
                 .filter(packages::name.eq(name))
-                .filter(packages::filename.eq(filename))
+                .filter(packages::filename.eq(filename)),
         )
         .execute(&mut conn)
     }
 
     pub fn clear_all(&self) -> Result<usize, diesel::result::Error> {
-        let mut conn = self.get_connection()
-            .map_err(|e| diesel::result::Error::DatabaseError(
+        let mut conn = self.get_connection().map_err(|e| {
+            diesel::result::Error::DatabaseError(
                 diesel::result::DatabaseErrorKind::UnableToSendCommand,
-                Box::new(e.to_string())
-            ))?;
+                Box::new(e.to_string()),
+            )
+        })?;
 
         diesel::delete(packages::table).execute(&mut conn)
     }

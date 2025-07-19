@@ -1,5 +1,5 @@
-use rocket::serde::Serialize;
 use crate::models::package::{Package, PopularPackage};
+use rocket::serde::Serialize;
 
 #[derive(Debug, Clone)]
 pub struct CacheEntry {

@@ -1,11 +1,15 @@
-use rocket::local::blocking::Client;
-use rocket::http::Status;
-use std::env;
-use std::sync::Arc;
 use pnrs::{AppConfig, AppState, CacheService, DatabaseService};
 use rocket::Config;
+use rocket::http::Status;
+use rocket::local::blocking::Client;
 use rocket_cors::{AllowedOrigins, CorsOptions};
+use serial_test::serial;
+use std::env;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
 use tempfile::TempDir;
+
+static TEST_COUNTER: AtomicU32 = AtomicU32::new(0);
 
 struct TestRocket {
     rocket: rocket::Rocket<rocket::Build>,
@@ -40,8 +44,10 @@ fn create_test_rocket() -> TestRocket {
     let cache = Arc::new(CacheService::new(config.clone()).expect("Failed to initialize cache"));
 
     // Initialize database service with unique database file
-    let database_url = format!("{}/test.db", config.cache_dir);
-    let database = Arc::new(DatabaseService::new(&database_url).expect("Failed to initialize database"));
+    let test_id = TEST_COUNTER.fetch_add(1, Ordering::SeqCst);
+    let database_url = format!("{}/test_{}.db", config.cache_dir, test_id);
+    let database =
+        Arc::new(DatabaseService::new(&database_url).expect("Failed to initialize database"));
 
     // Create app state
     let state = AppState {
@@ -77,16 +83,21 @@ fn create_test_rocket() -> TestRocket {
 }
 
 #[test]
+#[serial]
 fn test_health_check() {
     let test_rocket = create_test_rocket();
     let client = Client::tracked(test_rocket.rocket).expect("valid rocket instance");
     let response = client.get("/").dispatch();
 
     assert_eq!(response.status(), Status::Ok);
-    assert_eq!(response.into_string(), Some("PNRS - Private NPM Registry Server is running!".into()));
+    assert_eq!(
+        response.into_string(),
+        Some("PNRS - Private NPM Registry Server is running!".into())
+    );
 }
 
 #[test]
+#[serial]
 fn test_package_metadata_success() {
     let test_rocket = create_test_rocket();
     let client = Client::tracked(test_rocket.rocket).expect("valid rocket instance");
@@ -100,18 +111,20 @@ fn test_package_metadata_success() {
 }
 
 #[test]
+#[serial]
 fn test_package_metadata_not_found() {
     let test_rocket = create_test_rocket();
     let client = Client::tracked(test_rocket.rocket).expect("valid rocket instance");
     let response = client.get("/nonexistent-package-12345").dispatch();
 
-    assert_eq!(response.status(), Status::BadRequest);
+    assert_eq!(response.status(), Status::BadGateway);
 
     let body = response.into_string().expect("valid response body");
     assert!(body.contains("Upstream error: 404"));
 }
 
 #[test]
+#[serial]
 fn test_package_version_metadata_success() {
     let test_rocket = create_test_rocket();
     let client = Client::tracked(test_rocket.rocket).expect("valid rocket instance");
@@ -125,18 +138,20 @@ fn test_package_version_metadata_success() {
 }
 
 #[test]
+#[serial]
 fn test_package_version_metadata_not_found() {
     let test_rocket = create_test_rocket();
     let client = Client::tracked(test_rocket.rocket).expect("valid rocket instance");
     let response = client.get("/lodash/999.999.999").dispatch();
 
-    assert_eq!(response.status(), Status::BadRequest);
+    assert_eq!(response.status(), Status::BadGateway);
 
     let body = response.into_string().expect("valid response body");
     assert!(body.contains("Upstream error: 404"));
 }
 
 #[test]
+#[serial]
 fn test_tarball_head_success() {
     let test_rocket = create_test_rocket();
     let client = Client::tracked(test_rocket.rocket).expect("valid rocket instance");
@@ -146,15 +161,19 @@ fn test_tarball_head_success() {
 }
 
 #[test]
+#[serial]
 fn test_tarball_head_not_found() {
     let test_rocket = create_test_rocket();
     let client = Client::tracked(test_rocket.rocket).expect("valid rocket instance");
-    let response = client.head("/nonexistent/-/nonexistent-1.0.0.tgz").dispatch();
+    let response = client
+        .head("/nonexistent/-/nonexistent-1.0.0.tgz")
+        .dispatch();
 
-    assert_eq!(response.status(), Status::BadRequest);
+    assert_eq!(response.status(), Status::BadGateway);
 }
 
 #[test]
+#[serial]
 fn test_tarball_download_success() {
     let test_rocket = create_test_rocket();
     let client = Client::tracked(test_rocket.rocket).expect("valid rocket instance");
@@ -170,12 +189,15 @@ fn test_tarball_download_success() {
 }
 
 #[test]
+#[serial]
 fn test_tarball_download_not_found() {
     let test_rocket = create_test_rocket();
     let client = Client::tracked(test_rocket.rocket).expect("valid rocket instance");
-    let response = client.get("/nonexistent/-/nonexistent-1.0.0.tgz").dispatch();
+    let response = client
+        .get("/nonexistent/-/nonexistent-1.0.0.tgz")
+        .dispatch();
 
-    assert_eq!(response.status(), Status::BadRequest);
+    assert_eq!(response.status(), Status::BadGateway);
 
     let body = response.into_string().expect("valid response body");
     assert!(body.contains("Upstream error: 404"));
@@ -183,8 +205,8 @@ fn test_tarball_download_not_found() {
 
 #[cfg(test)]
 mod config_tests {
-    use std::env;
     use pnrs::AppConfig;
+    use std::env;
 
     #[test]
     fn test_default_config() {
@@ -208,6 +230,7 @@ mod config_tests {
 }
 
 #[test]
+#[serial]
 fn test_cache_stats() {
     let test_rocket = create_test_rocket();
     let client = Client::tracked(test_rocket.rocket).expect("valid rocket instance");
@@ -221,6 +244,7 @@ fn test_cache_stats() {
 }
 
 #[test]
+#[serial]
 fn test_cache_health() {
     let test_rocket = create_test_rocket();
     let client = Client::tracked(test_rocket.rocket).expect("valid rocket instance");

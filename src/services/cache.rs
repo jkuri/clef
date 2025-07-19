@@ -1,10 +1,10 @@
+use crate::config::AppConfig;
+use crate::models::{CacheEntry, CacheStats, NewPackage};
+use crate::services::DatabaseService;
+use log::{debug, info, warn};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
-use log::{info, warn, debug};
-use crate::config::AppConfig;
-use crate::services::DatabaseService;
-use crate::models::{NewPackage, CacheEntry, CacheStats};
 // Arc removed - database passed as parameter
 
 #[derive(Debug)]
@@ -107,7 +107,8 @@ impl CacheService {
 
         // Always check if file exists on disk (never delete packages)
         if !cache_path.exists() {
-            self.miss_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            self.miss_count
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             debug!("Cache miss for key: {} - file not found", cache_key);
             return None;
         }
@@ -125,7 +126,8 @@ impl CacheService {
                 let meta_path = self.get_metadata_path(package, filename);
                 let etag = fs::read_to_string(&meta_path).ok();
 
-                self.hit_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                self.hit_count
+                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 debug!("Cache hit for key: {} (size: {} bytes)", cache_key, size);
 
                 Some(CacheEntry {
@@ -137,7 +139,8 @@ impl CacheService {
             }
             Err(e) => {
                 warn!("Failed to read cache entry {}: {}", cache_key, e);
-                self.miss_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                self.miss_count
+                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 None
             }
         }
@@ -154,15 +157,21 @@ impl CacheService {
         debug!("Checking metadata cache for key: {}", cache_key);
 
         if !cache_path.exists() {
-            self.miss_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-            debug!("Metadata cache miss for key: {} - file not found", cache_key);
+            self.miss_count
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            debug!(
+                "Metadata cache miss for key: {} - file not found",
+                cache_key
+            );
             return None;
         }
 
         // Check if metadata is stale (TTL for upstream packages, never expire for published packages)
         if let Ok(metadata) = fs::metadata(&cache_path) {
             if let Ok(modified) = metadata.modified() {
-                let age = SystemTime::now().duration_since(modified).unwrap_or_default();
+                let age = SystemTime::now()
+                    .duration_since(modified)
+                    .unwrap_or_default();
                 let ttl_seconds = self.config.cache_ttl_hours * 3600;
 
                 // Only apply TTL to upstream packages (check if this is a published package by looking for author_id in cached metadata)
@@ -171,8 +180,12 @@ impl CacheService {
                         if let Ok(json) = serde_json::from_str::<serde_json::Value>(&data) {
                             // If it doesn't have published versions (no author_id), it's upstream and should expire
                             if !self.has_published_versions(&json) {
-                                debug!("Metadata cache expired for upstream package: {}", cache_key);
-                                self.miss_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                                debug!(
+                                    "Metadata cache expired for upstream package: {}",
+                                    cache_key
+                                );
+                                self.miss_count
+                                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                                 return None;
                             }
                         }
@@ -189,8 +202,12 @@ impl CacheService {
                     .unwrap_or_default()
                     .as_secs();
 
-                self.hit_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                debug!("Metadata cache hit for key: {} (size: {} bytes)", cache_key, size);
+                self.hit_count
+                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                debug!(
+                    "Metadata cache hit for key: {} (size: {} bytes)",
+                    cache_key, size
+                );
 
                 // Try to read ETag from metadata file
                 let etag_path = self.get_metadata_etag_path(package);
@@ -205,13 +222,22 @@ impl CacheService {
             }
             Err(e) => {
                 warn!("Failed to read metadata cache entry {}: {}", cache_key, e);
-                self.miss_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                self.miss_count
+                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 None
             }
         }
     }
 
-    pub async fn put(&self, package: &str, filename: &str, data: &[u8], etag: Option<&str>, _upstream_url: &str, database: Option<&DatabaseService>) -> Result<(), std::io::Error> {
+    pub async fn put(
+        &self,
+        package: &str,
+        filename: &str,
+        data: &[u8],
+        etag: Option<&str>,
+        _upstream_url: &str,
+        database: Option<&DatabaseService>,
+    ) -> Result<(), std::io::Error> {
         if !self.config.cache_enabled {
             return Ok(());
         }
@@ -220,7 +246,11 @@ impl CacheService {
         let cache_path = self.get_cache_path(package, filename);
         let meta_path = self.get_metadata_path(package, filename);
 
-        debug!("Storing in cache key: {} (size: {} bytes)", cache_key, data.len());
+        debug!(
+            "Storing in cache key: {} (size: {} bytes)",
+            cache_key,
+            data.len()
+        );
 
         // Create package directory if it doesn't exist
         if let Some(parent) = cache_path.parent() {
@@ -252,19 +282,37 @@ impl CacheService {
             if let Err(e) = db.upsert_package(new_package) {
                 warn!("Failed to store package metadata in database: {}", e);
             } else {
-                debug!("Stored package metadata in database for {}/{}", package, filename);
+                debug!(
+                    "Stored package metadata in database for {}/{}",
+                    package, filename
+                );
             }
         }
 
-        info!("Cached tarball for {}/{} (size: {} bytes) - PERMANENT STORAGE", package, filename, data.len());
+        info!(
+            "Cached tarball for {}/{} (size: {} bytes) - PERMANENT STORAGE",
+            package,
+            filename,
+            data.len()
+        );
         Ok(())
     }
 
-    pub async fn put_metadata(&self, package: &str, metadata_json: &str) -> Result<(), std::io::Error> {
-        self.put_metadata_with_etag(package, metadata_json, None).await
+    pub async fn put_metadata(
+        &self,
+        package: &str,
+        metadata_json: &str,
+    ) -> Result<(), std::io::Error> {
+        self.put_metadata_with_etag(package, metadata_json, None)
+            .await
     }
 
-    pub async fn put_metadata_with_etag(&self, package: &str, metadata_json: &str, etag: Option<&str>) -> Result<(), std::io::Error> {
+    pub async fn put_metadata_with_etag(
+        &self,
+        package: &str,
+        metadata_json: &str,
+        etag: Option<&str>,
+    ) -> Result<(), std::io::Error> {
         if !self.config.cache_enabled {
             return Ok(());
         }
@@ -273,7 +321,11 @@ impl CacheService {
         let cache_path = self.get_metadata_cache_path(package);
         let etag_path = self.get_metadata_etag_path(package);
 
-        debug!("Storing metadata in cache key: {} (size: {} bytes)", cache_key, metadata_json.len());
+        debug!(
+            "Storing metadata in cache key: {} (size: {} bytes)",
+            cache_key,
+            metadata_json.len()
+        );
 
         // Create package directory if it doesn't exist
         if let Some(parent) = cache_path.parent() {
@@ -286,13 +338,20 @@ impl CacheService {
         // Write ETag if provided
         if let Some(etag_value) = etag {
             fs::write(&etag_path, etag_value)?;
-            debug!("Stored ETag for metadata cache: {} -> {}", package, etag_value);
+            debug!(
+                "Stored ETag for metadata cache: {} -> {}",
+                package, etag_value
+            );
         } else if etag_path.exists() {
             // Remove old ETag file if no new ETag provided
             let _ = fs::remove_file(&etag_path);
         }
 
-        info!("Cached metadata for {} (size: {} bytes)", package, metadata_json.len());
+        info!(
+            "Cached metadata for {} (size: {} bytes)",
+            package,
+            metadata_json.len()
+        );
         Ok(())
     }
 
@@ -334,7 +393,11 @@ impl CacheService {
         ))
     }
 
-    fn collect_cache_entries(&self, dir: &Path, entries: &mut Vec<(PathBuf, SystemTime, u64)>) -> Result<(), std::io::Error> {
+    fn collect_cache_entries(
+        &self,
+        dir: &Path,
+        entries: &mut Vec<(PathBuf, SystemTime, u64)>,
+    ) -> Result<(), std::io::Error> {
         for entry in fs::read_dir(dir)? {
             let entry = entry?;
             let path = entry.path();

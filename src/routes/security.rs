@@ -1,12 +1,12 @@
-use rocket::{post, State, Data, Request};
-use rocket::serde::json::Json;
-use rocket::data::ToByteUnit;
-use rocket::tokio::io::AsyncReadExt;
-use rocket::request::{FromRequest, Outcome};
-use serde_json::Value;
-use log::{info, error, debug};
-use crate::state::AppState;
 use crate::error::ApiError;
+use crate::state::AppState;
+use log::{debug, error, info};
+use rocket::data::ToByteUnit;
+use rocket::request::{FromRequest, Outcome};
+use rocket::serde::json::Json;
+use rocket::tokio::io::AsyncReadExt;
+use rocket::{Data, Request, State, post};
+use serde_json::Value;
 
 // Custom request guard to capture request headers for compression detection
 pub struct RequestHeaders {
@@ -19,8 +19,14 @@ impl<'r> FromRequest<'r> for RequestHeaders {
     type Error = ();
 
     async fn from_request(request: &'r Request<'_>) -> Outcome<Self, Self::Error> {
-        let content_encoding = request.headers().get_one("Content-Encoding").map(|s| s.to_string());
-        let user_agent = request.headers().get_one("User-Agent").map(|s| s.to_string());
+        let content_encoding = request
+            .headers()
+            .get_one("Content-Encoding")
+            .map(|s| s.to_string());
+        let user_agent = request
+            .headers()
+            .get_one("User-Agent")
+            .map(|s| s.to_string());
 
         Outcome::Success(RequestHeaders {
             content_encoding,
@@ -32,8 +38,10 @@ impl<'r> FromRequest<'r> for RequestHeaders {
 impl RequestHeaders {
     // Helper function to determine if request should be sent with gzip encoding
     fn should_use_gzip_encoding(&self) -> bool {
-        debug!("Checking compression for request - Content-Encoding: {:?}, User-Agent: {:?}",
-              self.content_encoding, self.user_agent);
+        debug!(
+            "Checking compression for request - Content-Encoding: {:?}, User-Agent: {:?}",
+            self.content_encoding, self.user_agent
+        );
 
         // Check if the incoming request has Content-Encoding: gzip
         if let Some(content_encoding) = &self.content_encoding {
@@ -66,7 +74,6 @@ impl RequestHeaders {
     }
 }
 
-
 #[post("/-/npm/v1/security/advisories/bulk", data = "<data>")]
 pub async fn security_advisories_bulk(
     headers: RequestHeaders,
@@ -85,10 +92,14 @@ pub async fn security_advisories_bulk(
 
     debug!("Read {} bytes of request data", body.len());
 
-    let url = format!("{}/-/npm/v1/security/advisories/bulk", state.config.upstream_registry);
+    let url = format!(
+        "{}/-/npm/v1/security/advisories/bulk",
+        state.config.upstream_registry
+    );
 
     // Build the request with proper headers based on client type
-    let mut req_builder = state.client
+    let mut req_builder = state
+        .client
         .post(&url)
         .header("User-Agent", "pnrs-proxy/1.0")
         .header("Content-Type", "application/json");
@@ -101,7 +112,10 @@ pub async fn security_advisories_bulk(
     let req_builder = req_builder.body(body);
 
     let response = req_builder.send().await.map_err(|e| {
-        error!("Failed to send security advisories request to upstream: {}", e);
+        error!(
+            "Failed to send security advisories request to upstream: {}",
+            e
+        );
         ApiError::NetworkError(format!("Failed to contact upstream registry: {}", e))
     })?;
 
@@ -109,18 +123,31 @@ pub async fn security_advisories_bulk(
         match response.json::<Value>().await {
             Ok(json) => {
                 info!("Successfully proxied security advisories request");
-                debug!("Response: {}", serde_json::to_string_pretty(&json).unwrap_or_else(|_| "Invalid JSON".to_string()));
+                debug!(
+                    "Response: {}",
+                    serde_json::to_string_pretty(&json)
+                        .unwrap_or_else(|_| "Invalid JSON".to_string())
+                );
                 Ok(Json(json))
             }
             Err(e) => {
                 error!("Failed to parse security advisories response: {}", e);
-                Err(ApiError::ParseError(format!("Failed to parse upstream response: {}", e)))
+                Err(ApiError::ParseError(format!(
+                    "Failed to parse upstream response: {}",
+                    e
+                )))
             }
         }
     } else {
         let status = response.status();
-        let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
-        error!("Upstream security advisories request failed with status {}: {}", status, error_text);
+        let error_text = response
+            .text()
+            .await
+            .unwrap_or_else(|_| "Unknown error".to_string());
+        error!(
+            "Upstream security advisories request failed with status {}: {}",
+            status, error_text
+        );
 
         // Return an empty advisories response if upstream fails
         // This allows npm install to continue even if security checks fail
@@ -149,10 +176,14 @@ pub async fn security_audits(
 
     debug!("Read {} bytes of request data", body.len());
 
-    let url = format!("{}/-/npm/v1/security/audits", state.config.upstream_registry);
+    let url = format!(
+        "{}/-/npm/v1/security/audits",
+        state.config.upstream_registry
+    );
 
     // Build the request with proper headers based on client type
-    let mut req_builder = state.client
+    let mut req_builder = state
+        .client
         .post(&url)
         .header("User-Agent", "pnrs-proxy/1.0")
         .header("Content-Type", "application/json");
@@ -173,18 +204,31 @@ pub async fn security_audits(
         match response.json::<Value>().await {
             Ok(json) => {
                 info!("Successfully proxied security audits request");
-                debug!("Response: {}", serde_json::to_string_pretty(&json).unwrap_or_else(|_| "Invalid JSON".to_string()));
+                debug!(
+                    "Response: {}",
+                    serde_json::to_string_pretty(&json)
+                        .unwrap_or_else(|_| "Invalid JSON".to_string())
+                );
                 Ok(Json(json))
             }
             Err(e) => {
                 error!("Failed to parse security audits response: {}", e);
-                Err(ApiError::ParseError(format!("Failed to parse upstream response: {}", e)))
+                Err(ApiError::ParseError(format!(
+                    "Failed to parse upstream response: {}",
+                    e
+                )))
             }
         }
     } else {
         let status = response.status();
-        let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
-        error!("Upstream security audits request failed with status {}: {}", status, error_text);
+        let error_text = response
+            .text()
+            .await
+            .unwrap_or_else(|_| "Unknown error".to_string());
+        error!(
+            "Upstream security audits request failed with status {}: {}",
+            status, error_text
+        );
 
         // Return an empty audits response if upstream fails
         let empty_response = serde_json::json!({
@@ -229,10 +273,14 @@ pub async fn security_audits_quick(
 
     debug!("Read {} bytes of request data", body.len());
 
-    let url = format!("{}/-/npm/v1/security/audits/quick", state.config.upstream_registry);
+    let url = format!(
+        "{}/-/npm/v1/security/audits/quick",
+        state.config.upstream_registry
+    );
 
     // Build the request with proper headers based on client type
-    let mut req_builder = state.client
+    let mut req_builder = state
+        .client
         .post(&url)
         .header("User-Agent", "pnrs-proxy/1.0")
         .header("Content-Type", "application/json");
@@ -253,18 +301,31 @@ pub async fn security_audits_quick(
         match response.json::<Value>().await {
             Ok(json) => {
                 info!("Successfully proxied security audits request");
-                debug!("Response: {}", serde_json::to_string_pretty(&json).unwrap_or_else(|_| "Invalid JSON".to_string()));
+                debug!(
+                    "Response: {}",
+                    serde_json::to_string_pretty(&json)
+                        .unwrap_or_else(|_| "Invalid JSON".to_string())
+                );
                 Ok(Json(json))
             }
             Err(e) => {
                 error!("Failed to parse security audits response: {}", e);
-                Err(ApiError::ParseError(format!("Failed to parse upstream response: {}", e)))
+                Err(ApiError::ParseError(format!(
+                    "Failed to parse upstream response: {}",
+                    e
+                )))
             }
         }
     } else {
         let status = response.status();
-        let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
-        error!("Upstream security audits request failed with status {}: {}", status, error_text);
+        let error_text = response
+            .text()
+            .await
+            .unwrap_or_else(|_| "Unknown error".to_string());
+        error!(
+            "Upstream security audits request failed with status {}: {}",
+            status, error_text
+        );
 
         // Return an empty audits response if upstream fails
         let empty_response = serde_json::json!({

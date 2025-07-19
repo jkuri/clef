@@ -122,7 +122,8 @@ mod tests {
 
                                 // Check stats after second request
                                 if let Ok(stats_response2) = client.get("/cache/stats").send() {
-                                    if let Ok(stats2) = stats_response2.json::<serde_json::Value>() {
+                                    if let Ok(stats2) = stats_response2.json::<serde_json::Value>()
+                                    {
                                         let hit_count2 = stats2["hit_count"].as_u64().unwrap_or(0);
 
                                         // Should have at least one hit
@@ -131,7 +132,9 @@ mod tests {
                                 }
                             }
                             Ok(_) => println!("Second request failed - may be network issue"),
-                            Err(e) => println!("Second request error: {} - may be network issue", e),
+                            Err(e) => {
+                                println!("Second request error: {} - may be network issue", e)
+                            }
                         }
                     }
                 }
@@ -164,7 +167,10 @@ mod tests {
                 thread::sleep(Duration::from_millis(100));
             }
             Ok(response) => {
-                println!("npm-style request failed with status: {}", response.status());
+                println!(
+                    "npm-style request failed with status: {}",
+                    response.status()
+                );
             }
             Err(e) => {
                 println!("npm-style request error: {}", e);
@@ -178,7 +184,10 @@ mod tests {
                 thread::sleep(Duration::from_millis(100));
             }
             Ok(response) => {
-                println!("pnpm-style request failed with status: {}", response.status());
+                println!(
+                    "pnpm-style request failed with status: {}",
+                    response.status()
+                );
             }
             Err(e) => {
                 println!("pnpm-style request error: {}", e);
@@ -193,7 +202,10 @@ mod tests {
                     let miss_count = stats["miss_count"].as_u64().unwrap_or(0);
                     let total_entries = stats["total_entries"].as_u64().unwrap_or(0);
 
-                    println!("Cache activity: hits={}, misses={}, entries={}", hit_count, miss_count, total_entries);
+                    println!(
+                        "Cache activity: hits={}, misses={}, entries={}",
+                        hit_count, miss_count, total_entries
+                    );
 
                     // Should have some cache activity
                     assert!(hit_count > 0 || miss_count > 0 || total_entries > 0);
@@ -230,7 +242,10 @@ mod tests {
                     if let Ok(stats) = stats_response.json::<serde_json::Value>() {
                         let new_size = stats["total_size_bytes"].as_u64().unwrap_or(0);
 
-                        println!("Cache size: initial={}, after download={}", initial_size, new_size);
+                        println!(
+                            "Cache size: initial={}, after download={}",
+                            initial_size, new_size
+                        );
 
                         // Size should have increased (or at least stayed the same)
                         assert!(new_size >= initial_size);
@@ -273,7 +288,11 @@ mod tests {
                     println!("Request {} successful", i + 1);
                 }
                 Ok(response) => {
-                    println!("Request {} failed with status: {}", i + 1, response.status());
+                    println!(
+                        "Request {} failed with status: {}",
+                        i + 1,
+                        response.status()
+                    );
                 }
                 Err(e) => {
                     println!("Request {} error: {}", i + 1, e);
@@ -293,10 +312,14 @@ mod tests {
                         let miss_count = stats["miss_count"].as_u64().unwrap_or(0);
                         let hit_rate = stats["hit_rate"].as_f64().unwrap_or(0.0);
 
-                        println!("Cache stats: hits={}, misses={}, rate={}", hit_count, miss_count, hit_rate);
+                        println!(
+                            "Cache stats: hits={}, misses={}, rate={}",
+                            hit_count, miss_count, hit_rate
+                        );
 
                         if hit_count + miss_count > 0 {
-                            let expected_hit_rate = hit_count as f64 / (hit_count + miss_count) as f64 * 100.0;
+                            let expected_hit_rate =
+                                hit_count as f64 / (hit_count + miss_count) as f64 * 100.0;
                             assert!((hit_rate - expected_hit_rate).abs() < 0.01);
                         }
                     }
@@ -347,7 +370,8 @@ mod tests {
         thread::sleep(Duration::from_millis(100));
 
         // Make a HEAD request (with error handling)
-        match client.client
+        match client
+            .client
             .head(&format!("{}/lodash/-/lodash-4.17.21.tgz", server.base_url))
             .send()
         {
@@ -390,22 +414,25 @@ mod tests {
         thread::sleep(Duration::from_millis(100));
 
         // Simulate concurrent access (with error handling)
-        let handles: Vec<_> = (0..3).map(|i| { // Reduced from 5 to 3 for faster execution
-            let base_url = server.base_url.clone();
-            std::thread::spawn(move || {
-                let client = ApiClient::new(base_url);
-                match client.get("/lodash/-/lodash-4.17.21.tgz").send() {
-                    Ok(response) => {
-                        println!("Concurrent request {} status: {}", i + 1, response.status());
-                        response.status().is_success()
+        let handles: Vec<_> = (0..3)
+            .map(|i| {
+                // Reduced from 5 to 3 for faster execution
+                let base_url = server.base_url.clone();
+                std::thread::spawn(move || {
+                    let client = ApiClient::new(base_url);
+                    match client.get("/lodash/-/lodash-4.17.21.tgz").send() {
+                        Ok(response) => {
+                            println!("Concurrent request {} status: {}", i + 1, response.status());
+                            response.status().is_success()
+                        }
+                        Err(e) => {
+                            println!("Concurrent request {} error: {}", i + 1, e);
+                            false
+                        }
                     }
-                    Err(e) => {
-                        println!("Concurrent request {} error: {}", i + 1, e);
-                        false
-                    }
-                }
+                })
             })
-        }).collect();
+            .collect();
 
         // Wait for all requests to complete and count successes
         let mut successful_requests = 0;
@@ -423,11 +450,13 @@ mod tests {
         if let Ok(stats_response) = client.get("/cache/stats").send() {
             if stats_response.status().is_success() {
                 if let Ok(stats) = stats_response.json::<serde_json::Value>() {
-                    let total_requests = stats["hit_count"].as_u64().unwrap_or(0) +
-                                       stats["miss_count"].as_u64().unwrap_or(0);
+                    let total_requests = stats["hit_count"].as_u64().unwrap_or(0)
+                        + stats["miss_count"].as_u64().unwrap_or(0);
 
-                    println!("Concurrent test: {} successful requests, {} total cache operations",
-                            successful_requests, total_requests);
+                    println!(
+                        "Concurrent test: {} successful requests, {} total cache operations",
+                        successful_requests, total_requests
+                    );
 
                     // Should have processed at least some requests
                     assert!(total_requests > 0);

@@ -1,13 +1,18 @@
-use rocket::{get, delete, State};
-use rocket::serde::json::Json;
-use serde_json;
-use crate::state::AppState;
 use crate::error::ApiError;
 use crate::models::CacheStatsResponse;
+use crate::state::AppState;
+use rocket::serde::json::Json;
+use rocket::{State, delete, get};
+use serde_json;
 
 #[get("/cache/stats")]
-pub async fn get_cache_stats(state: &State<AppState>) -> Result<Json<CacheStatsResponse>, ApiError> {
-    let stats = state.cache.get_stats().await
+pub async fn get_cache_stats(
+    state: &State<AppState>,
+) -> Result<Json<CacheStatsResponse>, ApiError> {
+    let stats = state
+        .cache
+        .get_stats()
+        .await
         .map_err(|e| ApiError::ParseError(format!("Failed to get cache stats: {}", e)))?;
 
     let total_requests = stats.hit_count + stats.miss_count;
@@ -38,7 +43,10 @@ pub async fn clear_cache(state: &State<AppState>) -> Result<Json<serde_json::Val
         return Err(ApiError::ParseError("Cache is disabled".to_string()));
     }
 
-    state.cache.clear().await
+    state
+        .cache
+        .clear()
+        .await
         .map_err(|e| ApiError::ParseError(format!("Failed to clear cache: {}", e)))?;
 
     Ok(Json(serde_json::json!({
@@ -48,7 +56,10 @@ pub async fn clear_cache(state: &State<AppState>) -> Result<Json<serde_json::Val
 
 #[get("/cache/health")]
 pub async fn cache_health(state: &State<AppState>) -> Result<Json<serde_json::Value>, ApiError> {
-    let stats = state.cache.get_stats().await
+    let stats = state
+        .cache
+        .get_stats()
+        .await
         .map_err(|e| ApiError::ParseError(format!("Failed to get cache stats: {}", e)))?;
 
     let health_status = if state.config.cache_enabled {

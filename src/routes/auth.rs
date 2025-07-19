@@ -1,12 +1,13 @@
-use rocket::{put, post, State, serde::json::Json};
-use rocket::serde::Serialize;
-use log::{warn, debug};
-use crate::state::AppState;
 use crate::error::ApiError;
+use crate::models::{
+    AuthenticatedUser, LoginRequest, LoginResponse, NewPackage, NewPackageOwner, NpmPublishRequest,
+    NpmPublishResponse, NpmUserDocument, NpmUserResponse, RegisterRequest, WhoamiResponse,
+};
 use crate::services::AuthService;
-use crate::models::{LoginRequest, LoginResponse, RegisterRequest, NpmPublishRequest, NpmPublishResponse, NewPackage, NewPackageOwner, NpmUserDocument, NpmUserResponse, WhoamiResponse, AuthenticatedUser};
-
-
+use crate::state::AppState;
+use log::{debug, warn};
+use rocket::serde::Serialize;
+use rocket::{State, post, put, serde::json::Json};
 
 #[derive(Serialize, Debug)]
 pub struct NpmErrorResponse {
@@ -26,7 +27,8 @@ pub async fn npm_login(
         return Err(ApiError::BadRequest("Invalid user ID format".to_string()));
     }
 
-    let username = user_id.strip_prefix("org.couchdb.user:")
+    let username = user_id
+        .strip_prefix("org.couchdb.user:")
         .ok_or_else(|| ApiError::BadRequest("Invalid user ID format".to_string()))?;
 
     // Validate that the username matches the document
@@ -54,7 +56,10 @@ pub async fn npm_login(
         }))
     } else {
         // New user - register
-        let email = user_doc.email.clone().unwrap_or_else(|| format!("{}@example.com", username));
+        let email = user_doc
+            .email
+            .clone()
+            .unwrap_or_else(|| format!("{}@example.com", username));
 
         let register_request = RegisterRequest {
             name: user_doc.name.clone(),
@@ -83,8 +88,6 @@ pub async fn npm_login(
 
 use rocket::get;
 
-
-
 #[get("/-/whoami")]
 pub async fn npm_whoami(user: AuthenticatedUser) -> Json<WhoamiResponse> {
     Json(WhoamiResponse {
@@ -98,12 +101,10 @@ pub async fn login(
     login_request: Json<LoginRequest>,
     state: &State<AppState>,
 ) -> Result<Json<LoginResponse>, ApiError> {
-    let (_user, token) = AuthService::authenticate_user(&state.database, login_request.into_inner())?;
+    let (_user, token) =
+        AuthService::authenticate_user(&state.database, login_request.into_inner())?;
 
-    Ok(Json(LoginResponse {
-        ok: true,
-        token,
-    }))
+    Ok(Json(LoginResponse { ok: true, token }))
 }
 
 // Simple register endpoint for testing
@@ -125,10 +126,12 @@ pub async fn register(
     let token_value = new_token.token.clone();
 
     // Insert token into database
-    use diesel::prelude::*;
     use crate::schema::user_tokens;
+    use diesel::prelude::*;
 
-    let mut conn = state.database.get_connection()
+    let mut conn = state
+        .database
+        .get_connection()
         .map_err(|e| ApiError::InternalServerError(format!("Database connection error: {}", e)))?;
 
     diesel::insert_into(user_tokens::table)
@@ -150,22 +153,34 @@ pub async fn npm_publish(
     user: AuthenticatedUser,
     state: &State<AppState>,
 ) -> Result<Json<NpmPublishResponse>, ApiError> {
-    use std::fs;
-    use std::path::Path;
+    use crate::schema::{package_owners, packages};
     use base64::prelude::*;
     use diesel::prelude::*;
-    use crate::schema::{packages, package_owners};
+    use std::fs;
+    use std::path::Path;
 
-    debug!("Publishing package: {} (URL parameter: {})", publish_request.name, package);
-    debug!("Request has {} versions and {} attachments", publish_request.versions.len(), publish_request._attachments.len());
+    debug!(
+        "Publishing package: {} (URL parameter: {})",
+        publish_request.name, package
+    );
+    debug!(
+        "Request has {} versions and {} attachments",
+        publish_request.versions.len(),
+        publish_request._attachments.len()
+    );
 
     // Validate package name matches request
     if publish_request.name != package {
-        return Err(ApiError::BadRequest(format!("Package name mismatch: expected '{}', got '{}'", publish_request.name, package)));
+        return Err(ApiError::BadRequest(format!(
+            "Package name mismatch: expected '{}', got '{}'",
+            publish_request.name, package
+        )));
     }
 
     // Check if user has permission to publish this package
-    let mut conn = state.database.get_connection()
+    let mut conn = state
+        .database
+        .get_connection()
         .map_err(|e| ApiError::InternalServerError(format!("Database connection error: {}", e)))?;
 
     // For new packages, user automatically gets ownership
@@ -180,7 +195,10 @@ pub async fn npm_publish(
     let is_new_package = existing_owner.is_none();
 
     // Get the first version from the request (npm publish sends one version at a time)
-    let (version, version_data) = publish_request.versions.iter().next()
+    let (version, version_data) = publish_request
+        .versions
+        .iter()
+        .next()
         .ok_or_else(|| ApiError::BadRequest("No version data provided".to_string()))?;
 
     debug!("Publishing version: {}", version);
@@ -189,13 +207,25 @@ pub async fn npm_publish(
     // npm sends the attachment key using the full package name, including scope
     let attachment_key = format!("{}-{}.tgz", package, version);
     debug!("Looking for attachment with key: {}", attachment_key);
-    debug!("Available attachment keys: {:?}", publish_request._attachments.keys().collect::<Vec<_>>());
+    debug!(
+        "Available attachment keys: {:?}",
+        publish_request._attachments.keys().collect::<Vec<_>>()
+    );
 
-    let attachment = publish_request._attachments.get(&attachment_key)
-        .ok_or_else(|| ApiError::BadRequest(format!("No tarball attachment found with key '{}'. Available keys: {:?}", attachment_key, publish_request._attachments.keys().collect::<Vec<_>>())))?;
+    let attachment = publish_request
+        ._attachments
+        .get(&attachment_key)
+        .ok_or_else(|| {
+            ApiError::BadRequest(format!(
+                "No tarball attachment found with key '{}'. Available keys: {:?}",
+                attachment_key,
+                publish_request._attachments.keys().collect::<Vec<_>>()
+            ))
+        })?;
 
     // Decode the base64 tarball data
-    let tarball_data = BASE64_STANDARD.decode(&attachment.data)
+    let tarball_data = BASE64_STANDARD
+        .decode(&attachment.data)
         .map_err(|e| ApiError::BadRequest(format!("Invalid base64 data: {}", e)))?;
 
     // Create packages directory structure
@@ -207,11 +237,10 @@ pub async fn npm_publish(
     debug!("Package name: {}", package);
     debug!("Package directory: {:?}", package_dir);
     debug!("Creating directory: {:?}", package_dir);
-    fs::create_dir_all(&package_dir)
-        .map_err(|e| {
-            debug!("Failed to create directory {:?}: {}", package_dir, e);
-            ApiError::InternalServerError(format!("Failed to create package directory: {}", e))
-        })?;
+    fs::create_dir_all(&package_dir).map_err(|e| {
+        debug!("Failed to create directory {:?}: {}", package_dir, e);
+        ApiError::InternalServerError(format!("Failed to create package directory: {}", e))
+    })?;
 
     // Save the tarball
     // For scoped packages like @jkuri/test-scoped-package, the tarball filename should be test-scoped-package-1.0.0.tgz
@@ -224,15 +253,15 @@ pub async fn npm_publish(
     };
     let tarball_path = package_dir.join(&tarball_filename);
     debug!("Writing tarball to: {:?}", tarball_path);
-    fs::write(&tarball_path, &tarball_data)
-        .map_err(|e| {
-            debug!("Failed to write tarball to {:?}: {}", tarball_path, e);
-            ApiError::InternalServerError(format!("Failed to write tarball: {}", e))
-        })?;
+    fs::write(&tarball_path, &tarball_data).map_err(|e| {
+        debug!("Failed to write tarball to {:?}: {}", tarball_path, e);
+        ApiError::InternalServerError(format!("Failed to write tarball: {}", e))
+    })?;
 
     // Create package record
-    let package_json = serde_json::to_string(&version_data)
-        .map_err(|e| ApiError::InternalServerError(format!("Failed to serialize package.json: {}", e)))?;
+    let package_json = serde_json::to_string(&version_data).map_err(|e| {
+        ApiError::InternalServerError(format!("Failed to serialize package.json: {}", e))
+    })?;
 
     let new_package = NewPackage {
         name: package.to_string(),
@@ -260,21 +289,23 @@ pub async fn npm_publish(
 
     // If this is a new package, create ownership record
     if is_new_package {
-        let new_owner = NewPackageOwner::new(
-            package.to_string(),
-            user.user_id,
-            "admin".to_string(),
-        );
+        let new_owner =
+            NewPackageOwner::new(package.to_string(), user.user_id, "admin".to_string());
 
         diesel::insert_into(package_owners::table)
             .values(&new_owner)
             .execute(&mut conn)
-            .map_err(|e| ApiError::InternalServerError(format!("Failed to create ownership: {}", e)))?;
+            .map_err(|e| {
+                ApiError::InternalServerError(format!("Failed to create ownership: {}", e))
+            })?;
     }
 
     // Invalidate metadata cache since we've published a new version
     if let Err(e) = state.cache.invalidate_metadata(package).await {
-        warn!("Failed to invalidate metadata cache for package {}: {}", package, e);
+        warn!(
+            "Failed to invalidate metadata cache for package {}: {}",
+            package, e
+        );
     }
 
     Ok(Json(NpmPublishResponse {

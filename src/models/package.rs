@@ -1,7 +1,7 @@
+use crate::schema::{package_owners, packages};
+use chrono::NaiveDateTime;
 use diesel::prelude::*;
 use rocket::serde::{Deserialize, Serialize};
-use chrono::NaiveDateTime;
-use crate::schema::{packages, package_owners};
 
 #[derive(Queryable, Selectable, Serialize, Deserialize, Debug, Clone)]
 #[diesel(table_name = packages)]

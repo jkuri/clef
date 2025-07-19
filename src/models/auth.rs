@@ -1,6 +1,9 @@
 use rocket::serde::{Deserialize, Serialize};
-use rocket::{request::{Request, FromRequest, Outcome}, State, http::Status};
-
+use rocket::{
+    State,
+    http::Status,
+    request::{FromRequest, Outcome, Request},
+};
 
 // Authentication request/response models
 #[derive(Deserialize, Debug)]
@@ -25,7 +28,7 @@ pub struct RegisterRequest {
 // npm login uses a specific CouchDB-style user document format
 #[derive(Deserialize, Debug)]
 pub struct NpmUserDocument {
-    pub _id: String,  // format: "org.couchdb.user:username"
+    pub _id: String, // format: "org.couchdb.user:username"
     pub name: String,
     pub password: String,
     pub email: Option<String>,
@@ -88,13 +91,24 @@ impl<'r> FromRequest<'r> for AuthenticatedUser {
                         username: user.username,
                         user_id: user.id,
                     }),
-                    Err(_) => Outcome::Error((Status::Unauthorized, crate::error::ApiError::Unauthorized("Invalid token".to_string()))),
+                    Err(_) => Outcome::Error((
+                        Status::Unauthorized,
+                        crate::error::ApiError::Unauthorized("Invalid token".to_string()),
+                    )),
                 }
             } else {
-                Outcome::Error((Status::Unauthorized, crate::error::ApiError::Unauthorized("Invalid authorization format".to_string())))
+                Outcome::Error((
+                    Status::Unauthorized,
+                    crate::error::ApiError::Unauthorized(
+                        "Invalid authorization format".to_string(),
+                    ),
+                ))
             }
         } else {
-            Outcome::Error((Status::Unauthorized, crate::error::ApiError::Unauthorized("Authorization header required".to_string())))
+            Outcome::Error((
+                Status::Unauthorized,
+                crate::error::ApiError::Unauthorized("Authorization header required".to_string()),
+            ))
         }
     }
 }

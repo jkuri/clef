@@ -1,13 +1,11 @@
-use std::process::{Command, Stdio};
-use std::path::{Path, PathBuf};
 use std::fs;
-use std::time::Duration;
-use tempfile::TempDir;
+use std::net::TcpListener;
+use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
 use std::sync::Once;
 use std::thread;
-use std::net::TcpListener;
-
-
+use std::time::Duration;
+use tempfile::TempDir;
 
 static INIT: Once = Once::new();
 
@@ -46,7 +44,10 @@ impl TestServer {
             .expect("Failed to build project");
 
         if !build_output.status.success() {
-            panic!("Failed to build project: {}", String::from_utf8_lossy(&build_output.stderr));
+            panic!(
+                "Failed to build project: {}",
+                String::from_utf8_lossy(&build_output.stderr)
+            );
         }
 
         let mut cmd = Command::new("cargo");
@@ -68,7 +69,8 @@ impl TestServer {
         let base_url = self.base_url.clone();
         let mut server_ready = false;
 
-        for _ in 0..60 { // 60 attempts = 30 seconds max
+        for _ in 0..60 {
+            // 60 attempts = 30 seconds max
             // Check if child process is still running
             match child.try_wait() {
                 Ok(Some(status)) => {
@@ -228,8 +230,11 @@ impl TestProject {
             "dependencies": {}
         });
 
-        fs::write(&package_json_path, serde_json::to_string_pretty(&package_json).unwrap())
-            .expect("Failed to write package.json");
+        fs::write(
+            &package_json_path,
+            serde_json::to_string_pretty(&package_json).unwrap(),
+        )
+        .expect("Failed to write package.json");
 
         // Create .npmrc with registry configuration
         fs::write(&npmrc_path, format!("registry={}\n", registry_url))
@@ -254,16 +259,17 @@ impl TestProject {
             .expect("Failed to run package manager command")
     }
 
-
-
     pub fn add_dependency(&self, name: &str, version: &str) {
         let mut package_json: serde_json::Value =
             serde_json::from_str(&fs::read_to_string(&self.package_json_path).unwrap()).unwrap();
 
         package_json["dependencies"][name] = serde_json::Value::String(version.to_string());
 
-        fs::write(&self.package_json_path, serde_json::to_string_pretty(&package_json).unwrap())
-            .expect("Failed to update package.json");
+        fs::write(
+            &self.package_json_path,
+            serde_json::to_string_pretty(&package_json).unwrap(),
+        )
+        .expect("Failed to update package.json");
     }
 
     #[allow(dead_code)]
@@ -281,12 +287,18 @@ impl TestProject {
             "license": "MIT"
         });
 
-        fs::write(&self.package_json_path, serde_json::to_string_pretty(&package_json).unwrap())
-            .expect("Failed to write test package.json");
+        fs::write(
+            &self.package_json_path,
+            serde_json::to_string_pretty(&package_json).unwrap(),
+        )
+        .expect("Failed to write test package.json");
 
         // Create a simple index.js
-        fs::write(self.path().join("index.js"), "module.exports = 'Hello from test package';")
-            .expect("Failed to write index.js");
+        fs::write(
+            self.path().join("index.js"),
+            "module.exports = 'Hello from test package';",
+        )
+        .expect("Failed to write index.js");
     }
 }
 
@@ -314,7 +326,10 @@ where
     match operation() {
         Ok(result) => Some(result),
         Err(e) => {
-            println!("Warning: {} failed: {}. This may be due to network issues or missing upstream registry access.", operation_name, e);
+            println!(
+                "Warning: {} failed: {}. This may be due to network issues or missing upstream registry access.",
+                operation_name, e
+            );
             None
         }
     }

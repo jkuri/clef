@@ -50,7 +50,10 @@ mod tests {
                 }
             }
             Ok(response) => {
-                println!("Packages endpoint failed with status: {}", response.status());
+                println!(
+                    "Packages endpoint failed with status: {}",
+                    response.status()
+                );
             }
             Err(e) => {
                 println!("Packages endpoint error: {}", e);
@@ -135,7 +138,10 @@ mod tests {
                 }
             }
             Ok(response) => {
-                println!("Popular packages endpoint failed with status: {}", response.status());
+                println!(
+                    "Popular packages endpoint failed with status: {}",
+                    response.status()
+                );
             }
             Err(e) => {
                 println!("Popular packages endpoint error: {}", e);
@@ -228,7 +234,10 @@ mod tests {
                 }
             }
             Ok(response) => {
-                println!("Analytics endpoint failed with status: {}", response.status());
+                println!(
+                    "Analytics endpoint failed with status: {}",
+                    response.status()
+                );
             }
             Err(e) => {
                 println!("Analytics endpoint error: {}", e);
@@ -254,7 +263,11 @@ mod tests {
                     println!("Download {} successful", i + 1);
                 }
                 Ok(response) => {
-                    println!("Download {} failed with status: {}", i + 1, response.status());
+                    println!(
+                        "Download {} failed with status: {}",
+                        i + 1,
+                        response.status()
+                    );
                 }
                 Err(e) => {
                     println!("Download {} error: {}", i + 1, e);
@@ -278,7 +291,8 @@ mod tests {
                                 // Find version 4.17.21
                                 for version in versions {
                                     if version["version"] == "4.17.21" {
-                                        let download_count = version["download_count"].as_u64().unwrap_or(0);
+                                        let download_count =
+                                            version["download_count"].as_u64().unwrap_or(0);
                                         println!("Download count for 4.17.21: {}", download_count);
                                         // Just log the count - don't assert specific values
                                         break;
@@ -294,7 +308,10 @@ mod tests {
                     }
                 }
                 Ok(response) => {
-                    println!("Package data request failed with status: {}", response.status());
+                    println!(
+                        "Package data request failed with status: {}",
+                        response.status()
+                    );
                 }
                 Err(e) => {
                     println!("Package data request error: {}", e);
@@ -325,8 +342,7 @@ mod tests {
             let packages: serde_json::Value = response.json().unwrap();
 
             if let Some(packages_array) = packages.as_array() {
-                let lodash_package = packages_array.iter()
-                    .find(|p| p["name"] == "lodash");
+                let lodash_package = packages_array.iter().find(|p| p["name"] == "lodash");
 
                 if let Some(package) = lodash_package {
                     assert!(package["description"].is_string());
@@ -377,7 +393,10 @@ mod tests {
                         if total_packages == 0 {
                             println!("No packages tracked - may be due to network issues");
                         } else {
-                            println!("Successfully tracked {} packages from different managers", total_packages);
+                            println!(
+                                "Successfully tracked {} packages from different managers",
+                                total_packages
+                            );
                         }
                     }
                     Err(e) => {
@@ -386,7 +405,10 @@ mod tests {
                 }
             }
             Ok(response) => {
-                println!("Analytics request failed with status: {}", response.status());
+                println!(
+                    "Analytics request failed with status: {}",
+                    response.status()
+                );
             }
             Err(e) => {
                 println!("Analytics request error: {}", e);
@@ -434,7 +456,10 @@ mod tests {
         let client = ApiClient::new(server.base_url.clone());
 
         // Test analytics for non-existent package
-        let response = client.get("/packages/nonexistent-package-12345").send().unwrap();
+        let response = client
+            .get("/packages/nonexistent-package-12345")
+            .send()
+            .unwrap();
 
         // Should return 404 or empty result
         if response.status().is_success() {

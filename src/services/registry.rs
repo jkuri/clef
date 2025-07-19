@@ -1,31 +1,45 @@
-use rocket::serde::json::Value;
-use log::{info, error, debug, warn};
-use crate::error::ApiError;
-use crate::state::AppState;
 use crate::config::AppConfig;
+use crate::error::ApiError;
 use crate::models::Package;
+use crate::state::AppState;
 use diesel::prelude::*;
+use log::{debug, error, info, warn};
+use rocket::serde::json::Value;
 
 pub struct RegistryService;
 
 impl RegistryService {
-    fn rewrite_tarball_urls(json: &mut Value, config: &AppConfig, scheme: &str) -> Result<(), ApiError> {
+    fn rewrite_tarball_urls(
+        json: &mut Value,
+        config: &AppConfig,
+        scheme: &str,
+    ) -> Result<(), ApiError> {
         // Rewrite tarball URLs in package metadata to point to our proxy server
         if let Some(versions) = json.get_mut("versions").and_then(|v| v.as_object_mut()) {
             for (version, version_data) in versions.iter_mut() {
                 if let Some(dist) = version_data.get_mut("dist").and_then(|d| d.as_object_mut()) {
-                    if let Some(tarball_url) = dist.get("tarball").and_then(|t| t.as_str()).map(|s| s.to_string()) {
+                    if let Some(tarball_url) = dist
+                        .get("tarball")
+                        .and_then(|t| t.as_str())
+                        .map(|s| s.to_string())
+                    {
                         // Extract package name and filename from the original tarball URL
                         // Expected format: https://registry.npmjs.org/package/-/package-version.tgz
                         if tarball_url.starts_with("https://registry.npmjs.org/") {
-                            if let Some(path_part) = tarball_url.strip_prefix("https://registry.npmjs.org/") {
+                            if let Some(path_part) =
+                                tarball_url.strip_prefix("https://registry.npmjs.org/")
+                            {
                                 // Rewrite to our proxy server URL using the same scheme as the request
-                                let new_url = format!("{}://{}:{}/{}",
-                                    scheme, config.host, config.port, path_part);
+                                let new_url = format!(
+                                    "{}://{}:{}/{}",
+                                    scheme, config.host, config.port, path_part
+                                );
 
                                 dist.insert("tarball".to_string(), Value::String(new_url.clone()));
-                                debug!("Rewrote tarball URL for {}: {} -> {}",
-                                    version, tarball_url, new_url);
+                                debug!(
+                                    "Rewrote tarball URL for {}: {} -> {}",
+                                    version, tarball_url, new_url
+                                );
                             }
                         }
                     }
@@ -40,19 +54,29 @@ impl RegistryService {
 
         // Check metadata cache first
         if let Some(cache_entry) = state.cache.get_metadata(package).await {
-            info!("Metadata cache hit for package: {} (size: {} bytes)", package, cache_entry.data.len());
-            let metadata_str = String::from_utf8(cache_entry.data)
-                .map_err(|e| ApiError::InternalServerError(format!("Invalid UTF-8 in cached metadata: {}", e)))?;
-            let metadata: Value = serde_json::from_str(&metadata_str)
-                .map_err(|e| ApiError::InternalServerError(format!("Invalid JSON in cached metadata: {}", e)))?;
+            info!(
+                "Metadata cache hit for package: {} (size: {} bytes)",
+                package,
+                cache_entry.data.len()
+            );
+            let metadata_str = String::from_utf8(cache_entry.data).map_err(|e| {
+                ApiError::InternalServerError(format!("Invalid UTF-8 in cached metadata: {}", e))
+            })?;
+            let metadata: Value = serde_json::from_str(&metadata_str).map_err(|e| {
+                ApiError::InternalServerError(format!("Invalid JSON in cached metadata: {}", e))
+            })?;
             return Ok(metadata);
         }
 
-        info!("Metadata cache miss for package: {}, generating fresh metadata", package);
+        info!(
+            "Metadata cache miss for package: {}, generating fresh metadata",
+            package
+        );
 
         // First check if we have any published versions of this package in our database
-        let mut conn = state.database.get_connection()
-            .map_err(|e| ApiError::InternalServerError(format!("Database connection error: {}", e)))?;
+        let mut conn = state.database.get_connection().map_err(|e| {
+            ApiError::InternalServerError(format!("Database connection error: {}", e))
+        })?;
 
         use crate::schema::packages;
         let published_packages: Vec<Package> = packages::table
@@ -63,7 +87,11 @@ impl RegistryService {
 
         let metadata = if !published_packages.is_empty() {
             // We have published versions, generate metadata from our database
-            info!("Found {} published versions for package: {}", published_packages.len(), package);
+            info!(
+                "Found {} published versions for package: {}",
+                published_packages.len(),
+                package
+            );
             Self::generate_metadata_from_published_packages(package, &published_packages, state)?
         } else {
             // No published versions found, proxy to upstream
@@ -84,20 +112,38 @@ impl RegistryService {
 
             if response.status() == 304 {
                 // Not Modified - use cached version
-                debug!("Upstream returned 304 Not Modified for package: {}", package);
+                debug!(
+                    "Upstream returned 304 Not Modified for package: {}",
+                    package
+                );
                 if let Some(cache_entry) = state.cache.get_metadata(package).await {
-                    info!("Using cached metadata after 304 Not Modified for package: {} (size: {} bytes)", package, cache_entry.data.len());
-                    let metadata_str = String::from_utf8(cache_entry.data)
-                        .map_err(|e| ApiError::InternalServerError(format!("Invalid UTF-8 in cached metadata: {}", e)))?;
-                    let metadata: Value = serde_json::from_str(&metadata_str)
-                        .map_err(|e| ApiError::InternalServerError(format!("Invalid JSON in cached metadata: {}", e)))?;
+                    info!(
+                        "Using cached metadata after 304 Not Modified for package: {} (size: {} bytes)",
+                        package,
+                        cache_entry.data.len()
+                    );
+                    let metadata_str = String::from_utf8(cache_entry.data).map_err(|e| {
+                        ApiError::InternalServerError(format!(
+                            "Invalid UTF-8 in cached metadata: {}",
+                            e
+                        ))
+                    })?;
+                    let metadata: Value = serde_json::from_str(&metadata_str).map_err(|e| {
+                        ApiError::InternalServerError(format!(
+                            "Invalid JSON in cached metadata: {}",
+                            e
+                        ))
+                    })?;
                     return Ok(metadata);
                 } else {
-                    return Err(ApiError::InternalServerError("Received 304 but no cached metadata found".to_string()));
+                    return Err(ApiError::InternalServerError(
+                        "Received 304 but no cached metadata found".to_string(),
+                    ));
                 }
             } else if response.status().is_success() {
                 // Extract ETag for future conditional requests
-                let etag = response.headers()
+                let etag = response
+                    .headers()
                     .get("etag")
                     .and_then(|v| v.to_str().ok())
                     .map(|s| s.to_string());
@@ -111,29 +157,54 @@ impl RegistryService {
                         info!("Successfully proxied metadata for package: {}", package);
 
                         // Cache with ETag if available
-                        let metadata_str = serde_json::to_string(&json)
-                            .map_err(|e| ApiError::InternalServerError(format!("Failed to serialize metadata for caching: {}", e)))?;
+                        let metadata_str = serde_json::to_string(&json).map_err(|e| {
+                            ApiError::InternalServerError(format!(
+                                "Failed to serialize metadata for caching: {}",
+                                e
+                            ))
+                        })?;
 
-                        if let Err(e) = state.cache.put_metadata_with_etag(package, &metadata_str, etag.as_deref()).await {
+                        if let Err(e) = state
+                            .cache
+                            .put_metadata_with_etag(package, &metadata_str, etag.as_deref())
+                            .await
+                        {
                             warn!("Failed to cache metadata for package {}: {}", package, e);
                         }
 
                         return Ok(json);
                     }
                     Err(e) => {
-                        error!("Failed to parse JSON response for package {}: {}", package, e);
-                        return Err(ApiError::ParseError(format!("Failed to parse upstream response: {}", e)));
+                        error!(
+                            "Failed to parse JSON response for package {}: {}",
+                            package, e
+                        );
+                        return Err(ApiError::ParseError(format!(
+                            "Failed to parse upstream response: {}",
+                            e
+                        )));
                     }
                 }
             } else {
-                error!("Upstream returned error {} for package: {}", response.status(), package);
-                return Err(ApiError::UpstreamError(format!("Upstream error: {}", response.status())));
+                error!(
+                    "Upstream returned error {} for package: {}",
+                    response.status(),
+                    package
+                );
+                return Err(ApiError::UpstreamError(format!(
+                    "Upstream error: {}",
+                    response.status()
+                )));
             }
         };
 
         // Cache the metadata
-        let metadata_str = serde_json::to_string(&metadata)
-            .map_err(|e| ApiError::InternalServerError(format!("Failed to serialize metadata for caching: {}", e)))?;
+        let metadata_str = serde_json::to_string(&metadata).map_err(|e| {
+            ApiError::InternalServerError(format!(
+                "Failed to serialize metadata for caching: {}",
+                e
+            ))
+        })?;
 
         if let Err(e) = state.cache.put_metadata(package, &metadata_str).await {
             warn!("Failed to cache metadata for package {}: {}", package, e);
@@ -142,8 +213,15 @@ impl RegistryService {
         Ok(metadata)
     }
 
-    pub async fn get_package_version_metadata(package: &str, version: &str, state: &AppState) -> Result<Value, ApiError> {
-        info!("Fetching metadata for package: {} version: {}", package, version);
+    pub async fn get_package_version_metadata(
+        package: &str,
+        version: &str,
+        state: &AppState,
+    ) -> Result<Value, ApiError> {
+        info!(
+            "Fetching metadata for package: {} version: {}",
+            package, version
+        );
 
         let url = format!("{}/{}/{}", state.config.upstream_registry, package, version);
 
@@ -152,37 +230,70 @@ impl RegistryService {
         if response.status().is_success() {
             match response.json::<Value>().await {
                 Ok(json) => {
-                    info!("Successfully proxied metadata for package: {} version: {}", package, version);
+                    info!(
+                        "Successfully proxied metadata for package: {} version: {}",
+                        package, version
+                    );
                     Ok(json)
                 }
                 Err(e) => {
-                    error!("Failed to parse JSON response for package {} version {}: {}", package, version, e);
-                    Err(ApiError::ParseError(format!("Failed to parse upstream response: {}", e)))
+                    error!(
+                        "Failed to parse JSON response for package {} version {}: {}",
+                        package, version, e
+                    );
+                    Err(ApiError::ParseError(format!(
+                        "Failed to parse upstream response: {}",
+                        e
+                    )))
                 }
             }
         } else {
-            error!("Upstream returned error {} for package: {} version: {}", response.status(), package, version);
-            Err(ApiError::UpstreamError(format!("Upstream error: {}", response.status())))
+            error!(
+                "Upstream returned error {} for package: {} version: {}",
+                response.status(),
+                package,
+                version
+            );
+            Err(ApiError::UpstreamError(format!(
+                "Upstream error: {}",
+                response.status()
+            )))
         }
     }
 
-    pub async fn get_package_tarball(package: &str, filename: &str, state: &AppState) -> Result<Vec<u8>, ApiError> {
-        info!("Fetching tarball for package: {} filename: {}", package, filename);
+    pub async fn get_package_tarball(
+        package: &str,
+        filename: &str,
+        state: &AppState,
+    ) -> Result<Vec<u8>, ApiError> {
+        info!(
+            "Fetching tarball for package: {} filename: {}",
+            package, filename
+        );
 
         // Check cache first
         if let Some(cache_entry) = state.cache.get(package, filename).await {
-            info!("Cache hit for tarball: {} filename: {} (size: {} bytes)", package, filename, cache_entry.data.len());
+            info!(
+                "Cache hit for tarball: {} filename: {} (size: {} bytes)",
+                package,
+                filename,
+                cache_entry.data.len()
+            );
             return Ok(cache_entry.data);
         }
 
         // Cache miss, fetch from upstream
-        let url = format!("{}/{}/-/{}", state.config.upstream_registry, package, filename);
+        let url = format!(
+            "{}/{}/-/{}",
+            state.config.upstream_registry, package, filename
+        );
 
         let response = state.client.get(&url).send().await?;
 
         if response.status().is_success() {
             // Extract ETag for cache validation
-            let etag = response.headers()
+            let etag = response
+                .headers()
                 .get("etag")
                 .and_then(|v| v.to_str().ok())
                 .map(|s| s.to_string());
@@ -192,45 +303,101 @@ impl RegistryService {
                     let data = bytes.to_vec();
 
                     // Store in cache
-                    if let Err(e) = state.cache.put(package, filename, &data, etag.as_deref(), &url, Some(&*state.database)).await {
-                        error!("Failed to cache tarball for {} filename {}: {}", package, filename, e);
+                    if let Err(e) = state
+                        .cache
+                        .put(
+                            package,
+                            filename,
+                            &data,
+                            etag.as_deref(),
+                            &url,
+                            Some(&*state.database),
+                        )
+                        .await
+                    {
+                        error!(
+                            "Failed to cache tarball for {} filename {}: {}",
+                            package, filename, e
+                        );
                     }
 
-                    info!("Successfully proxied and cached tarball for package: {} filename: {} (size: {} bytes)",
-                          package, filename, data.len());
+                    info!(
+                        "Successfully proxied and cached tarball for package: {} filename: {} (size: {} bytes)",
+                        package,
+                        filename,
+                        data.len()
+                    );
                     Ok(data)
                 }
                 Err(e) => {
-                    error!("Failed to read bytes from response for package {} filename {}: {}", package, filename, e);
-                    Err(ApiError::ParseError(format!("Failed to read upstream response: {}", e)))
+                    error!(
+                        "Failed to read bytes from response for package {} filename {}: {}",
+                        package, filename, e
+                    );
+                    Err(ApiError::ParseError(format!(
+                        "Failed to read upstream response: {}",
+                        e
+                    )))
                 }
             }
         } else {
-            error!("Upstream returned error {} for package: {} filename: {}", response.status(), package, filename);
-            Err(ApiError::UpstreamError(format!("Upstream error: {}", response.status())))
+            error!(
+                "Upstream returned error {} for package: {} filename: {}",
+                response.status(),
+                package,
+                filename
+            );
+            Err(ApiError::UpstreamError(format!(
+                "Upstream error: {}",
+                response.status()
+            )))
         }
     }
 
-    pub async fn head_package_tarball(package: &str, filename: &str, state: &AppState) -> Result<(), ApiError> {
-        info!("HEAD request for tarball: {} filename: {}", package, filename);
+    pub async fn head_package_tarball(
+        package: &str,
+        filename: &str,
+        state: &AppState,
+    ) -> Result<(), ApiError> {
+        info!(
+            "HEAD request for tarball: {} filename: {}",
+            package, filename
+        );
 
         // Check cache first
         if state.cache.get(package, filename).await.is_some() {
-            info!("Cache hit for HEAD tarball: {} filename: {}", package, filename);
+            info!(
+                "Cache hit for HEAD tarball: {} filename: {}",
+                package, filename
+            );
             return Ok(());
         }
 
         // Cache miss, check upstream
-        let url = format!("{}/{}/-/{}", state.config.upstream_registry, package, filename);
+        let url = format!(
+            "{}/{}/-/{}",
+            state.config.upstream_registry, package, filename
+        );
 
         let response = state.client.head(&url).send().await?;
 
         if response.status().is_success() {
-            info!("Successfully checked tarball for package: {} filename: {}", package, filename);
+            info!(
+                "Successfully checked tarball for package: {} filename: {}",
+                package, filename
+            );
             Ok(())
         } else {
-            error!("Upstream returned error {} for HEAD package: {} filename: {}", response.status(), package, filename);
-            Err(ApiError::UpstreamError(format!("Upstream error: {}", response.status())))
+            error!(
+                "Upstream returned error {} for HEAD package: {} filename: {}",
+                response.status(),
+                package,
+                filename
+            );
+            Err(ApiError::UpstreamError(format!(
+                "Upstream error: {}",
+                response.status()
+            )))
         }
     }
 
@@ -239,8 +406,8 @@ impl RegistryService {
         published_packages: &[Package],
         state: &AppState,
     ) -> Result<Value, ApiError> {
-        use std::collections::HashMap;
         use serde_json::json;
+        use std::collections::HashMap;
 
         let mut versions = HashMap::new();
         let mut dist_tags = HashMap::new();
@@ -251,8 +418,9 @@ impl RegistryService {
         for pkg in published_packages {
             if let Some(package_json_str) = &pkg.package_json {
                 // Parse the stored package.json
-                let package_json: Value = serde_json::from_str(package_json_str)
-                    .map_err(|e| ApiError::InternalServerError(format!("Failed to parse package.json: {}", e)))?;
+                let package_json: Value = serde_json::from_str(package_json_str).map_err(|e| {
+                    ApiError::InternalServerError(format!("Failed to parse package.json: {}", e))
+                })?;
 
                 // Extract version info
                 let version = pkg.version.clone();
@@ -264,13 +432,18 @@ impl RegistryService {
 
                 // Set description from first package if not set
                 if package_description.is_none() {
-                    package_description = package_json.get("description").and_then(|d| d.as_str()).map(|s| s.to_string());
+                    package_description = package_json
+                        .get("description")
+                        .and_then(|d| d.as_str())
+                        .map(|s| s.to_string());
                 }
 
                 // Create version metadata
                 let scheme = state.config.get_scheme();
-                let tarball_url = format!("{}://{}:{}/{}/-/{}",
-                    scheme, state.config.host, state.config.port, package_name, pkg.filename);
+                let tarball_url = format!(
+                    "{}://{}:{}/{}/-/{}",
+                    scheme, state.config.host, state.config.port, package_name, pkg.filename
+                );
 
                 let mut version_data = package_json.clone();
 

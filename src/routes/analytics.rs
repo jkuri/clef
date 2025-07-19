@@ -1,12 +1,14 @@
-use rocket::{get, State};
-use rocket::serde::json::Json;
-use crate::state::AppState;
 use crate::error::ApiError;
-use crate::models::{PackageVersions, PopularPackage, CacheAnalytics, PackageListResponse};
+use crate::models::{CacheAnalytics, PackageListResponse, PackageVersions, PopularPackage};
+use crate::state::AppState;
+use rocket::serde::json::Json;
+use rocket::{State, get};
 
 #[get("/packages")]
 pub async fn list_packages(state: &State<AppState>) -> Result<Json<PackageListResponse>, ApiError> {
-    let packages = state.database.list_all_packages()
+    let packages = state
+        .database
+        .list_all_packages()
         .map_err(|e| ApiError::ParseError(format!("Failed to list packages: {}", e)))?;
 
     let total_count = packages.len();
@@ -22,31 +24,49 @@ pub async fn list_packages(state: &State<AppState>) -> Result<Json<PackageListRe
 }
 
 #[get("/packages/<name>")]
-pub async fn get_package_versions(name: &str, state: &State<AppState>) -> Result<Json<PackageVersions>, ApiError> {
-    let package_versions = state.database.get_package_versions(name)
+pub async fn get_package_versions(
+    name: &str,
+    state: &State<AppState>,
+) -> Result<Json<PackageVersions>, ApiError> {
+    let package_versions = state
+        .database
+        .get_package_versions(name)
         .map_err(|e| ApiError::ParseError(format!("Failed to get package versions: {}", e)))?;
 
     Ok(Json(package_versions))
 }
 
 #[get("/packages/popular?<limit>")]
-pub async fn get_popular_packages(limit: Option<i64>, state: &State<AppState>) -> Result<Json<Vec<PopularPackage>>, ApiError> {
+pub async fn get_popular_packages(
+    limit: Option<i64>,
+    state: &State<AppState>,
+) -> Result<Json<Vec<PopularPackage>>, ApiError> {
     let limit = limit.unwrap_or(10);
-    let popular_packages = state.database.get_popular_packages(limit)
+    let popular_packages = state
+        .database
+        .get_popular_packages(limit)
         .map_err(|e| ApiError::ParseError(format!("Failed to get popular packages: {}", e)))?;
 
     Ok(Json(popular_packages))
 }
 
 #[get("/analytics")]
-pub async fn get_cache_analytics(state: &State<AppState>) -> Result<Json<CacheAnalytics>, ApiError> {
-    let (total_packages, total_size_bytes) = state.database.get_cache_stats()
+pub async fn get_cache_analytics(
+    state: &State<AppState>,
+) -> Result<Json<CacheAnalytics>, ApiError> {
+    let (total_packages, total_size_bytes) = state
+        .database
+        .get_cache_stats()
         .map_err(|e| ApiError::ParseError(format!("Failed to get cache stats: {}", e)))?;
 
-    let popular_packages = state.database.get_popular_packages(5)
+    let popular_packages = state
+        .database
+        .get_popular_packages(5)
         .map_err(|e| ApiError::ParseError(format!("Failed to get popular packages: {}", e)))?;
 
-    let recent_packages = state.database.get_recent_packages(10)
+    let recent_packages = state
+        .database
+        .get_recent_packages(10)
         .map_err(|e| ApiError::ParseError(format!("Failed to get recent packages: {}", e)))?;
 
     let cache_hit_rate = state.cache.get_hit_rate();

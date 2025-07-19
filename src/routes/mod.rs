@@ -1,8 +1,8 @@
+pub mod analytics;
 pub mod auth;
+pub mod cache;
 pub mod health;
 pub mod packages;
-pub mod cache;
-pub mod analytics;
 pub mod security;
 
 use rocket::routes;
@@ -40,5 +40,3 @@ pub fn get_routes() -> Vec<rocket::Route> {
         auth::register
     ]
 }
-
-

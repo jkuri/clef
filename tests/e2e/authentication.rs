@@ -1,6 +1,6 @@
 use super::*;
-use serial_test::serial;
 use serde_json::json;
+use serial_test::serial;
 
 #[cfg(test)]
 mod tests {
@@ -14,7 +14,7 @@ mod tests {
         let _handle = server.start();
 
         let client = ApiClient::new(server.base_url.clone());
-        
+
         // Test user registration
         let register_data = json!({
             "name": "testuser",
@@ -22,9 +22,11 @@ mod tests {
             "password": "testpassword123"
         });
 
-        let response = client.post("/register")
+        let response = client
+            .post("/register")
             .json(&register_data)
-            .send().unwrap();
+            .send()
+            .unwrap();
 
         if response.status().is_success() {
             let result: serde_json::Value = response.json().unwrap();
@@ -41,7 +43,7 @@ mod tests {
         let _handle = server.start();
 
         let client = ApiClient::new(server.base_url.clone());
-        
+
         // First register a user
         let register_data = json!({
             "name": "loginuser",
@@ -49,9 +51,11 @@ mod tests {
             "password": "loginpassword123"
         });
 
-        let register_response = client.post("/register")
+        let register_response = client
+            .post("/register")
             .json(&register_data)
-            .send().unwrap();
+            .send()
+            .unwrap();
 
         if register_response.status().is_success() {
             // Then test login
@@ -60,9 +64,7 @@ mod tests {
                 "password": "loginpassword123"
             });
 
-            let login_response = client.post("/login")
-                .json(&login_data)
-                .send().unwrap();
+            let login_response = client.post("/login").json(&login_data).send().unwrap();
 
             if login_response.status().is_success() {
                 let result: serde_json::Value = login_response.json().unwrap();
@@ -80,7 +82,7 @@ mod tests {
         let _handle = server.start();
 
         let client = ApiClient::new(server.base_url.clone());
-        
+
         // Test npm-style login (PUT /-/user/org.couchdb.user:username)
         let npm_user_doc = json!({
             "name": "npmuser",
@@ -91,9 +93,11 @@ mod tests {
             "date": "2025-07-18T00:00:00.000Z"
         });
 
-        let response = client.put("/-/user/org.couchdb.user:npmuser")
+        let response = client
+            .put("/-/user/org.couchdb.user:npmuser")
             .json(&npm_user_doc)
-            .send().unwrap();
+            .send()
+            .unwrap();
 
         if response.status().is_success() {
             let result: serde_json::Value = response.json().unwrap();
@@ -111,7 +115,7 @@ mod tests {
         let _handle = server.start();
 
         let mut client = ApiClient::new(server.base_url.clone());
-        
+
         // First login to get a token
         let npm_user_doc = json!({
             "name": "whoamiuser",
@@ -122,9 +126,11 @@ mod tests {
             "date": "2025-07-18T00:00:00.000Z"
         });
 
-        let login_response = client.put("/-/user/org.couchdb.user:whoamiuser")
+        let login_response = client
+            .put("/-/user/org.couchdb.user:whoamiuser")
             .json(&npm_user_doc)
-            .send().unwrap();
+            .send()
+            .unwrap();
 
         if login_response.status().is_success() {
             let login_result: serde_json::Value = login_response.json().unwrap();
@@ -133,7 +139,7 @@ mod tests {
 
             // Test whoami endpoint
             let whoami_response = client.get("/-/whoami").send().unwrap();
-            
+
             if whoami_response.status().is_success() {
                 let result: serde_json::Value = whoami_response.json().unwrap();
                 assert_eq!(result["username"], "whoamiuser");
@@ -149,16 +155,14 @@ mod tests {
         let _handle = server.start();
 
         let client = ApiClient::new(server.base_url.clone());
-        
+
         // Test login with invalid credentials
         let login_data = json!({
             "name": "nonexistentuser",
             "password": "wrongpassword"
         });
 
-        let response = client.post("/login")
-            .json(&login_data)
-            .send().unwrap();
+        let response = client.post("/login").json(&login_data).send().unwrap();
 
         assert!(!response.status().is_success());
     }
@@ -171,7 +175,7 @@ mod tests {
         let _handle = server.start();
 
         let client = ApiClient::new(server.base_url.clone());
-        
+
         // Test npm login with invalid user ID format
         let npm_user_doc = json!({
             "name": "testuser",
@@ -179,9 +183,11 @@ mod tests {
             "email": "testuser@example.com"
         });
 
-        let response = client.put("/-/user/invalid-format")
+        let response = client
+            .put("/-/user/invalid-format")
             .json(&npm_user_doc)
-            .send().unwrap();
+            .send()
+            .unwrap();
 
         assert!(!response.status().is_success());
     }
@@ -194,7 +200,7 @@ mod tests {
         let _handle = server.start();
 
         let client = ApiClient::new(server.base_url.clone());
-        
+
         // Test npm login with username mismatch
         let npm_user_doc = json!({
             "name": "differentuser",
@@ -202,9 +208,11 @@ mod tests {
             "email": "testuser@example.com"
         });
 
-        let response = client.put("/-/user/org.couchdb.user:testuser")
+        let response = client
+            .put("/-/user/org.couchdb.user:testuser")
             .json(&npm_user_doc)
-            .send().unwrap();
+            .send()
+            .unwrap();
 
         assert!(!response.status().is_success());
     }
@@ -217,7 +225,7 @@ mod tests {
         let _handle = server.start();
 
         let client = ApiClient::new(server.base_url.clone());
-        
+
         // Test whoami without authentication token
         let response = client.get("/-/whoami").send().unwrap();
         assert!(!response.status().is_success());
@@ -232,7 +240,7 @@ mod tests {
 
         let mut client = ApiClient::new(server.base_url.clone());
         client.set_auth_token("invalid-token-12345".to_string());
-        
+
         // Test whoami with invalid token
         let response = client.get("/-/whoami").send().unwrap();
         assert!(!response.status().is_success());
@@ -246,7 +254,7 @@ mod tests {
         let _handle = server.start();
 
         let client = ApiClient::new(server.base_url.clone());
-        
+
         // First, register a user
         let npm_user_doc = json!({
             "name": "existinguser",
@@ -257,15 +265,19 @@ mod tests {
             "date": "2025-07-18T00:00:00.000Z"
         });
 
-        let first_response = client.put("/-/user/org.couchdb.user:existinguser")
+        let first_response = client
+            .put("/-/user/org.couchdb.user:existinguser")
             .json(&npm_user_doc)
-            .send().unwrap();
+            .send()
+            .unwrap();
 
         if first_response.status().is_success() {
             // Then try to "login" again (should authenticate existing user)
-            let second_response = client.put("/-/user/org.couchdb.user:existinguser")
+            let second_response = client
+                .put("/-/user/org.couchdb.user:existinguser")
                 .json(&npm_user_doc)
-                .send().unwrap();
+                .send()
+                .unwrap();
 
             if second_response.status().is_success() {
                 let result: serde_json::Value = second_response.json().unwrap();
@@ -283,7 +295,7 @@ mod tests {
         let _handle = server.start();
 
         let client = ApiClient::new(server.base_url.clone());
-        
+
         // Register a user
         let register_data = json!({
             "name": "duplicateuser",
@@ -291,15 +303,19 @@ mod tests {
             "password": "duplicatepassword123"
         });
 
-        let first_response = client.post("/register")
+        let first_response = client
+            .post("/register")
             .json(&register_data)
-            .send().unwrap();
+            .send()
+            .unwrap();
 
         if first_response.status().is_success() {
             // Try to register the same user again
-            let second_response = client.post("/register")
+            let second_response = client
+                .post("/register")
                 .json(&register_data)
-                .send().unwrap();
+                .send()
+                .unwrap();
 
             // Should fail with conflict or bad request
             assert!(!second_response.status().is_success());
