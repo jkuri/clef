@@ -16,6 +16,8 @@ mod compatibility;
 mod package_management;
 #[path = "e2e/performance.rs"]
 mod performance;
+#[path = "e2e/proxied_metadata.rs"]
+mod proxied_metadata;
 #[path = "e2e/publishing.rs"]
 mod publishing;
 #[path = "e2e/scoped_packages.rs"]

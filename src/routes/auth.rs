@@ -277,22 +277,43 @@ pub async fn npm_publish(
         ApiError::InternalServerError(format!("Failed to write package.json: {}", e))
     })?;
 
-    // Use the normalized database service to create the complete package entry
-    let (_package, _version, _file) = state
+    // Create or get the package first
+    let pkg = state
         .database
-        .create_complete_package_entry(
+        .create_or_get_package(
             package,
-            &version,
+            version_data.description.clone(),
+            Some(user.user_id),
+        )
+        .map_err(|e| ApiError::InternalServerError(format!("Failed to create package: {}", e)))?;
+
+    // Create the package version with full metadata from package.json
+    let version_json = serde_json::to_value(&version_data).map_err(|e| {
+        ApiError::InternalServerError(format!("Failed to serialize version data: {}", e))
+    })?;
+
+    let package_version = state
+        .database
+        .create_or_get_package_version_with_metadata(pkg.id, &version, &version_json)
+        .map_err(|e| {
+            ApiError::InternalServerError(format!("Failed to create package version: {}", e))
+        })?;
+
+    // Create the package file entry
+    let _package_file = state
+        .database
+        .create_or_update_package_file(
+            package_version.id,
             &tarball_filename,
             tarball_data.len() as i64,
             &format!("published://{}/{}", package, version),
             &tarball_path.to_string_lossy().to_string(),
             None,                                         // etag
             Some("application/octet-stream".to_string()), // content_type
-            Some(user.user_id),                           // author_id
-            version_data.description.clone(),
         )
-        .map_err(|e| ApiError::InternalServerError(format!("Failed to create package: {}", e)))?;
+        .map_err(|e| {
+            ApiError::InternalServerError(format!("Failed to create package file: {}", e))
+        })?;
 
     // If this is a new package, create ownership record
     if is_new_package {

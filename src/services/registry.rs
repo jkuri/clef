@@ -49,7 +49,7 @@ impl RegistryService {
         Ok(())
     }
 
-    async fn store_package_metadata_in_database(
+    pub async fn store_package_metadata_in_database(
         package: &str,
         json: &Value,
         state: &AppState,
@@ -58,12 +58,61 @@ impl RegistryService {
         let description = json["description"].as_str().map(|s| s.to_string());
 
         // Create or get the package
-        let _pkg = state
+        let pkg = state
             .database
             .create_or_get_package(package, description, None)
             .map_err(|e| ApiError::InternalServerError(format!("Database error: {}", e)))?;
 
-        // Note: Version information is stored individually when packages are accessed
+        // Extract and store version information from the npm registry response
+        if let Some(versions) = json["versions"].as_object() {
+            for (version_str, version_data) in versions {
+                // Store version with full metadata from npm registry
+                // The create_or_get_package_version_with_metadata method will handle existing versions
+                if let Err(e) = state.database.create_or_get_package_version_with_metadata(
+                    pkg.id,
+                    version_str,
+                    version_data,
+                ) {
+                    warn!(
+                        "Failed to store version metadata for {}/{}: {}",
+                        package, version_str, e
+                    );
+                } else {
+                    debug!("Stored version metadata for {}/{}", package, version_str);
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn store_version_metadata_in_database(
+        package: &str,
+        version: &str,
+        json: &Value,
+        state: &AppState,
+    ) -> Result<(), ApiError> {
+        // Extract basic package information
+        let description = json["description"].as_str().map(|s| s.to_string());
+
+        // Create or get the package
+        let pkg = state
+            .database
+            .create_or_get_package(package, description, None)
+            .map_err(|e| ApiError::InternalServerError(format!("Database error: {}", e)))?;
+
+        // Store the specific version with metadata
+        if let Err(e) = state
+            .database
+            .create_or_get_package_version_with_metadata(pkg.id, version, json)
+        {
+            warn!(
+                "Failed to store version metadata for {}/{}: {}",
+                package, version, e
+            );
+        } else {
+            debug!("Stored version metadata for {}/{}", package, version);
+        }
 
         Ok(())
     }
@@ -260,6 +309,15 @@ impl RegistryService {
                         "Successfully proxied metadata for package: {} version: {}",
                         package, version
                     );
+
+                    // Store version metadata in database for analytics and future use
+                    if let Err(e) =
+                        Self::store_version_metadata_in_database(package, version, &json, state)
+                            .await
+                    {
+                        warn!("Failed to store version metadata in database: {:?}", e);
+                    }
+
                     Ok(json)
                 }
                 Err(e) => {

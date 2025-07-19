@@ -298,28 +298,31 @@ impl CacheService {
             fs::write(&meta_path, etag_value)?;
         }
 
-        // Store metadata in database if available
+        // Store metadata in database if available and version is known
         if let Some(db) = database {
-            let version = self
-                .extract_version_from_filename(package, filename)
-                .unwrap_or_else(|| "unknown".to_string());
-
-            if let Err(e) = db.create_complete_package_entry(
-                package,
-                &version,
-                filename,
-                data.len() as i64,
-                _upstream_url,
-                &cache_path.to_string_lossy().to_string(),
-                etag.map(|s| s.to_string()),
-                Some("application/octet-stream".to_string()),
-                None, // author_id (cached packages don't have authors)
-                None, // description
-            ) {
-                warn!("Failed to store package metadata in database: {}", e);
+            if let Some(version) = self.extract_version_from_filename(package, filename) {
+                if let Err(e) = db.create_complete_package_entry(
+                    package,
+                    &version,
+                    filename,
+                    data.len() as i64,
+                    _upstream_url,
+                    &cache_path.to_string_lossy().to_string(),
+                    etag.map(|s| s.to_string()),
+                    Some("application/octet-stream".to_string()),
+                    None, // author_id (cached packages don't have authors)
+                    None, // description
+                ) {
+                    warn!("Failed to store package metadata in database: {}", e);
+                } else {
+                    debug!(
+                        "Stored package metadata in database for {}/{}",
+                        package, filename
+                    );
+                }
             } else {
                 debug!(
-                    "Stored package metadata in database for {}/{}",
+                    "Skipping database storage for {}/{} - version could not be extracted",
                     package, filename
                 );
             }

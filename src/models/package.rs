@@ -234,6 +234,35 @@ impl NewPackageVersion {
             updated_at: now,
         }
     }
+
+    pub fn with_metadata(
+        package_id: i32,
+        version: String,
+        description: Option<String>,
+        main_file: Option<String>,
+        scripts: Option<String>,
+        dependencies: Option<String>,
+        dev_dependencies: Option<String>,
+        peer_dependencies: Option<String>,
+        engines: Option<String>,
+        shasum: Option<String>,
+    ) -> Self {
+        let now = chrono::Utc::now().naive_utc();
+        Self {
+            package_id,
+            version,
+            description,
+            main_file,
+            scripts,
+            dependencies,
+            dev_dependencies,
+            peer_dependencies,
+            engines,
+            shasum,
+            created_at: now,
+            updated_at: now,
+        }
+    }
 }
 
 impl NewPackageFile {
