@@ -1,5 +1,5 @@
 use crate::config::AppConfig;
-use crate::models::{CacheEntry, CacheStats, NewPackage};
+use crate::models::{CacheEntry, CacheStats};
 use crate::services::DatabaseService;
 use log::{debug, info, warn};
 use std::fs;
@@ -95,26 +95,50 @@ impl CacheService {
         false
     }
 
-    pub async fn get(&self, package: &str, filename: &str) -> Option<CacheEntry> {
+    pub async fn get(
+        &self,
+        package: &str,
+        filename: &str,
+        database: Option<&DatabaseService>,
+    ) -> Option<CacheEntry> {
         if !self.config.cache_enabled {
             return None;
         }
 
         let cache_key = self.get_cache_key(package, filename);
-        let cache_path = self.get_cache_path(package, filename);
 
         debug!("Checking cache for key: {}", cache_key);
 
-        // Always check if file exists on disk (never delete packages)
-        if !cache_path.exists() {
+        // First check if we have this package file in the database
+        let file_path = if let Some(database) = database {
+            // Check database for the package file
+            if let Ok(Some((_package, _version, file))) =
+                database.get_package_file(package, filename)
+            {
+                // Use the file path from the database
+                std::path::PathBuf::from(&file.file_path)
+            } else {
+                // Fall back to the default cache path
+                self.get_cache_path(package, filename)
+            }
+        } else {
+            // No database, use default cache path
+            self.get_cache_path(package, filename)
+        };
+
+        // Check if file exists on disk
+        if !file_path.exists() {
             self.miss_count
                 .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-            debug!("Cache miss for key: {} - file not found", cache_key);
+            debug!(
+                "Cache miss for key: {} - file not found at {:?}",
+                cache_key, file_path
+            );
             return None;
         }
 
         // Read cache entry (no TTL check - packages are kept forever)
-        match fs::read(&cache_path) {
+        match fs::read(&file_path) {
             Ok(data) => {
                 let size = data.len() as u64;
                 let created_at = SystemTime::now()
@@ -129,6 +153,15 @@ impl CacheService {
                 self.hit_count
                     .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 debug!("Cache hit for key: {} (size: {} bytes)", cache_key, size);
+
+                // Update access info in database if available
+                if let Some(database) = database {
+                    if let Ok(Some((_package, _version, file))) =
+                        database.get_package_file(package, filename)
+                    {
+                        let _ = database.update_file_access_info(file.id);
+                    }
+                }
 
                 Some(CacheEntry {
                     data,
@@ -267,19 +300,23 @@ impl CacheService {
 
         // Store metadata in database if available
         if let Some(db) = database {
-            let version = self.extract_version_from_filename(package, filename);
-            let new_package = NewPackage::new(
-                package.to_string(),
-                version.unwrap_or_else(|| "unknown".to_string()),
-                filename.to_string(),
+            let version = self
+                .extract_version_from_filename(package, filename)
+                .unwrap_or_else(|| "unknown".to_string());
+
+            if let Err(e) = db.create_complete_package_entry(
+                package,
+                &version,
+                filename,
                 data.len() as i64,
+                _upstream_url,
+                &cache_path.to_string_lossy().to_string(),
                 etag.map(|s| s.to_string()),
                 Some("application/octet-stream".to_string()),
-                _upstream_url.to_string(),
-                cache_path.to_string_lossy().to_string(),
-            );
-
-            if let Err(e) = db.upsert_package(new_package) {
+                None, // package_json
+                None, // author_id (cached packages don't have authors)
+                None, // description
+            ) {
                 warn!("Failed to store package metadata in database: {}", e);
             } else {
                 debug!(

@@ -1,6 +1,22 @@
 // @generated automatically by Diesel CLI.
 
 diesel::table! {
+    package_files (id) {
+        id -> Integer,
+        package_version_id -> Integer,
+        filename -> Text,
+        size_bytes -> BigInt,
+        content_type -> Nullable<Text>,
+        etag -> Nullable<Text>,
+        upstream_url -> Text,
+        file_path -> Text,
+        created_at -> Timestamp,
+        last_accessed -> Timestamp,
+        access_count -> Integer,
+    }
+}
+
+diesel::table! {
     package_owners (id) {
         id -> Integer,
         package_name -> Text,
@@ -11,38 +27,37 @@ diesel::table! {
 }
 
 diesel::table! {
-    packages (id) {
+    package_versions (id) {
         id -> Integer,
-        name -> Text,
+        package_id -> Integer,
         version -> Text,
-        filename -> Text,
-        size_bytes -> BigInt,
-        etag -> Nullable<Text>,
-        content_type -> Nullable<Text>,
-        upstream_url -> Text,
-        file_path -> Text,
-        created_at -> Timestamp,
-        last_accessed -> Timestamp,
-        access_count -> Integer,
-        author_id -> Nullable<Integer>,
         description -> Nullable<Text>,
+        main_file -> Nullable<Text>,
+        scripts -> Nullable<Text>,
+        dependencies -> Nullable<Text>,
+        dev_dependencies -> Nullable<Text>,
+        peer_dependencies -> Nullable<Text>,
+        engines -> Nullable<Text>,
         package_json -> Nullable<Text>,
-        is_private -> Bool,
+        shasum -> Nullable<Text>,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
     }
 }
 
 diesel::table! {
-    published_packages (id) {
+    packages (id) {
         id -> Integer,
         name -> Text,
-        version -> Text,
         description -> Nullable<Text>,
-        author_id -> Integer,
-        tarball_path -> Text,
-        package_json -> Text,
+        author_id -> Nullable<Integer>,
+        homepage -> Nullable<Text>,
+        repository_url -> Nullable<Text>,
+        license -> Nullable<Text>,
+        keywords -> Nullable<Text>,
+        is_private -> Bool,
         created_at -> Timestamp,
         updated_at -> Timestamp,
-        is_active -> Bool,
     }
 }
 
@@ -70,14 +85,17 @@ diesel::table! {
     }
 }
 
+diesel::joinable!(package_files -> package_versions (package_version_id));
 diesel::joinable!(package_owners -> users (user_id));
-diesel::joinable!(published_packages -> users (author_id));
+diesel::joinable!(package_versions -> packages (package_id));
+diesel::joinable!(packages -> users (author_id));
 diesel::joinable!(user_tokens -> users (user_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
+    package_files,
     package_owners,
+    package_versions,
     packages,
-    published_packages,
     user_tokens,
     users,
 );

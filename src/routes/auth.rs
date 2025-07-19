@@ -1,6 +1,6 @@
 use crate::error::ApiError;
 use crate::models::{
-    AuthenticatedUser, LoginRequest, LoginResponse, NewPackage, NewPackageOwner, NpmPublishRequest,
+    AuthenticatedUser, LoginRequest, LoginResponse, NewPackageOwner, NpmPublishRequest,
     NpmPublishResponse, NpmUserDocument, NpmUserResponse, RegisterRequest, WhoamiResponse,
 };
 use crate::services::AuthService;
@@ -153,7 +153,7 @@ pub async fn npm_publish(
     user: AuthenticatedUser,
     state: &State<AppState>,
 ) -> Result<Json<NpmPublishResponse>, ApiError> {
-    use crate::schema::{package_owners, packages};
+    use crate::schema::package_owners;
     use base64::prelude::*;
     use diesel::prelude::*;
     use std::fs;
@@ -258,34 +258,28 @@ pub async fn npm_publish(
         ApiError::InternalServerError(format!("Failed to write tarball: {}", e))
     })?;
 
-    // Create package record
+    // Create package record using the normalized database service
     let package_json = serde_json::to_string(&version_data).map_err(|e| {
         ApiError::InternalServerError(format!("Failed to serialize package.json: {}", e))
     })?;
 
-    let new_package = NewPackage {
-        name: package.to_string(),
-        version: version.clone(),
-        filename: tarball_filename.clone(),
-        size_bytes: tarball_data.len() as i64,
-        etag: None,
-        content_type: Some("application/octet-stream".to_string()),
-        upstream_url: format!("published://{}/{}", package, version),
-        file_path: tarball_path.to_string_lossy().to_string(),
-        created_at: chrono::Utc::now().naive_utc(),
-        last_accessed: chrono::Utc::now().naive_utc(),
-        access_count: 0,
-        author_id: Some(user.user_id),
-        description: version_data.description.clone(),
-        package_json: Some(package_json),
-        is_private: false,
-    };
-
-    // Insert package
-    diesel::insert_into(packages::table)
-        .values(&new_package)
-        .execute(&mut conn)
-        .map_err(|e| ApiError::InternalServerError(format!("Failed to insert package: {}", e)))?;
+    // Use the normalized database service to create the complete package entry
+    let (_package, _version, _file) = state
+        .database
+        .create_complete_package_entry(
+            package,
+            &version,
+            &tarball_filename,
+            tarball_data.len() as i64,
+            &format!("published://{}/{}", package, version),
+            &tarball_path.to_string_lossy().to_string(),
+            None,                                         // etag
+            Some("application/octet-stream".to_string()), // content_type
+            Some(package_json),
+            Some(user.user_id), // author_id
+            version_data.description.clone(),
+        )
+        .map_err(|e| ApiError::InternalServerError(format!("Failed to create package: {}", e)))?;
 
     // If this is a new package, create ownership record
     if is_new_package {

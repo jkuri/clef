@@ -11,6 +11,7 @@ pub enum ApiError {
     DatabaseError(String),
     BadRequest(String),
     Unauthorized(String),
+    NotFound(String),
     InternalServerError(String),
 }
 
@@ -24,6 +25,7 @@ impl<'r> Responder<'r, 'static> for ApiError {
             ApiError::DatabaseError(msg) => (Status::InternalServerError, msg),
             ApiError::BadRequest(msg) => (Status::BadRequest, msg),
             ApiError::Unauthorized(msg) => (Status::Unauthorized, msg),
+            ApiError::NotFound(msg) => (Status::NotFound, msg),
             ApiError::InternalServerError(msg) => (Status::InternalServerError, msg),
         };
 

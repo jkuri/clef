@@ -1,4 +1,4 @@
-use crate::models::package::{Package, PopularPackage};
+use crate::models::package::{PackageWithVersions, PopularPackage};
 use rocket::serde::Serialize;
 
 #[derive(Debug, Clone)]
@@ -23,7 +23,7 @@ pub struct CacheAnalytics {
     pub total_size_bytes: i64,
     pub total_size_mb: f64,
     pub most_popular_packages: Vec<PopularPackage>,
-    pub recent_packages: Vec<Package>,
+    pub recent_packages: Vec<PackageWithVersions>,
     pub cache_hit_rate: f64,
 }
 
@@ -38,12 +38,4 @@ pub struct CacheStatsResponse {
     pub hit_rate: f64,
     pub cache_dir: String,
     pub ttl_hours: u64,
-}
-
-#[derive(Serialize)]
-pub struct PackageListResponse {
-    pub packages: Vec<Package>,
-    pub total_count: usize,
-    pub total_size_bytes: i64,
-    pub total_size_mb: f64,
 }

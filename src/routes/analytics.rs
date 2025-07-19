@@ -1,5 +1,5 @@
 use crate::error::ApiError;
-use crate::models::{CacheAnalytics, PackageListResponse, PackageVersions, PopularPackage};
+use crate::models::{CacheAnalytics, PackageListResponse, PackageVersionsResponse, PopularPackage};
 use crate::state::AppState;
 use rocket::serde::json::Json;
 use rocket::{State, get};
@@ -8,11 +8,19 @@ use rocket::{State, get};
 pub async fn list_packages(state: &State<AppState>) -> Result<Json<PackageListResponse>, ApiError> {
     let packages = state
         .database
-        .list_all_packages()
+        .get_all_packages_with_versions()
         .map_err(|e| ApiError::ParseError(format!("Failed to list packages: {}", e)))?;
 
     let total_count = packages.len();
-    let total_size_bytes = packages.iter().map(|p| p.size_bytes).sum::<i64>();
+
+    // Calculate total size from all files across all versions
+    let total_size_bytes = packages
+        .iter()
+        .flat_map(|pkg| &pkg.versions)
+        .flat_map(|ver| &ver.files)
+        .map(|file| file.size_bytes)
+        .sum::<i64>();
+
     let total_size_mb = total_size_bytes as f64 / 1024.0 / 1024.0;
 
     Ok(Json(PackageListResponse {
@@ -27,13 +35,29 @@ pub async fn list_packages(state: &State<AppState>) -> Result<Json<PackageListRe
 pub async fn get_package_versions(
     name: &str,
     state: &State<AppState>,
-) -> Result<Json<PackageVersions>, ApiError> {
-    let package_versions = state
+) -> Result<Json<PackageVersionsResponse>, ApiError> {
+    let package_with_versions = state
         .database
-        .get_package_versions(name)
+        .get_package_with_versions(name)
         .map_err(|e| ApiError::ParseError(format!("Failed to get package versions: {}", e)))?;
 
-    Ok(Json(package_versions))
+    match package_with_versions {
+        Some(pkg_with_versions) => {
+            let total_size_bytes = pkg_with_versions
+                .versions
+                .iter()
+                .flat_map(|ver| &ver.files)
+                .map(|file| file.size_bytes)
+                .sum::<i64>();
+
+            Ok(Json(PackageVersionsResponse {
+                package: pkg_with_versions.package,
+                versions: pkg_with_versions.versions,
+                total_size_bytes,
+            }))
+        }
+        None => Err(ApiError::NotFound(format!("Package '{}' not found", name))),
+    }
 }
 
 #[get("/packages/popular?<limit>")]
@@ -72,7 +96,7 @@ pub async fn get_cache_analytics(
     let cache_hit_rate = state.cache.get_hit_rate();
 
     let analytics = CacheAnalytics {
-        total_packages,
+        total_packages: total_packages as i64,
         total_size_bytes,
         total_size_mb: total_size_bytes as f64 / 1024.0 / 1024.0,
         most_popular_packages: popular_packages,

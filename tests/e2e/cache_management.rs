@@ -61,8 +61,8 @@ mod tests {
         let client = ApiClient::new(server.base_url.clone());
 
         // First, make some requests to populate cache
-        let _ = client.get("/lodash/-/lodash-4.17.21.tgz").send();
-        let _ = client.get("/express/-/express-4.18.2.tgz").send();
+        let _ = client.get("/registry/lodash/-/lodash-4.17.21.tgz").send();
+        let _ = client.get("/registry/express/-/express-4.18.2.tgz").send();
 
         // Wait a bit for cache to be populated
         thread::sleep(Duration::from_millis(100));
@@ -103,7 +103,7 @@ mod tests {
         let initial_miss_count = initial_stats["miss_count"].as_u64().unwrap_or(0);
 
         // First request - should be a cache miss
-        match client.get("/lodash/-/lodash-4.17.21.tgz").send() {
+        match client.get("/registry/lodash/-/lodash-4.17.21.tgz").send() {
             Ok(response1) if response1.status().is_success() => {
                 thread::sleep(Duration::from_millis(100));
 
@@ -116,7 +116,7 @@ mod tests {
                         assert!(miss_count1 > initial_miss_count);
 
                         // Second request - should be a cache hit
-                        match client.get("/lodash/-/lodash-4.17.21.tgz").send() {
+                        match client.get("/registry/lodash/-/lodash-4.17.21.tgz").send() {
                             Ok(response2) if response2.status().is_success() => {
                                 thread::sleep(Duration::from_millis(100));
 
@@ -232,38 +232,50 @@ mod tests {
         let initial_stats: serde_json::Value = initial_stats_response.json().unwrap();
         let initial_size = initial_stats["total_size_bytes"].as_u64().unwrap_or(0);
 
-        // Download a package (with error handling)
-        match client.get("/lodash/-/lodash-4.17.21.tgz").send() {
-            Ok(response) if response.status().is_success() => {
-                thread::sleep(Duration::from_millis(100));
+        // Download a package
+        let response = client
+            .get("/registry/lodash/-/lodash-4.17.21.tgz")
+            .send()
+            .expect("Failed to make package download request");
 
-                // Check size after download
-                if let Ok(stats_response) = client.get("/cache/stats").send() {
-                    if let Ok(stats) = stats_response.json::<serde_json::Value>() {
-                        let new_size = stats["total_size_bytes"].as_u64().unwrap_or(0);
+        println!("Package download returned status: {}", response.status());
 
-                        println!(
-                            "Cache size: initial={}, after download={}",
-                            initial_size, new_size
-                        );
+        // Package download should succeed
+        assert!(
+            response.status().is_success(),
+            "Package download failed with status: {} - package downloads should return 200 OK",
+            response.status()
+        );
 
-                        // Size should have increased (or at least stayed the same)
-                        assert!(new_size >= initial_size);
+        thread::sleep(Duration::from_millis(100));
 
-                        // Size in MB should be calculated correctly
-                        let size_mb = stats["total_size_mb"].as_f64().unwrap_or(0.0);
-                        let expected_mb = new_size as f64 / 1024.0 / 1024.0;
-                        assert!((size_mb - expected_mb).abs() < 0.01);
-                    }
-                }
-            }
-            Ok(response) => {
-                println!("Package download failed with status: {}", response.status());
-            }
-            Err(e) => {
-                println!("Package download error: {} - may be network issue", e);
-            }
-        }
+        // Check size after download
+        let stats_response = client.get("/cache/stats").send().unwrap();
+        assert!(stats_response.status().is_success());
+
+        let stats: serde_json::Value = stats_response.json().unwrap();
+        let new_size = stats["total_size_bytes"].as_u64().unwrap_or(0);
+
+        println!(
+            "Cache size: initial={}, after download={}",
+            initial_size, new_size
+        );
+
+        // Size should have increased (or at least stayed the same)
+        assert!(
+            new_size >= initial_size,
+            "Cache size should increase after download"
+        );
+
+        // Size in MB should be calculated correctly
+        let size_mb = stats["total_size_mb"].as_f64().unwrap_or(0.0);
+        let expected_mb = new_size as f64 / 1024.0 / 1024.0;
+        assert!(
+            (size_mb - expected_mb).abs() < 0.01,
+            "Size in MB calculation incorrect: got {}, expected {}",
+            size_mb,
+            expected_mb
+        );
     }
 
     #[test]
@@ -282,7 +294,7 @@ mod tests {
         // Make multiple requests to the same resource (with error handling)
         let mut successful_requests = 0;
         for i in 0..3 {
-            match client.get("/lodash/-/lodash-4.17.21.tgz").send() {
+            match client.get("/registry/lodash/-/lodash-4.17.21.tgz").send() {
                 Ok(response) if response.status().is_success() => {
                     successful_requests += 1;
                     println!("Request {} successful", i + 1);
@@ -369,35 +381,41 @@ mod tests {
         let _ = client.delete("/cache").send();
         thread::sleep(Duration::from_millis(100));
 
-        // Make a HEAD request (with error handling)
-        match client
+        // Make a HEAD request
+        let head_response = client
             .client
-            .head(&format!("{}/lodash/-/lodash-4.17.21.tgz", server.base_url))
+            .head(&format!(
+                "{}/registry/lodash/-/lodash-4.17.21.tgz",
+                server.base_url
+            ))
             .send()
-        {
-            Ok(head_response) if head_response.status().is_success() => {
-                thread::sleep(Duration::from_millis(100));
+            .expect("Failed to make HEAD request");
 
-                // HEAD requests should not populate cache with content
-                if let Ok(stats_response) = client.get("/cache/stats").send() {
-                    if stats_response.status().is_success() {
-                        if let Ok(stats) = stats_response.json::<serde_json::Value>() {
-                            // Cache might have metadata but not the full content
-                            let total_size = stats["total_size_bytes"].as_u64().unwrap_or(0);
-                            println!("Cache size after HEAD request: {} bytes", total_size);
-                            // Size should be minimal for HEAD requests (allow some metadata)
-                            assert!(total_size < 10240); // Less than 10KB
-                        }
-                    }
-                }
-            }
-            Ok(response) => {
-                println!("HEAD request failed with status: {}", response.status());
-            }
-            Err(e) => {
-                println!("HEAD request error: {} - may be network issue", e);
-            }
-        }
+        println!("HEAD request returned status: {}", head_response.status());
+
+        // HEAD request should succeed
+        assert!(
+            head_response.status().is_success(),
+            "HEAD request failed with status: {} - HEAD requests should return 200 OK",
+            head_response.status()
+        );
+
+        thread::sleep(Duration::from_millis(100));
+
+        // HEAD requests should not populate cache with content
+        let stats_response = client.get("/cache/stats").send().unwrap();
+        assert!(stats_response.status().is_success());
+
+        let stats: serde_json::Value = stats_response.json().unwrap();
+        // Cache might have metadata but not the full content
+        let total_size = stats["total_size_bytes"].as_u64().unwrap_or(0);
+        println!("Cache size after HEAD request: {} bytes", total_size);
+        // Size should be minimal for HEAD requests (allow some metadata)
+        assert!(
+            total_size < 10240,
+            "Cache size too large after HEAD request: {} bytes",
+            total_size
+        );
     }
 
     #[test]
@@ -420,7 +438,7 @@ mod tests {
                 let base_url = server.base_url.clone();
                 std::thread::spawn(move || {
                     let client = ApiClient::new(base_url);
-                    match client.get("/lodash/-/lodash-4.17.21.tgz").send() {
+                    match client.get("/registry/lodash/-/lodash-4.17.21.tgz").send() {
                         Ok(response) => {
                             println!("Concurrent request {} status: {}", i + 1, response.status());
                             response.status().is_success()

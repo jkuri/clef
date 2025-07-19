@@ -272,7 +272,11 @@ impl RegistryService {
         );
 
         // Check cache first
-        if let Some(cache_entry) = state.cache.get(package, filename).await {
+        if let Some(cache_entry) = state
+            .cache
+            .get(package, filename, Some(&*state.database))
+            .await
+        {
             info!(
                 "Cache hit for tarball: {} filename: {} (size: {} bytes)",
                 package,
@@ -365,7 +369,12 @@ impl RegistryService {
         );
 
         // Check cache first
-        if state.cache.get(package, filename).await.is_some() {
+        if state
+            .cache
+            .get(package, filename, Some(&*state.database))
+            .await
+            .is_some()
+        {
             info!(
                 "Cache hit for HEAD tarball: {} filename: {}",
                 package, filename
@@ -414,51 +423,71 @@ impl RegistryService {
         let mut latest_version = "0.0.0".to_string();
         let mut package_description = None;
 
-        // Process each published version
+        // Get package with versions for each published package
         for pkg in published_packages {
-            if let Some(package_json_str) = &pkg.package_json {
-                // Parse the stored package.json
-                let package_json: Value = serde_json::from_str(package_json_str).map_err(|e| {
-                    ApiError::InternalServerError(format!("Failed to parse package.json: {}", e))
-                })?;
+            if let Some(pkg_with_versions) = state
+                .database
+                .get_package_with_versions(&pkg.name)
+                .map_err(|e| ApiError::InternalServerError(format!("Database error: {}", e)))?
+            {
+                // Process each version
+                for version_with_files in pkg_with_versions.versions {
+                    if let Some(package_json_str) = &version_with_files.version.package_json {
+                        // Parse the stored package.json
+                        let package_json: Value =
+                            serde_json::from_str(package_json_str).map_err(|e| {
+                                ApiError::InternalServerError(format!(
+                                    "Failed to parse package.json: {}",
+                                    e
+                                ))
+                            })?;
 
-                // Extract version info
-                let version = pkg.version.clone();
+                        // Extract version info
+                        let version = version_with_files.version.version.clone();
 
-                // Update latest version (simple string comparison for now)
-                if version > latest_version {
-                    latest_version = version.clone();
-                }
+                        // Update latest version (simple string comparison for now)
+                        if version > latest_version {
+                            latest_version = version.clone();
+                        }
 
-                // Set description from first package if not set
-                if package_description.is_none() {
-                    package_description = package_json
-                        .get("description")
-                        .and_then(|d| d.as_str())
-                        .map(|s| s.to_string());
-                }
+                        // Set description from first package if not set
+                        if package_description.is_none() {
+                            package_description = package_json
+                                .get("description")
+                                .and_then(|d| d.as_str())
+                                .map(|s| s.to_string());
+                        }
 
-                // Create version metadata
-                let scheme = state.config.get_scheme();
-                let tarball_url = format!(
-                    "{}://{}:{}/{}/-/{}",
-                    scheme, state.config.host, state.config.port, package_name, pkg.filename
-                );
+                        // Get the first file for the tarball URL
+                        if let Some(file) = version_with_files.files.first() {
+                            // Create version metadata
+                            let scheme = state.config.get_scheme();
+                            let tarball_url = format!(
+                                "{}://{}:{}/{}/-/{}",
+                                scheme,
+                                state.config.host,
+                                state.config.port,
+                                package_name,
+                                file.filename
+                            );
 
-                let mut version_data = package_json.clone();
+                            let mut version_data = package_json.clone();
 
-                // Ensure dist field exists with correct tarball URL
-                if let Some(dist) = version_data.get_mut("dist") {
-                    if let Some(dist_obj) = dist.as_object_mut() {
-                        dist_obj.insert("tarball".to_string(), json!(tarball_url));
+                            // Ensure dist field exists with correct tarball URL
+                            if let Some(dist) = version_data.get_mut("dist") {
+                                if let Some(dist_obj) = dist.as_object_mut() {
+                                    dist_obj.insert("tarball".to_string(), json!(tarball_url));
+                                }
+                            } else {
+                                version_data["dist"] = json!({
+                                    "tarball": tarball_url
+                                });
+                            }
+
+                            versions.insert(version, version_data);
+                        }
                     }
-                } else {
-                    version_data["dist"] = json!({
-                        "tarball": tarball_url
-                    });
                 }
-
-                versions.insert(version, version_data);
             }
         }
 

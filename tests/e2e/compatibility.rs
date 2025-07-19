@@ -97,34 +97,62 @@ mod tests {
 
         let client = ApiClient::new(server.base_url.clone());
 
-        // Test endpoints that different package managers use
-        let endpoints = [
-            "/registry/lodash",                            // Package metadata (all managers)
-            "/registry/lodash/-/lodash-4.17.21.tgz",       // Package tarball (all managers)
-            "/registry/-/npm/v1/security/audits",          // Security audits (pnpm, npm)
-            "/registry/-/npm/v1/security/advisories/bulk", // Security advisories (npm)
+        // Test GET endpoints that different package managers use
+        let get_endpoints = [
+            "/registry/lodash",                      // Package metadata (all managers)
+            "/registry/lodash/-/lodash-4.17.21.tgz", // Package tarball (all managers)
         ];
 
-        for endpoint in &endpoints {
-            match client.get(endpoint).send() {
-                Ok(response) => {
-                    println!(
-                        "Endpoint {} returned status: {}",
-                        endpoint,
-                        response.status()
-                    );
-                    // Endpoints should either succeed or return proper HTTP error codes
-                    assert!(
-                        response.status().as_u16() < 500,
-                        "Endpoint {} returned server error",
-                        endpoint
-                    );
-                }
-                Err(e) => {
-                    println!("Endpoint {} error: {}", endpoint, e);
-                    // Network errors are acceptable in test environments
-                }
-            }
+        for endpoint in &get_endpoints {
+            let response = client.get(endpoint).send().expect("Failed to make request");
+
+            println!(
+                "Endpoint {} returned status: {}",
+                endpoint,
+                response.status()
+            );
+
+            // Basic package endpoints should succeed
+            assert!(
+                response.status().is_success(),
+                "Endpoint {} failed with status: {} - basic package endpoints should return 200 OK",
+                endpoint,
+                response.status()
+            );
+        }
+
+        // Test POST endpoints (security audits) with proper request bodies
+        let audit_request = serde_json::json!({"name": "test", "version": "1.0.0"});
+        let advisories_request = serde_json::json!({"lodash": ["4.17.21"]});
+
+        let post_endpoints = [
+            ("/registry/-/npm/v1/security/audits", &audit_request), // Security audits (pnpm, npm)
+            (
+                "/registry/-/npm/v1/security/advisories/bulk",
+                &advisories_request,
+            ), // Security advisories (npm)
+        ];
+
+        for (endpoint, request_body) in &post_endpoints {
+            let response = client
+                .post(endpoint)
+                .json(request_body)
+                .send()
+                .expect("Failed to make POST request");
+
+            println!(
+                "Endpoint {} returned status: {}",
+                endpoint,
+                response.status()
+            );
+
+            // Security endpoints should succeed
+            assert!(
+                response.status().is_success(),
+                "Endpoint {} failed with status: {} - security endpoints should return 200 OK",
+                endpoint,
+                response.status()
+            );
         }
     }
 
@@ -188,18 +216,22 @@ mod tests {
         let mut success_count = 0;
         for handle in handles {
             if let Ok(Ok(response)) = handle.join() {
-                if response.status().is_success() || response.status().as_u16() < 500 {
+                if response.status().is_success() {
                     success_count += 1;
+                } else {
+                    panic!(
+                        "Concurrent request failed with status: {} - all concurrent requests should succeed",
+                        response.status()
+                    );
                 }
+            } else {
+                panic!("Concurrent request failed to complete");
             }
         }
 
         println!("Concurrent requests: {} succeeded", success_count);
-        // Should handle concurrent requests without server errors
-        assert!(
-            success_count > 0,
-            "At least some concurrent requests should succeed"
-        );
+        // All concurrent requests should succeed
+        assert_eq!(success_count, 3, "All 3 concurrent requests should succeed");
     }
 
     #[test]
@@ -268,25 +300,24 @@ mod tests {
         ];
 
         for endpoint in &scoped_endpoints {
-            match client.get(endpoint).send() {
-                Ok(response) => {
-                    println!(
-                        "Scoped endpoint {} returned status: {}",
-                        endpoint,
-                        response.status()
-                    );
-                    // Should handle scoped packages properly (success or proper error)
-                    assert!(
-                        response.status().as_u16() < 500,
-                        "Scoped endpoint {} returned server error",
-                        endpoint
-                    );
-                }
-                Err(e) => {
-                    println!("Scoped endpoint {} error: {}", endpoint, e);
-                    // Network errors are acceptable
-                }
-            }
+            let response = client
+                .get(endpoint)
+                .send()
+                .expect("Failed to make scoped package request");
+
+            println!(
+                "Scoped endpoint {} returned status: {}",
+                endpoint,
+                response.status()
+            );
+
+            // Scoped package endpoints should succeed
+            assert!(
+                response.status().is_success(),
+                "Scoped endpoint {} failed with status: {} - scoped package endpoints should return 200 OK",
+                endpoint,
+                response.status()
+            );
         }
     }
 

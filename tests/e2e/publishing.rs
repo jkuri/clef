@@ -25,7 +25,7 @@ mod tests {
         });
 
         let response = client
-            .put("/-/user/org.couchdb.user:publisher")
+            .put("/registry/-/user/org.couchdb.user:publisher")
             .json(&npm_user_doc)
             .send()
             .ok()?;
@@ -85,7 +85,7 @@ mod tests {
             });
 
             let response = client
-                .put("/test-package")
+                .put("/registry/test-package")
                 .json(&publish_request)
                 .send()
                 .unwrap();
@@ -129,7 +129,7 @@ mod tests {
         });
 
         let response = client
-            .put("/unauthorized-package")
+            .put("/registry/unauthorized-package")
             .json(&publish_request)
             .send()
             .unwrap();
@@ -182,7 +182,7 @@ mod tests {
             });
 
             let response = client
-                .put("/@testscope/scoped-package")
+                .put("/registry/@testscope/scoped-package")
                 .json(&publish_request)
                 .send()
                 .unwrap();
@@ -235,7 +235,7 @@ mod tests {
             });
 
             let response_v1 = client
-                .put("/versioned-package")
+                .put("/registry/versioned-package")
                 .json(&publish_request_v1)
                 .send()
                 .unwrap();
@@ -277,7 +277,7 @@ mod tests {
                 });
 
                 let response_v2 = client
-                    .put("/versioned-package")
+                    .put("/registry/versioned-package")
                     .json(&publish_request_v2)
                     .send()
                     .unwrap();
@@ -325,7 +325,7 @@ mod tests {
             });
 
             let response = client
-                .put("/Invalid%20Package%20Name!")
+                .put("/registry/Invalid%20Package%20Name!")
                 .json(&publish_request)
                 .send()
                 .unwrap();
@@ -361,7 +361,7 @@ mod tests {
             });
 
             let response = client
-                .put("/no-attachments-package")
+                .put("/registry/no-attachments-package")
                 .json(&publish_request)
                 .send()
                 .unwrap();
@@ -392,7 +392,7 @@ mod tests {
         });
 
         let response1 = client1
-            .put("/-/user/org.couchdb.user:owner1")
+            .put("/registry/-/user/org.couchdb.user:owner1")
             .json(&npm_user_doc1)
             .send()
             .unwrap();
@@ -413,7 +413,7 @@ mod tests {
             });
 
             let response2 = client2
-                .put("/-/user/org.couchdb.user:owner2")
+                .put("/registry/-/user/org.couchdb.user:owner2")
                 .json(&npm_user_doc2)
                 .send()
                 .unwrap();
@@ -445,7 +445,7 @@ mod tests {
                 });
 
                 let publish_response = client1
-                    .put("/ownership-test-package")
+                    .put("/registry/ownership-test-package")
                     .json(&publish_request)
                     .send()
                     .unwrap();
@@ -453,7 +453,7 @@ mod tests {
                 if publish_response.status().is_success() {
                     // Second user tries to publish to the same package (should fail)
                     let unauthorized_response = client2
-                        .put("/ownership-test-package")
+                        .put("/registry/ownership-test-package")
                         .json(&publish_request)
                         .send()
                         .unwrap();

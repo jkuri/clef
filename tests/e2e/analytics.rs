@@ -17,8 +17,8 @@ mod tests {
         let client = ApiClient::new(server.base_url.clone());
 
         // Make some package requests to populate the database
-        let _ = client.get("/lodash").send();
-        let _ = client.get("/express").send();
+        let _ = client.get("/registry/lodash").send();
+        let _ = client.get("/registry/express").send();
         thread::sleep(Duration::from_millis(200));
 
         // Test packages list endpoint
@@ -71,7 +71,7 @@ mod tests {
         let client = ApiClient::new(server.base_url.clone());
 
         // Make a request to populate package data
-        let _ = client.get("/lodash").send();
+        let _ = client.get("/registry/lodash").send();
         thread::sleep(Duration::from_millis(200));
 
         // Test package versions endpoint
@@ -103,9 +103,9 @@ mod tests {
         let client = ApiClient::new(server.base_url.clone());
 
         // Make requests to different packages to create download data
-        let _ = client.get("/lodash/-/lodash-4.17.21.tgz").send();
-        let _ = client.get("/express/-/express-4.18.2.tgz").send();
-        let _ = client.get("/react/-/react-18.2.0.tgz").send();
+        let _ = client.get("/registry/lodash/-/lodash-4.17.21.tgz").send();
+        let _ = client.get("/registry/express/-/express-4.18.2.tgz").send();
+        let _ = client.get("/registry/react/-/react-18.2.0.tgz").send();
         thread::sleep(Duration::from_millis(300));
 
         // Test popular packages endpoint with default limit
@@ -188,10 +188,10 @@ mod tests {
         let client = ApiClient::new(server.base_url.clone());
 
         // Make various requests to populate analytics data
-        let _ = client.get("/lodash").send();
-        let _ = client.get("/express").send();
-        let _ = client.get("/lodash/-/lodash-4.17.21.tgz").send();
-        let _ = client.get("/express/-/express-4.18.2.tgz").send();
+        let _ = client.get("/registry/lodash").send();
+        let _ = client.get("/registry/express").send();
+        let _ = client.get("/registry/lodash/-/lodash-4.17.21.tgz").send();
+        let _ = client.get("/registry/express/-/express-4.18.2.tgz").send();
         thread::sleep(Duration::from_millis(300));
 
         // Test comprehensive analytics endpoint
@@ -257,7 +257,7 @@ mod tests {
         // Make multiple downloads of the same package
         let mut successful_downloads = 0;
         for i in 0..3 {
-            match client.get("/lodash/-/lodash-4.17.21.tgz").send() {
+            match client.get("/registry/lodash/-/lodash-4.17.21.tgz").send() {
                 Ok(response) if response.status().is_success() => {
                     successful_downloads += 1;
                     println!("Download {} successful", i + 1);
@@ -332,7 +332,7 @@ mod tests {
         let client = ApiClient::new(server.base_url.clone());
 
         // Request package metadata
-        let _ = client.get("/lodash").send();
+        let _ = client.get("/registry/lodash").send();
         thread::sleep(Duration::from_millis(200));
 
         // Check if package metadata is stored
@@ -367,18 +367,18 @@ mod tests {
         // This avoids relying on actual package manager installations
 
         // Simulate npm-style requests
-        let _ = client.get("/lodash").send();
-        let _ = client.get("/lodash/-/lodash-4.17.21.tgz").send();
+        let _ = client.get("/registry/lodash").send();
+        let _ = client.get("/registry/lodash/-/lodash-4.17.21.tgz").send();
         thread::sleep(Duration::from_millis(100));
 
         // Simulate pnpm-style requests
-        let _ = client.get("/express").send();
-        let _ = client.get("/express/-/express-4.18.2.tgz").send();
+        let _ = client.get("/registry/express").send();
+        let _ = client.get("/registry/express/-/express-4.18.2.tgz").send();
         thread::sleep(Duration::from_millis(100));
 
         // Simulate yarn-style requests
-        let _ = client.get("/react").send();
-        let _ = client.get("/react/-/react-18.2.0.tgz").send();
+        let _ = client.get("/registry/react").send();
+        let _ = client.get("/registry/react/-/react-18.2.0.tgz").send();
         thread::sleep(Duration::from_millis(200));
 
         // Check analytics
@@ -430,8 +430,8 @@ mod tests {
         thread::sleep(Duration::from_millis(100));
 
         // Make requests to generate cache activity
-        let _ = client.get("/lodash/-/lodash-4.17.21.tgz").send();
-        let _ = client.get("/lodash/-/lodash-4.17.21.tgz").send(); // Should be cache hit
+        let _ = client.get("/registry/lodash/-/lodash-4.17.21.tgz").send();
+        let _ = client.get("/registry/lodash/-/lodash-4.17.21.tgz").send(); // Should be cache hit
         thread::sleep(Duration::from_millis(200));
 
         // Check analytics includes cache hit rate
@@ -483,7 +483,7 @@ mod tests {
         let client = ApiClient::new(server.base_url.clone());
 
         // Make a request
-        let _ = client.get("/lodash").send();
+        let _ = client.get("/registry/lodash").send();
         thread::sleep(Duration::from_millis(200));
 
         // Check that timestamps are properly recorded

@@ -16,7 +16,7 @@ mod tests {
         let client = ApiClient::new(server.base_url.clone());
 
         // Test fetching scoped package metadata
-        let response = client.get("/@types/node").send().unwrap();
+        let response = client.get("/registry/@types/node").send().unwrap();
 
         if response.status().is_success() {
             let metadata: serde_json::Value = response.json().unwrap();
@@ -35,7 +35,7 @@ mod tests {
         let client = ApiClient::new(server.base_url.clone());
 
         // Test fetching specific version of scoped package
-        let response = client.get("/@types/node/18.11.9").send().unwrap();
+        let response = client.get("/registry/@types/node/18.11.9").send().unwrap();
 
         if response.status().is_success() {
             let metadata: serde_json::Value = response.json().unwrap();
@@ -55,7 +55,7 @@ mod tests {
 
         // Test downloading scoped package tarball
         let response = client
-            .get("/@types/node/-/node-18.11.9.tgz")
+            .get("/registry/@types/node/-/node-18.11.9.tgz")
             .send()
             .unwrap();
 
@@ -85,11 +85,22 @@ mod tests {
                 server.base_url
             ))
             .send()
-            .unwrap();
+            .expect("Failed to make HEAD request");
 
-        if response.status().is_success() {
-            assert!(response.headers().contains_key("content-length"));
-        }
+        println!("Scoped HEAD request returned status: {}", response.status());
+
+        // HEAD request should succeed
+        assert!(
+            response.status().is_success(),
+            "Scoped HEAD request failed with status: {} - HEAD requests should return 200 OK",
+            response.status()
+        );
+
+        // Should have content-length header
+        assert!(
+            response.headers().contains_key("content-length"),
+            "Scoped HEAD response should include content-length header"
+        );
     }
 
     #[test]
@@ -102,7 +113,7 @@ mod tests {
         let client = ApiClient::new(server.base_url.clone());
 
         // Test npm-style scoped package requests (what npm would make during installation)
-        match client.get("/@types/node").send() {
+        match client.get("/registry/@types/node").send() {
             Ok(response) => {
                 println!(
                     "npm-style scoped package metadata request returned: {}",
@@ -110,24 +121,39 @@ mod tests {
                 );
                 if response.status().is_success() {
                     // Test tarball download for scoped package
-                    match client.get("/@types/node/-/node-18.15.0.tgz").send() {
-                        Ok(tarball_response) => {
-                            println!(
-                                "npm-style scoped tarball download returned: {}",
-                                tarball_response.status()
-                            );
-                            assert!(
-                                tarball_response.status().is_success()
-                                    || tarball_response.status().as_u16() < 500
-                            );
-                        }
-                        Err(e) => {
-                            println!("npm-style scoped tarball request error: {} (acceptable)", e)
-                        }
-                    }
-                } else {
+                    let tarball_response = client
+                        .get("/registry/@types/node/-/node-18.15.0.tgz")
+                        .send()
+                        .expect("Failed to make scoped tarball request");
+
                     println!(
-                        "npm-style scoped metadata request failed: {} (acceptable)",
+                        "npm-style scoped tarball download returned: {}",
+                        tarball_response.status()
+                    );
+
+                    // Scoped tarball download should succeed
+                    assert!(
+                        tarball_response.status().is_success(),
+                        "npm scoped tarball download failed with status: {}",
+                        tarball_response.status()
+                    );
+
+                    // Verify we got actual tarball data
+                    let content_length = tarball_response
+                        .headers()
+                        .get("content-length")
+                        .and_then(|v| v.to_str().ok())
+                        .and_then(|s| s.parse::<u64>().ok())
+                        .unwrap_or(0);
+
+                    assert!(
+                        content_length > 1000,
+                        "Scoped tarball seems too small: {} bytes",
+                        content_length
+                    );
+                } else {
+                    panic!(
+                        "npm scoped metadata request failed with status: {} - this should succeed",
                         response.status()
                     );
                 }
@@ -210,7 +236,7 @@ mod tests {
         let client = ApiClient::new(server.base_url.clone());
 
         // Test URL encoded scoped package name
-        let response = client.get("/@types%2fnode").send().unwrap();
+        let response = client.get("/registry/@types%2fnode").send().unwrap();
 
         if response.status().is_success() {
             let metadata: serde_json::Value = response.json().unwrap();
@@ -276,7 +302,7 @@ mod tests {
 
         let mut success_count = 0;
         for package in &scoped_packages {
-            match client.get(&format!("/{}", package)).send() {
+            match client.get(&format!("/registry/{}", package)).send() {
                 Ok(response) => {
                     println!("Scoped package {} returned: {}", package, response.status());
                     if response.status().is_success() {
@@ -319,17 +345,22 @@ mod tests {
         let mut request_count = 0;
 
         for package in &scoped_packages {
-            match client.get(&format!("/{}", package)).send() {
-                Ok(response) => {
-                    println!("Analytics test: {} returned {}", package, response.status());
-                    if response.status().is_success() || response.status().as_u16() < 500 {
-                        request_count += 1;
-                    }
-                }
-                Err(e) => {
-                    println!("Analytics test: {} error: {} (acceptable)", package, e);
-                }
-            }
+            let response = client
+                .get(&format!("/registry/{}", package))
+                .send()
+                .expect("Failed to make analytics request");
+
+            println!("Analytics test: {} returned {}", package, response.status());
+
+            // Analytics requests should succeed
+            assert!(
+                response.status().is_success(),
+                "Analytics request for {} failed with status: {}",
+                package,
+                response.status()
+            );
+
+            request_count += 1;
         }
 
         std::thread::sleep(std::time::Duration::from_millis(100));
@@ -379,14 +410,14 @@ mod tests {
 
         // First request to scoped package - should be cache miss
         let response1 = client
-            .get("/@types/node/-/node-18.11.9.tgz")
+            .get("/registry/@types/node/-/node-18.11.9.tgz")
             .send()
             .unwrap();
 
         if response1.status().is_success() {
             // Second request - should be cache hit
             let response2 = client
-                .get("/@types/node/-/node-18.11.9.tgz")
+                .get("/registry/@types/node/-/node-18.11.9.tgz")
                 .send()
                 .unwrap();
             assert!(response2.status().is_success());
@@ -432,7 +463,7 @@ mod tests {
         let client = ApiClient::new(server.base_url.clone());
 
         // Test version resolution for scoped packages with faster approach
-        match client.get("/@types/node").send() {
+        match client.get("/registry/@types/node").send() {
             Ok(response) => {
                 println!(
                     "Scoped package version resolution returned: {}",
@@ -556,7 +587,7 @@ mod tests {
         let mut success_count = 0;
         for (manager, user_agent) in &user_agents {
             match client
-                .get("/@types/node")
+                .get("/registry/@types/node")
                 .header("User-Agent", *user_agent)
                 .send()
             {

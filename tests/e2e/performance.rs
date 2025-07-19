@@ -58,7 +58,7 @@ mod tests {
         // Now test a package request
         println!("Testing single package request...");
         match client
-            .get("/lodash")
+            .get("/registry/lodash")
             .header("User-Agent", "npm/8.19.2 node/v18.12.1 linux x64")
             .send()
         {
@@ -117,7 +117,7 @@ mod tests {
 
                     // Use the same request pattern as the working test
                     match client
-                        .get(&format!("/{}", package_name))
+                        .get(&format!("/registry/{}", package_name))
                         .header("User-Agent", "npm/8.19.2 node/v18.12.1 linux x64")
                         .send()
                     {
@@ -232,7 +232,10 @@ mod tests {
 
         for package in &large_packages {
             let start_time = Instant::now();
-            let response = client.get(&format!("/{}", package)).send().unwrap();
+            let response = client
+                .get(&format!("/registry/{}", package))
+                .send()
+                .unwrap();
             let elapsed = start_time.elapsed();
 
             if response.status().is_success() {
@@ -266,7 +269,7 @@ mod tests {
         let _ = client.delete("/cache").send();
         thread::sleep(Duration::from_millis(100));
 
-        let package_url = "/lodash/-/lodash-4.17.21.tgz";
+        let package_url = "/registry/lodash/-/lodash-4.17.21.tgz";
 
         // First request (cache miss)
         let start_time = Instant::now();
@@ -312,7 +315,7 @@ mod tests {
                 _ => "angular",
             };
 
-            let _ = client.get(&format!("/{}", package)).send();
+            let _ = client.get(&format!("/registry/{}", package)).send();
 
             // Small delay to prevent overwhelming the server
             thread::sleep(Duration::from_millis(10));
@@ -336,11 +339,14 @@ mod tests {
         let _ = client.delete("/cache").send();
         thread::sleep(Duration::from_millis(100));
 
-        // Use a smaller set of lightweight requests for faster testing
-        let endpoints = ["/cache/stats", "/analytics", "/packages", "/cache/health"];
+        // Use package requests that actually trigger cache operations
+        let package_endpoints = [
+            "/registry/lodash/-/lodash-4.17.21.tgz",
+            "/registry/express/-/express-4.18.2.tgz",
+        ];
 
         // Create concurrent requests to test cache system under load
-        let handles: Vec<_> = endpoints
+        let handles: Vec<_> = package_endpoints
             .iter()
             .map(|endpoint| {
                 let base_url = server.base_url.clone();
@@ -364,16 +370,19 @@ mod tests {
 
         // Check cache stats
         let stats_response = client.get("/cache/stats").send().unwrap();
-        let is_success = stats_response.status().is_success();
-        if is_success {
-            let stats: serde_json::Value = stats_response.json().unwrap();
-            let total_requests = stats["hit_count"].as_u64().unwrap_or(0)
-                + stats["miss_count"].as_u64().unwrap_or(0);
+        assert!(stats_response.status().is_success());
 
-            println!("Processed {} cache operations", total_requests);
-        }
-        // Should handle concurrent requests without errors
-        assert!(is_success);
+        let stats: serde_json::Value = stats_response.json().unwrap();
+        let total_requests =
+            stats["hit_count"].as_u64().unwrap_or(0) + stats["miss_count"].as_u64().unwrap_or(0);
+
+        println!("Processed {} cache operations", total_requests);
+
+        // Should have processed some cache operations since we made package requests
+        assert!(
+            total_requests > 0,
+            "Expected cache operations but got 0 - cache system may not be working properly"
+        );
     }
 
     #[test]
@@ -399,7 +408,7 @@ mod tests {
 
             // Make a simple package metadata request
             match client
-                .get("/lodash")
+                .get("/registry/lodash")
                 .header("User-Agent", *user_agent)
                 .send()
             {
@@ -445,8 +454,8 @@ mod tests {
         // Generate some analytics data
         let packages = ["lodash", "express", "react", "vue", "angular"];
         for package in &packages {
-            let _ = client.get(&format!("/{}", package)).send();
-            let _ = client.get(&format!("/{}", package)).send(); // Second request for cache hits
+            let _ = client.get(&format!("/registry/{}", package)).send();
+            let _ = client.get(&format!("/registry/{}", package)).send(); // Second request for cache hits
         }
 
         thread::sleep(Duration::from_millis(200));
@@ -530,7 +539,7 @@ mod tests {
         for package in &packages_to_test {
             let start_time = Instant::now();
 
-            match client.get(&format!("/{}", package)).send() {
+            match client.get(&format!("/registry/{}", package)).send() {
                 Ok(response) => {
                     let elapsed = start_time.elapsed();
 
@@ -594,7 +603,7 @@ mod tests {
                 move || {
                     let client = ApiClient::new(base_url);
                     for _ in 0..5 {
-                        let _ = client.get("/lodash").send();
+                        let _ = client.get("/registry/lodash").send();
                         thread::sleep(Duration::from_millis(10));
                     }
                 }
@@ -605,7 +614,7 @@ mod tests {
                 move || {
                     let client = ApiClient::new(base_url);
                     for _ in 0..3 {
-                        let _ = client.get("/express/-/express-4.18.2.tgz").send();
+                        let _ = client.get("/registry/express/-/express-4.18.2.tgz").send();
                         thread::sleep(Duration::from_millis(20));
                     }
                 }
