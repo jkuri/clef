@@ -35,7 +35,7 @@ impl RegistryService {
 
                                 // Rewrite to our proxy server URL using the same scheme as the request
                                 let new_url =
-                                    format!("{}://{}/registry/{}", scheme, host_to_use, path_part);
+                                    format!("{scheme}://{host_to_use}/registry/{path_part}");
 
                                 dist.insert("tarball".to_string(), Value::String(new_url.clone()));
                                 debug!(
