@@ -2,12 +2,41 @@ use std::fs;
 use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::sync::Once;
+use std::sync::{Once, OnceLock};
 use std::thread;
 use std::time::Duration;
 use tempfile::TempDir;
 
 static INIT: Once = Once::new();
+static BINARY_PATH: OnceLock<PathBuf> = OnceLock::new();
+
+/// Build the binary once and cache the path
+fn ensure_binary_built() -> PathBuf {
+    BINARY_PATH
+        .get_or_init(|| {
+            println!("Building binary once for all E2E tests...");
+            let build_output = Command::new("cargo")
+                .args(&["build"])
+                .output()
+                .expect("Failed to build project");
+
+            if !build_output.status.success() {
+                panic!(
+                    "Failed to build project: {}",
+                    String::from_utf8_lossy(&build_output.stderr)
+                );
+            }
+
+            // Get the binary path
+            let target_dir =
+                std::env::var("CARGO_TARGET_DIR").unwrap_or_else(|_| "target".to_string());
+            let binary_path = PathBuf::from(target_dir).join("debug").join("pnrs");
+
+            println!("Binary built successfully and cached");
+            binary_path
+        })
+        .clone()
+}
 
 /// Test server configuration
 pub struct TestServer {
@@ -37,22 +66,11 @@ impl TestServer {
     }
 
     pub fn start(&self) -> TestServerHandle {
-        // First, build the project to avoid compilation delays during startup
-        let build_output = Command::new("cargo")
-            .args(&["build"])
-            .output()
-            .expect("Failed to build project");
+        // Get the pre-built binary path (builds once if not already built)
+        let binary_path = ensure_binary_built();
 
-        if !build_output.status.success() {
-            panic!(
-                "Failed to build project: {}",
-                String::from_utf8_lossy(&build_output.stderr)
-            );
-        }
-
-        let mut cmd = Command::new("cargo");
-        cmd.args(&["run", "--"])
-            .env("PNRS_PORT", self.port.to_string())
+        let mut cmd = Command::new(&binary_path);
+        cmd.env("PNRS_PORT", self.port.to_string())
             .env("PNRS_HOST", "127.0.0.1")
             .env("PNRS_CACHE_DIR", &self.cache_dir)
             .env("PNRS_DATABASE_URL", self.db_path.display().to_string())

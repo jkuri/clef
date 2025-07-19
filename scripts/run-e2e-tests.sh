@@ -2,6 +2,7 @@
 
 # PNRS End-to-End Test Runner
 # This script runs comprehensive e2e tests for PNRS with npm, pnpm, and yarn
+# Now optimized: builds binary once and reuses it across all tests for faster execution
 
 set -e
 
@@ -37,33 +38,33 @@ command_exists() {
 # Check prerequisites
 check_prerequisites() {
     print_status "Checking prerequisites..."
-    
+
     # Check Rust/Cargo
     if ! command_exists cargo; then
         print_error "Cargo is not installed. Please install Rust: https://rustup.rs/"
         exit 1
     fi
-    
+
     # Check Node.js/npm
     if ! command_exists node; then
         print_error "Node.js is not installed. Please install Node.js: https://nodejs.org/"
         exit 1
     fi
-    
+
     if ! command_exists npm; then
         print_error "npm is not installed. Please install Node.js: https://nodejs.org/"
         exit 1
     fi
-    
+
     print_success "Rust and Node.js are available"
-    
+
     # Check optional package managers
     if command_exists pnpm; then
         print_success "pnpm is available"
     else
         print_warning "pnpm is not installed. Some tests will be skipped. Install with: npm install -g pnpm"
     fi
-    
+
     if command_exists yarn; then
         print_success "yarn is available"
     else
@@ -75,9 +76,9 @@ check_prerequisites() {
 run_test_module() {
     local module=$1
     local description=$2
-    
+
     print_status "Running $description tests..."
-    
+
     if cargo test --test e2e_tests "$module" -- --nocapture; then
         print_success "$description tests passed"
         return 0
@@ -90,9 +91,9 @@ run_test_module() {
 # Function to run all tests
 run_all_tests() {
     print_status "Running all e2e tests..."
-    
+
     local failed_modules=()
-    
+
     # Core functionality tests
     run_test_module "package_management" "Package Management" || failed_modules+=("Package Management")
     run_test_module "authentication" "Authentication" || failed_modules+=("Authentication")
@@ -100,12 +101,12 @@ run_all_tests() {
     run_test_module "cache_management" "Cache Management" || failed_modules+=("Cache Management")
     run_test_module "analytics" "Analytics" || failed_modules+=("Analytics")
     run_test_module "security" "Security" || failed_modules+=("Security")
-    
+
     # Advanced feature tests
     run_test_module "scoped_packages" "Scoped Packages" || failed_modules+=("Scoped Packages")
     run_test_module "compatibility" "Cross-Manager Compatibility" || failed_modules+=("Cross-Manager Compatibility")
     run_test_module "performance" "Performance" || failed_modules+=("Performance")
-    
+
     # Summary
     if [ ${#failed_modules[@]} -eq 0 ]; then
         print_success "All e2e test modules passed!"
@@ -122,13 +123,13 @@ run_all_tests() {
 # Function to run quick tests (subset)
 run_quick_tests() {
     print_status "Running quick e2e tests (core functionality only)..."
-    
+
     local failed_modules=()
-    
+
     run_test_module "package_management" "Package Management" || failed_modules+=("Package Management")
     run_test_module "authentication" "Authentication" || failed_modules+=("Authentication")
     run_test_module "cache_management" "Cache Management" || failed_modules+=("Cache Management")
-    
+
     if [ ${#failed_modules[@]} -eq 0 ]; then
         print_success "Quick e2e tests passed!"
         return 0
@@ -146,6 +147,7 @@ show_usage() {
     echo "  -h, --help              Show this help message"
     echo "  -a, --all               Run all e2e tests (default)"
     echo "  -q, --quick             Run quick tests (core functionality only)"
+    echo "  -i, --integration       Run integration tests (fastest)"
     echo "  -m, --module MODULE     Run specific test module"
     echo "  -l, --list              List available test modules"
     echo "  -v, --verbose           Enable verbose output"
@@ -165,8 +167,22 @@ show_usage() {
     echo "Examples:"
     echo "  $0                      # Run all tests"
     echo "  $0 --quick              # Run quick tests"
-    echo "  $0 -m package_management # Run package management tests"
+    echo "  $0 --integration        # Run integration tests (fastest)"
+    echo "  $0 -m analytics         # Run analytics tests (optimized)"
     echo "  $0 --debug              # Run with debug logging"
+}
+
+# Function to run integration tests
+run_integration_tests() {
+    print_status "Running integration tests (fastest option)..."
+
+    if cargo test --test integration_tests -- --nocapture; then
+        print_success "Integration tests passed"
+        return 0
+    else
+        print_error "Integration tests failed"
+        return 1
+    fi
 }
 
 # Parse command line arguments
@@ -174,6 +190,7 @@ VERBOSE=false
 DEBUG=false
 MODULE=""
 QUICK=false
+INTEGRATION=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -187,6 +204,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         -q|--quick)
             QUICK=true
+            shift
+            ;;
+        -i|--integration)
+            INTEGRATION=true
             shift
             ;;
         -m|--module)
@@ -226,29 +247,33 @@ done
 main() {
     print_status "PNRS End-to-End Test Runner"
     print_status "============================"
-    
+
     # Check prerequisites
     check_prerequisites
-    
+
     # Set environment variables
     if [ "$DEBUG" = true ]; then
         export RUST_LOG=debug
         print_status "Debug logging enabled"
     fi
-    
+
     # Change to project root directory
     cd "$(dirname "$0")/.."
-    
-    # Build the project first
-    print_status "Building PNRS..."
-    if ! cargo build; then
-        print_error "Failed to build PNRS"
-        exit 1
+
+    # Build the project first (unless running integration tests which don't need it)
+    if [ "$INTEGRATION" != true ]; then
+        print_status "Building PNRS..."
+        if ! cargo build; then
+            print_error "Failed to build PNRS"
+            exit 1
+        fi
+        print_success "Build completed"
     fi
-    print_success "Build completed"
-    
+
     # Run tests based on options
-    if [ -n "$MODULE" ]; then
+    if [ "$INTEGRATION" = true ]; then
+        run_integration_tests
+    elif [ -n "$MODULE" ]; then
         case $MODULE in
             package_management)
                 run_test_module "$MODULE" "Package Management"
@@ -288,15 +313,15 @@ main() {
     else
         run_all_tests
     fi
-    
+
     exit_code=$?
-    
+
     if [ $exit_code -eq 0 ]; then
         print_success "E2E tests completed successfully!"
     else
         print_error "E2E tests failed!"
     fi
-    
+
     exit $exit_code
 }
 

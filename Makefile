@@ -16,9 +16,10 @@ help:
 	@echo "Testing:"
 	@echo "  test            Run all tests (unit + integration + e2e)"
 	@echo "  test-unit       Run unit tests only"
-	@echo "  test-integration Run integration tests only"
+	@echo "  test-integration Run integration tests only (fastest)"
 	@echo "  test-e2e        Run all end-to-end tests"
-	@echo "  test-e2e-quick  Run quick end-to-end tests"
+	@echo "  test-e2e-quick  Run quick end-to-end tests (optimized)"
+	@echo "  test-integration-fast Run integration tests via script"
 	@echo ""
 	@echo "Development:"
 	@echo "  install-deps    Install development dependencies (pnpm, yarn)"
@@ -32,7 +33,7 @@ help:
 	@echo "  test-e2e-auth          Authentication tests"
 	@echo "  test-e2e-publish       Publishing tests"
 	@echo "  test-e2e-cache         Cache management tests"
-	@echo "  test-e2e-analytics     Analytics tests"
+	@echo "  test-e2e-analytics     Analytics tests (optimized - no recompilation)"
 	@echo "  test-e2e-security      Security tests"
 	@echo "  test-e2e-scoped        Scoped package tests"
 	@echo "  test-e2e-compat        Cross-manager compatibility tests"
@@ -65,15 +66,19 @@ test-unit:
 	cargo test --lib
 
 test-integration:
-	@echo "Running integration tests..."
+	@echo "Running integration tests (fastest)..."
 	cargo test --test integration_tests
+
+test-integration-fast:
+	@echo "Running integration tests with optimized script..."
+	./scripts/run-e2e-tests.sh --integration
 
 test-e2e:
 	@echo "Running all end-to-end tests..."
 	./scripts/run-e2e-tests.sh --all
 
 test-e2e-quick:
-	@echo "Running quick end-to-end tests..."
+	@echo "Running quick end-to-end tests (optimized - builds once)..."
 	./scripts/run-e2e-tests.sh --quick
 
 test-all: test-unit test-integration test-e2e
@@ -93,6 +98,7 @@ test-e2e-cache:
 	./scripts/run-e2e-tests.sh --module cache_management
 
 test-e2e-analytics:
+	@echo "Running analytics tests (optimized - builds once, reuses binary)..."
 	./scripts/run-e2e-tests.sh --module analytics
 
 test-e2e-security:
@@ -175,17 +181,19 @@ help-e2e:
 	@echo "========================"
 	@echo ""
 	@echo "Quick tests (recommended for development):"
-	@echo "  make test-e2e-quick"
+	@echo "  make test-integration        # Fastest (in-process)"
+	@echo "  make test-integration-fast   # Fast (via script)"
+	@echo "  make test-e2e-quick          # Quick E2E (optimized)"
 	@echo ""
-	@echo "Full test suite (comprehensive, slower):"
-	@echo "  make test-e2e"
+	@echo "Full test suite (comprehensive, optimized):"
+	@echo "  make test-e2e                # All E2E tests (builds once)"
 	@echo ""
 	@echo "Individual test modules:"
 	@echo "  make test-e2e-package    # Package management"
 	@echo "  make test-e2e-auth       # Authentication"
 	@echo "  make test-e2e-publish    # Publishing"
 	@echo "  make test-e2e-cache      # Cache management"
-	@echo "  make test-e2e-analytics  # Analytics"
+	@echo "  make test-e2e-analytics  # Analytics (optimized)"
 	@echo "  make test-e2e-security   # Security"
 	@echo "  make test-e2e-scoped     # Scoped packages"
 	@echo "  make test-e2e-compat     # Cross-manager compatibility"
@@ -201,11 +209,12 @@ help-dev:
 	@echo "Setup:"
 	@echo "  make install-deps    # Install pnpm and yarn"
 	@echo ""
-	@echo "Development cycle:"
-	@echo "  make check          # Quick syntax check"
-	@echo "  make test-unit      # Fast unit tests"
-	@echo "  make test-e2e-quick # Core functionality tests"
-	@echo "  make dev            # Run with debug logging"
+	@echo "Development cycle (fastest to slowest):"
+	@echo "  make check               # Quick syntax check"
+	@echo "  make test-unit           # Fast unit tests"
+	@echo "  make test-integration    # Integration tests (fastest)"
+	@echo "  make test-e2e-quick      # Core E2E tests (optimized)"
+	@echo "  make dev                 # Run with debug logging"
 	@echo ""
 	@echo "Before committing:"
 	@echo "  make lint           # Check code quality"
