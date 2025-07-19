@@ -13,6 +13,7 @@ impl RegistryService {
         json: &mut Value,
         config: &AppConfig,
         scheme: &str,
+        request_host: Option<&str>,
     ) -> Result<(), ApiError> {
         // Rewrite tarball URLs in package metadata to point to our proxy server
         if let Some(versions) = json.get_mut("versions").and_then(|v| v.as_object_mut()) {
@@ -24,16 +25,17 @@ impl RegistryService {
                         .map(|s| s.to_string())
                     {
                         // Extract package name and filename from the original tarball URL
-                        // Expected format: https://registry.npmjs.org/package/-/package-version.tgz
-                        if tarball_url.starts_with("https://registry.npmjs.org/") {
+                        // Use the configured upstream registry instead of hardcoded URL
+                        if tarball_url.starts_with(&config.upstream_registry) {
                             if let Some(path_part) =
-                                tarball_url.strip_prefix("https://registry.npmjs.org/")
+                                tarball_url.strip_prefix(&format!("{}/", config.upstream_registry))
                             {
+                                // Use request host if available, otherwise fall back to config host
+                                let host_to_use = request_host.unwrap_or(&config.host);
+
                                 // Rewrite to our proxy server URL using the same scheme as the request
-                                let new_url = format!(
-                                    "{}://{}:{}/registry/{}",
-                                    scheme, config.host, config.port, path_part
-                                );
+                                let new_url =
+                                    format!("{}://{}/registry/{}", scheme, host_to_use, path_part);
 
                                 dist.insert("tarball".to_string(), Value::String(new_url.clone()));
                                 debug!(
@@ -110,7 +112,12 @@ impl RegistryService {
         Ok(())
     }
 
-    pub async fn get_package_metadata(package: &str, state: &AppState) -> Result<Value, ApiError> {
+    pub async fn get_package_metadata(
+        package: &str,
+        state: &AppState,
+        request_host: Option<&str>,
+        request_scheme: &str,
+    ) -> Result<Value, ApiError> {
         info!("Fetching metadata for package: {package}");
 
         // Check metadata cache first
@@ -150,7 +157,13 @@ impl RegistryService {
                 published_packages.len(),
                 package
             );
-            Self::generate_metadata_from_published_packages(package, &published_packages, state)?
+            Self::generate_metadata_from_published_packages(
+                package,
+                &published_packages,
+                state,
+                request_host,
+                request_scheme,
+            )?
         } else {
             // No published versions found, proxy to upstream
             let url = format!("{}/{package}", state.config.upstream_registry);
@@ -203,8 +216,12 @@ impl RegistryService {
                 match response.json::<Value>().await {
                     Ok(mut json) => {
                         // Rewrite tarball URLs to point to our proxy server
-                        let scheme = state.config.get_scheme();
-                        Self::rewrite_tarball_urls(&mut json, &state.config, scheme)?;
+                        Self::rewrite_tarball_urls(
+                            &mut json,
+                            &state.config,
+                            request_scheme,
+                            request_host,
+                        )?;
 
                         info!("Successfully proxied metadata for package: {package}");
 
@@ -480,6 +497,8 @@ impl RegistryService {
         package_name: &str,
         published_packages: &[Package],
         state: &AppState,
+        request_host: Option<&str>,
+        request_scheme: &str,
     ) -> Result<Value, ApiError> {
         use serde_json::json;
         use std::collections::HashMap;
@@ -520,14 +539,11 @@ impl RegistryService {
                         // Get the first file for the tarball URL
                         if let Some(file) = version_with_files.files.first() {
                             // Create version metadata
-                            let scheme = state.config.get_scheme();
+                            // Use request host if available, otherwise fall back to config host
+                            let host_to_use = request_host.unwrap_or(&state.config.host);
                             let tarball_url = format!(
-                                "{}://{}:{}/{}/-/{}",
-                                scheme,
-                                state.config.host,
-                                state.config.port,
-                                package_name,
-                                file.filename
+                                "{}://{}/registry/{}/-/{}",
+                                request_scheme, host_to_use, package_name, file.filename
                             );
 
                             let mut version_data = package_json.clone();
