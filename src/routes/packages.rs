@@ -65,7 +65,17 @@ fn decode_package_name(encoded: &str) -> String {
 fn parse_package_path(path: &str) -> Option<(String, PackageRequestType)> {
     // First decode the entire path to handle URL-encoded characters
     let decoded_path = decode_package_name(path);
-    let segments: Vec<&str> = decoded_path.trim_start_matches('/').split('/').collect();
+
+    // Strip the /registry/ prefix if present
+    let package_path = if decoded_path.starts_with("/registry/") {
+        &decoded_path[10..] // Remove "/registry/"
+    } else if decoded_path.starts_with("registry/") {
+        &decoded_path[9..] // Remove "registry/"
+    } else {
+        &decoded_path
+    };
+
+    let segments: Vec<&str> = package_path.trim_start_matches('/').split('/').collect();
 
     if segments.is_empty() {
         return None;
@@ -116,8 +126,8 @@ enum PackageRequestType {
 }
 
 // Specific routes for scoped packages (higher priority)
-// Route for scoped package metadata: @scope/package
-#[get("/<scope>/<package>", rank = 1)]
+// Route for scoped package metadata: /registry/@scope/package
+#[get("/registry/<scope>/<package>", rank = 1)]
 pub async fn handle_scoped_package_metadata(
     scope: ScopedPackageName,
     package: &str,
@@ -144,9 +154,9 @@ impl<'r> FromParam<'r> for ScopedPackageName {
     }
 }
 
-// Route for scoped package version: @scope/package/version
+// Route for scoped package version: /registry/@scope/package/version
 // Only match when scope actually starts with @
-#[get("/<scope>/<package>/<version>", rank = 1)]
+#[get("/registry/<scope>/<package>/<version>", rank = 1)]
 pub async fn handle_scoped_package_version(
     scope: ScopedPackageName,
     package: &str,
@@ -164,8 +174,8 @@ pub async fn handle_scoped_package_version(
     Ok(PackageResponse::Json(result))
 }
 
-// Route for scoped package tarball: @scope/package/-/filename
-#[get("/<scope>/<package>/-/<filename>", rank = 1)]
+// Route for scoped package tarball: /registry/@scope/package/-/filename
+#[get("/registry/<scope>/<package>/-/<filename>", rank = 1)]
 pub async fn handle_scoped_package_tarball(
     scope: ScopedPackageName,
     package: &str,
@@ -183,7 +193,7 @@ pub async fn handle_scoped_package_tarball(
 }
 
 // HEAD request for scoped package tarballs
-#[head("/<scope>/<package>/-/<filename>", rank = 1)]
+#[head("/registry/<scope>/<package>/-/<filename>", rank = 1)]
 pub async fn handle_scoped_package_tarball_head(
     scope: ScopedPackageName,
     package: &str,
@@ -201,8 +211,8 @@ pub async fn handle_scoped_package_tarball_head(
 }
 
 // Regular package routes (lower priority)
-// Route for regular package metadata: package
-#[get("/<package>", rank = 2)]
+// Route for regular package metadata: /registry/package
+#[get("/registry/<package>", rank = 2)]
 pub async fn handle_regular_package_metadata(
     package: &str,
     state: &State<AppState>,
@@ -228,8 +238,8 @@ pub async fn handle_regular_package_metadata(
     Ok(PackageResponse::Json(result))
 }
 
-// Route for regular package version: package/version
-#[get("/<package>/<version>", rank = 2)]
+// Route for regular package version: /registry/package/version
+#[get("/registry/<package>/<version>", rank = 2)]
 pub async fn handle_regular_package_version(
     package: &str,
     version: &str,
@@ -248,8 +258,8 @@ pub async fn handle_regular_package_version(
     Ok(PackageResponse::Json(result))
 }
 
-// Route for regular package tarball: package/-/filename
-#[get("/<package>/-/<filename>", rank = 2)]
+// Route for regular package tarball: /registry/package/-/filename
+#[get("/registry/<package>/-/<filename>", rank = 2)]
 pub async fn handle_regular_package_tarball(
     package: &str,
     filename: &str,
@@ -269,7 +279,7 @@ pub async fn handle_regular_package_tarball(
 }
 
 // HEAD request for regular package tarballs
-#[head("/<package>/-/<filename>", rank = 2)]
+#[head("/registry/<package>/-/<filename>", rank = 2)]
 pub async fn handle_regular_package_tarball_head(
     package: &str,
     filename: &str,
@@ -289,7 +299,7 @@ pub async fn handle_regular_package_tarball_head(
 }
 
 // Catch-all route for any remaining requests (lowest priority)
-#[get("/<path..>", rank = 3)]
+#[get("/registry/<path..>", rank = 3)]
 pub async fn handle_package_request(
     path: std::path::PathBuf,
     uri_path: UriPath,
@@ -331,7 +341,7 @@ pub async fn handle_package_request(
 }
 
 // HEAD request handler
-#[head("/<_path..>")]
+#[head("/registry/<_path..>")]
 pub async fn handle_package_head_request(
     _path: std::path::PathBuf,
     uri_path: UriPath,

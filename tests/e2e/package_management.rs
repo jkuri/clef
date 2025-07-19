@@ -16,7 +16,7 @@ mod tests {
         // Test fetching package metadata directly via API
         let client = ApiClient::new(server.base_url.clone());
 
-        match client.get("/express").send() {
+        match client.get("/registry/express").send() {
             Ok(response) if response.status().is_success() => {
                 let metadata: serde_json::Value = response.json().unwrap();
                 assert_eq!(metadata["name"], "express");
@@ -49,7 +49,7 @@ mod tests {
         let client = ApiClient::new(server.base_url.clone());
 
         // Test npm-style package requests (what npm would make during installation)
-        match client.get("/lodash").send() {
+        match client.get("/registry/lodash").send() {
             Ok(response) => {
                 println!(
                     "npm-style package metadata request returned: {}",
@@ -57,7 +57,7 @@ mod tests {
                 );
                 if response.status().is_success() {
                     // Test tarball download (what npm would do next)
-                    match client.get("/lodash/-/lodash-4.17.21.tgz").send() {
+                    match client.get("/registry/lodash/-/lodash-4.17.21.tgz").send() {
                         Ok(tarball_response) => {
                             println!(
                                 "npm-style tarball download returned: {}",
@@ -92,7 +92,7 @@ mod tests {
 
         // Test pnpm-style package requests (what pnpm would make during installation)
         match client
-            .get("/lodash")
+            .get("/registry/lodash")
             .header("User-Agent", "pnpm/7.14.0 node/v18.12.1 linux x64")
             .send()
         {
@@ -142,7 +142,7 @@ mod tests {
 
         // Test yarn-style package requests (what yarn would make during installation)
         match client
-            .get("/lodash")
+            .get("/registry/lodash")
             .header("User-Agent", "yarn/1.22.19 npm/? node/v18.12.1 linux x64")
             .send()
         {

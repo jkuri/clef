@@ -94,7 +94,7 @@ mod tests {
         });
 
         let response = client
-            .put("/-/user/org.couchdb.user:npmuser")
+            .put("/registry/-/user/org.couchdb.user:npmuser")
             .json(&npm_user_doc)
             .send()
             .unwrap();
@@ -127,7 +127,7 @@ mod tests {
         });
 
         let login_response = client
-            .put("/-/user/org.couchdb.user:whoamiuser")
+            .put("/registry/-/user/org.couchdb.user:whoamiuser")
             .json(&npm_user_doc)
             .send()
             .unwrap();
@@ -138,7 +138,7 @@ mod tests {
             client.set_auth_token(token.to_string());
 
             // Test whoami endpoint
-            let whoami_response = client.get("/-/whoami").send().unwrap();
+            let whoami_response = client.get("/registry/-/whoami").send().unwrap();
 
             if whoami_response.status().is_success() {
                 let result: serde_json::Value = whoami_response.json().unwrap();
@@ -184,7 +184,7 @@ mod tests {
         });
 
         let response = client
-            .put("/-/user/invalid-format")
+            .put("/registry/-/user/invalid-format")
             .json(&npm_user_doc)
             .send()
             .unwrap();
@@ -209,7 +209,7 @@ mod tests {
         });
 
         let response = client
-            .put("/-/user/org.couchdb.user:testuser")
+            .put("/registry/-/user/org.couchdb.user:testuser")
             .json(&npm_user_doc)
             .send()
             .unwrap();
@@ -227,7 +227,7 @@ mod tests {
         let client = ApiClient::new(server.base_url.clone());
 
         // Test whoami without authentication token
-        let response = client.get("/-/whoami").send().unwrap();
+        let response = client.get("/registry/-/whoami").send().unwrap();
         assert!(!response.status().is_success());
     }
 
@@ -242,7 +242,7 @@ mod tests {
         client.set_auth_token("invalid-token-12345".to_string());
 
         // Test whoami with invalid token
-        let response = client.get("/-/whoami").send().unwrap();
+        let response = client.get("/registry/-/whoami").send().unwrap();
         assert!(!response.status().is_success());
     }
 
@@ -266,7 +266,7 @@ mod tests {
         });
 
         let first_response = client
-            .put("/-/user/org.couchdb.user:existinguser")
+            .put("/registry/-/user/org.couchdb.user:existinguser")
             .json(&npm_user_doc)
             .send()
             .unwrap();
@@ -274,7 +274,7 @@ mod tests {
         if first_response.status().is_success() {
             // Then try to "login" again (should authenticate existing user)
             let second_response = client
-                .put("/-/user/org.couchdb.user:existinguser")
+                .put("/registry/-/user/org.couchdb.user:existinguser")
                 .json(&npm_user_doc)
                 .send()
                 .unwrap();

@@ -161,7 +161,7 @@ mod tests {
         // This tests cache behavior without relying on actual package manager installations
 
         // Simulate npm-style request
-        match client.get("/lodash").send() {
+        match client.get("/registry/lodash").send() {
             Ok(response) if response.status().is_success() => {
                 println!("npm-style metadata request successful");
                 thread::sleep(Duration::from_millis(100));
@@ -178,7 +178,7 @@ mod tests {
         }
 
         // Simulate pnpm-style request (different package)
-        match client.get("/express").send() {
+        match client.get("/registry/express").send() {
             Ok(response) if response.status().is_success() => {
                 println!("pnpm-style metadata request successful");
                 thread::sleep(Duration::from_millis(100));

@@ -94,7 +94,7 @@ Returns server status message.
 ### Package Metadata
 
 ```
-GET /{package}
+GET /registry/{package}
 ```
 
 Fetch complete metadata for a package from upstream registry.
@@ -102,13 +102,13 @@ Fetch complete metadata for a package from upstream registry.
 **Example:**
 
 ```bash
-curl http://localhost:8000/express
+curl http://localhost:8000/registry/express
 ```
 
 ### Package Version Metadata
 
 ```
-GET /{package}/{version}
+GET /registry/{package}/{version}
 ```
 
 Fetch metadata for a specific package version.
@@ -116,14 +116,14 @@ Fetch metadata for a specific package version.
 **Example:**
 
 ```bash
-curl http://localhost:8000/express/4.18.2
+curl http://localhost:8000/registry/express/4.18.2
 ```
 
 ### Package Tarball Download
 
 ```
-GET /{package}/-/{filename}
-HEAD /{package}/-/{filename}
+GET /registry/{package}/-/{filename}
+HEAD /registry/{package}/-/{filename}
 ```
 
 Download or check availability of package tarballs.
@@ -132,10 +132,10 @@ Download or check availability of package tarballs.
 
 ```bash
 # Download tarball
-curl http://localhost:8000/lodash/-/lodash-4.17.21.tgz -o lodash.tgz
+curl http://localhost:8000/registry/lodash/-/lodash-4.17.21.tgz -o lodash.tgz
 
 # Check availability
-curl -I http://localhost:8000/lodash/-/lodash-4.17.21.tgz
+curl -I http://localhost:8000/registry/lodash/-/lodash-4.17.21.tgz
 ```
 
 ### Cache Management
@@ -232,10 +232,10 @@ Configure npm to use PNRS as a registry:
 
 ```bash
 # Set registry for current project
-npm config set registry http://localhost:8000
+npm config set registry http://localhost:8000/registry
 
 # Or use with specific commands
-npm install --registry http://localhost:8000
+npm install --registry http://localhost:8000/registry
 
 # Reset to default registry
 npm config set registry https://registry.npmjs.org

@@ -15,8 +15,8 @@ pub struct NpmErrorResponse {
     pub reason: String,
 }
 
-// npm login endpoint - PUT /-/user/org.couchdb.user:username
-#[put("/-/user/<user_id>", data = "<user_doc>")]
+// npm login endpoint - PUT /registry/-/user/org.couchdb.user:username
+#[put("/registry/-/user/<user_id>", data = "<user_doc>")]
 pub async fn npm_login(
     user_id: &str,
     user_doc: Json<NpmUserDocument>,
@@ -88,7 +88,7 @@ pub async fn npm_login(
 
 use rocket::get;
 
-#[get("/-/whoami")]
+#[get("/registry/-/whoami")]
 pub async fn npm_whoami(user: AuthenticatedUser) -> Json<WhoamiResponse> {
     Json(WhoamiResponse {
         username: user.username,
@@ -145,8 +145,8 @@ pub async fn register(
     }))
 }
 
-// npm publish endpoint - PUT /:package
-#[put("/<package>", data = "<publish_request>")]
+// npm publish endpoint - PUT /registry/:package
+#[put("/registry/<package>", data = "<publish_request>")]
 pub async fn npm_publish(
     package: &str,
     publish_request: Json<NpmPublishRequest>,

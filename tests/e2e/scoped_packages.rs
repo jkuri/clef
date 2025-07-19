@@ -81,7 +81,7 @@ mod tests {
         let response = client
             .client
             .head(&format!(
-                "{}/@types/node/-/node-18.11.9.tgz",
+                "{}/registry/@types/node/-/node-18.11.9.tgz",
                 server.base_url
             ))
             .send()

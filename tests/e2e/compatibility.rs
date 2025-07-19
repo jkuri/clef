@@ -21,7 +21,7 @@ mod tests {
         // by testing the same endpoints that npm, pnpm, and yarn would use
 
         // Test package metadata endpoint (used by all package managers)
-        match client.get("/lodash").send() {
+        match client.get("/registry/lodash").send() {
             Ok(response) if response.status().is_success() => {
                 let metadata: serde_json::Value = response.json().unwrap();
 
@@ -59,12 +59,12 @@ mod tests {
 
         // Test cache behavior by making HTTP requests that different package managers would make
         // First request - should be a cache miss
-        match client.get("/lodash/-/lodash-4.17.21.tgz").send() {
+        match client.get("/registry/lodash/-/lodash-4.17.21.tgz").send() {
             Ok(response) if response.status().is_success() => {
                 thread::sleep(Duration::from_millis(100));
 
                 // Second request - should be a cache hit
-                let _ = client.get("/lodash/-/lodash-4.17.21.tgz").send();
+                let _ = client.get("/registry/lodash/-/lodash-4.17.21.tgz").send();
                 thread::sleep(Duration::from_millis(100));
 
                 // Check cache stats
@@ -99,10 +99,10 @@ mod tests {
 
         // Test endpoints that different package managers use
         let endpoints = [
-            "/lodash",                            // Package metadata (all managers)
-            "/lodash/-/lodash-4.17.21.tgz",       // Package tarball (all managers)
-            "/-/npm/v1/security/audits",          // Security audits (pnpm, npm)
-            "/-/npm/v1/security/advisories/bulk", // Security advisories (npm)
+            "/registry/lodash",                            // Package metadata (all managers)
+            "/registry/lodash/-/lodash-4.17.21.tgz",       // Package tarball (all managers)
+            "/registry/-/npm/v1/security/audits",          // Security audits (pnpm, npm)
+            "/registry/-/npm/v1/security/advisories/bulk", // Security advisories (npm)
         ];
 
         for endpoint in &endpoints {
@@ -172,15 +172,15 @@ mod tests {
         let handles = vec![
             std::thread::spawn({
                 let client = client.clone();
-                move || client.get("/lodash").send()
+                move || client.get("/registry/lodash").send()
             }),
             std::thread::spawn({
                 let client = client.clone();
-                move || client.get("/express").send()
+                move || client.get("/registry/express").send()
             }),
             std::thread::spawn({
                 let client = client.clone();
-                move || client.get("/react").send()
+                move || client.get("/registry/react").send()
             }),
         ];
 
@@ -212,7 +212,7 @@ mod tests {
         let client = ApiClient::new(server.base_url.clone());
 
         // Test that version information is consistent across requests
-        match client.get("/lodash").send() {
+        match client.get("/registry/lodash").send() {
             Ok(response) if response.status().is_success() => {
                 let metadata: serde_json::Value = response.json().unwrap();
 
@@ -226,7 +226,7 @@ mod tests {
 
                     // Test specific version endpoint
                     if let Some(latest) = metadata["dist-tags"]["latest"].as_str() {
-                        let version_url = format!("/lodash/{}", latest);
+                        let version_url = format!("/registry/lodash/{}", latest);
                         match client.get(&version_url).send() {
                             Ok(version_response) if version_response.status().is_success() => {
                                 let version_data: serde_json::Value =
@@ -262,9 +262,9 @@ mod tests {
 
         // Test scoped package endpoints that all package managers use
         let scoped_endpoints = [
-            "/@types%2fnode",                  // URL-encoded scoped package
-            "/@types/node",                    // Direct scoped package
-            "/@types/node/-/node-18.15.0.tgz", // Scoped package tarball
+            "/registry/@types%2fnode",                  // URL-encoded scoped package
+            "/registry/@types/node",                    // Direct scoped package
+            "/registry/@types/node/-/node-18.15.0.tgz", // Scoped package tarball
         ];
 
         for endpoint in &scoped_endpoints {
@@ -310,7 +310,7 @@ mod tests {
         });
 
         let response = client
-            .put("/-/user/org.couchdb.user:crossuser")
+            .put("/registry/-/user/org.couchdb.user:crossuser")
             .json(&npm_user_doc)
             .send()
             .unwrap();
@@ -321,7 +321,7 @@ mod tests {
             client.set_auth_token(token.to_string());
 
             // Test whoami with the token
-            let whoami_response = client.get("/-/whoami").send().unwrap();
+            let whoami_response = client.get("/registry/-/whoami").send().unwrap();
 
             if whoami_response.status().is_success() {
                 let whoami_result: serde_json::Value = whoami_response.json().unwrap();
@@ -345,12 +345,12 @@ mod tests {
 
         // Make HTTP requests that different package managers would make
         // First request - should be a cache miss
-        match client.get("/lodash/-/lodash-4.17.21.tgz").send() {
+        match client.get("/registry/lodash/-/lodash-4.17.21.tgz").send() {
             Ok(response) if response.status().is_success() => {
                 thread::sleep(Duration::from_millis(100));
 
                 // Second request - should be a cache hit
-                let _ = client.get("/lodash/-/lodash-4.17.21.tgz").send();
+                let _ = client.get("/registry/lodash/-/lodash-4.17.21.tgz").send();
                 thread::sleep(Duration::from_millis(100));
 
                 // Check cache efficiency
@@ -391,9 +391,9 @@ mod tests {
 
         // Test error handling by making HTTP requests for non-existent packages
         let error_endpoints = [
-            "/nonexistent-package-12345", // Non-existent package
-            "/nonexistent-package-12345/-/nonexistent-package-12345-1.0.0.tgz", // Non-existent tarball
-            "/@nonexistent-scope/nonexistent-package", // Non-existent scoped package
+            "/registry/nonexistent-package-12345", // Non-existent package
+            "/registry/nonexistent-package-12345/-/nonexistent-package-12345-1.0.0.tgz", // Non-existent tarball
+            "/registry/@nonexistent-scope/nonexistent-package", // Non-existent scoped package
         ];
 
         for endpoint in &error_endpoints {
@@ -441,7 +441,7 @@ mod tests {
         let client = ApiClient::new(server.base_url.clone());
 
         // Get package metadata
-        let response = client.get("/lodash").send().unwrap();
+        let response = client.get("/registry/lodash").send().unwrap();
 
         if response.status().is_success() {
             let metadata: serde_json::Value = response.json().unwrap();

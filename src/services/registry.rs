@@ -31,7 +31,7 @@ impl RegistryService {
                             {
                                 // Rewrite to our proxy server URL using the same scheme as the request
                                 let new_url = format!(
-                                    "{}://{}:{}/{}",
+                                    "{}://{}:{}/registry/{}",
                                     scheme, config.host, config.port, path_part
                                 );
 

@@ -74,7 +74,7 @@ impl RequestHeaders {
     }
 }
 
-#[post("/-/npm/v1/security/advisories/bulk", data = "<data>")]
+#[post("/registry/-/npm/v1/security/advisories/bulk", data = "<data>")]
 pub async fn security_advisories_bulk(
     headers: RequestHeaders,
     data: Data<'_>,
@@ -158,7 +158,7 @@ pub async fn security_advisories_bulk(
 }
 
 // Main audit endpoint that pnpm uses
-#[post("/-/npm/v1/security/audits", data = "<data>")]
+#[post("/registry/-/npm/v1/security/audits", data = "<data>")]
 pub async fn security_audits(
     headers: RequestHeaders,
     data: Data<'_>,
@@ -255,7 +255,7 @@ pub async fn security_audits(
 }
 
 // Alternative endpoint path that some npm versions might use
-#[post("/-/npm/v1/security/audits/quick", data = "<data>")]
+#[post("/registry/-/npm/v1/security/audits/quick", data = "<data>")]
 pub async fn security_audits_quick(
     headers: RequestHeaders,
     data: Data<'_>,

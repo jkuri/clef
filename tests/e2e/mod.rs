@@ -237,7 +237,7 @@ impl TestProject {
         .expect("Failed to write package.json");
 
         // Create .npmrc with registry configuration
-        fs::write(&npmrc_path, format!("registry={}\n", registry_url))
+        fs::write(&npmrc_path, format!("registry={}/registry\n", registry_url))
             .expect("Failed to write .npmrc");
 
         Self {

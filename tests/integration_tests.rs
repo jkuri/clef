@@ -101,7 +101,7 @@ fn test_health_check() {
 fn test_package_metadata_success() {
     let test_rocket = create_test_rocket();
     let client = Client::tracked(test_rocket.rocket).expect("valid rocket instance");
-    let response = client.get("/lodash").dispatch();
+    let response = client.get("/registry/lodash").dispatch();
 
     assert_eq!(response.status(), Status::Ok);
 
@@ -115,7 +115,7 @@ fn test_package_metadata_success() {
 fn test_package_metadata_not_found() {
     let test_rocket = create_test_rocket();
     let client = Client::tracked(test_rocket.rocket).expect("valid rocket instance");
-    let response = client.get("/nonexistent-package-12345").dispatch();
+    let response = client.get("/registry/nonexistent-package-12345").dispatch();
 
     assert_eq!(response.status(), Status::BadGateway);
 
@@ -128,7 +128,7 @@ fn test_package_metadata_not_found() {
 fn test_package_version_metadata_success() {
     let test_rocket = create_test_rocket();
     let client = Client::tracked(test_rocket.rocket).expect("valid rocket instance");
-    let response = client.get("/lodash/4.17.21").dispatch();
+    let response = client.get("/registry/lodash/4.17.21").dispatch();
 
     assert_eq!(response.status(), Status::Ok);
 
@@ -142,7 +142,7 @@ fn test_package_version_metadata_success() {
 fn test_package_version_metadata_not_found() {
     let test_rocket = create_test_rocket();
     let client = Client::tracked(test_rocket.rocket).expect("valid rocket instance");
-    let response = client.get("/lodash/999.999.999").dispatch();
+    let response = client.get("/registry/lodash/999.999.999").dispatch();
 
     assert_eq!(response.status(), Status::BadGateway);
 
@@ -155,7 +155,9 @@ fn test_package_version_metadata_not_found() {
 fn test_tarball_head_success() {
     let test_rocket = create_test_rocket();
     let client = Client::tracked(test_rocket.rocket).expect("valid rocket instance");
-    let response = client.head("/lodash/-/lodash-4.17.21.tgz").dispatch();
+    let response = client
+        .head("/registry/lodash/-/lodash-4.17.21.tgz")
+        .dispatch();
 
     assert_eq!(response.status(), Status::Ok);
 }
@@ -166,7 +168,7 @@ fn test_tarball_head_not_found() {
     let test_rocket = create_test_rocket();
     let client = Client::tracked(test_rocket.rocket).expect("valid rocket instance");
     let response = client
-        .head("/nonexistent/-/nonexistent-1.0.0.tgz")
+        .head("/registry/nonexistent/-/nonexistent-1.0.0.tgz")
         .dispatch();
 
     assert_eq!(response.status(), Status::BadGateway);
@@ -177,7 +179,9 @@ fn test_tarball_head_not_found() {
 fn test_tarball_download_success() {
     let test_rocket = create_test_rocket();
     let client = Client::tracked(test_rocket.rocket).expect("valid rocket instance");
-    let response = client.get("/lodash/-/lodash-4.17.21.tgz").dispatch();
+    let response = client
+        .get("/registry/lodash/-/lodash-4.17.21.tgz")
+        .dispatch();
 
     assert_eq!(response.status(), Status::Ok);
 
@@ -194,7 +198,7 @@ fn test_tarball_download_not_found() {
     let test_rocket = create_test_rocket();
     let client = Client::tracked(test_rocket.rocket).expect("valid rocket instance");
     let response = client
-        .get("/nonexistent/-/nonexistent-1.0.0.tgz")
+        .get("/registry/nonexistent/-/nonexistent-1.0.0.tgz")
         .dispatch();
 
     assert_eq!(response.status(), Status::BadGateway);

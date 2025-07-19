@@ -8,7 +8,7 @@ This document shows how to use PNRS with various npm clients and tools.
 
 ```bash
 # Set PNRS as default registry
-npm config set registry http://localhost:8000
+npm config set registry http://localhost:8000/registry
 
 # Verify configuration
 npm config get registry
@@ -21,20 +21,20 @@ npm config set registry https://registry.npmjs.org
 
 ```bash
 # Create .npmrc in your project
-echo "registry=http://localhost:8000" > .npmrc
+echo "registry=http://localhost:8000/registry" > .npmrc
 
 # Or use npm config
-npm config set registry http://localhost:8000 --location=project
+npm config set registry http://localhost:8000/registry --location=project
 ```
 
 ### One-time Usage
 
 ```bash
 # Install with custom registry
-npm install express --registry http://localhost:8000
+npm install express --registry http://localhost:8000/registry
 
 # Publish (will fail - PNRS is proxy-only)
-npm publish --registry http://localhost:8000
+npm publish --registry http://localhost:8000/registry
 ```
 
 ## Yarn
@@ -43,7 +43,7 @@ npm publish --registry http://localhost:8000
 
 ```bash
 # Set PNRS as default registry
-yarn config set registry http://localhost:8000
+yarn config set registry http://localhost:8000/registry
 
 # Verify configuration
 yarn config get registry
@@ -56,17 +56,17 @@ yarn config set registry https://registry.yarnpkg.com
 
 ```bash
 # Create .yarnrc.yml for Yarn 2+
-echo 'npmRegistryServer: "http://localhost:8000"' > .yarnrc.yml
+echo 'npmRegistryServer: "http://localhost:8000/registry"' > .yarnrc.yml
 
 # Or .yarnrc for Yarn 1.x
-echo 'registry "http://localhost:8000"' > .yarnrc
+echo 'registry "http://localhost:8000/registry"' > .yarnrc
 ```
 
 ### One-time Usage
 
 ```bash
 # Install with custom registry
-yarn add express --registry http://localhost:8000
+yarn add express --registry http://localhost:8000/registry
 ```
 
 ## PNPM
@@ -75,7 +75,7 @@ yarn add express --registry http://localhost:8000
 
 ```bash
 # Set PNRS as default registry
-pnpm config set registry http://localhost:8000
+pnpm config set registry http://localhost:8000/registry
 
 # Verify configuration
 pnpm config get registry
@@ -88,14 +88,14 @@ pnpm config set registry https://registry.npmjs.org
 
 ```bash
 # Create .npmrc in your project
-echo "registry=http://localhost:8000" > .npmrc
+echo "registry=http://localhost:8000/registry" > .npmrc
 ```
 
 ### One-time Usage
 
 ```bash
 # Install with custom registry
-pnpm add express --registry http://localhost:8000
+pnpm add express --registry http://localhost:8000/registry
 ```
 
 ## Docker Usage
@@ -106,7 +106,7 @@ pnpm add express --registry http://localhost:8000
 FROM node:18-alpine
 
 # Set npm registry to use PNRS
-RUN npm config set registry http://pnrs:8000
+RUN npm config set registry http://pnrs:8000/registry
 
 WORKDIR /app
 COPY package*.json ./
@@ -131,7 +131,7 @@ services:
     depends_on:
       - pnrs
     environment:
-      - npm_config_registry=http://pnrs:8000
+      - npm_config_registry=http://pnrs:8000/registry
     volumes:
       - ./app:/app
     working_dir: /app
@@ -163,7 +163,7 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: "18"
-          registry-url: "http://localhost:8000"
+          registry-url: "http://localhost:8000/registry"
 
       - name: Install dependencies
         run: npm ci
@@ -257,10 +257,10 @@ npm config set @public:registry https://registry.npmjs.org
 curl http://localhost:8000/
 
 # Test package resolution
-curl http://localhost:8000/express | jq '.name'
+curl http://localhost:8000/registry/express | jq '.name'
 
 # Test tarball download
-curl -I http://localhost:8000/express/-/express-4.18.2.tgz
+curl -I http://localhost:8000/registry/express/-/express-4.18.2.tgz
 ```
 
 ## Performance Tips

@@ -51,7 +51,7 @@ mod tests {
 
         // Use a timeout and handle errors gracefully
         match client
-            .post("/-/npm/v1/security/advisories/bulk")
+            .post("/registry/-/npm/v1/security/advisories/bulk")
             .json(&advisories_request)
             .send()
         {
@@ -95,7 +95,7 @@ mod tests {
         let audit_request = json!({"name": "test", "version": "1.0.0"});
 
         match client
-            .post("/-/npm/v1/security/audits")
+            .post("/registry/-/npm/v1/security/audits")
             .json(&audit_request)
             .send()
         {
@@ -139,7 +139,7 @@ mod tests {
         let audit_request = json!({"name": "test", "version": "1.0.0"});
 
         match client
-            .post("/-/npm/v1/security/audits/quick")
+            .post("/registry/-/npm/v1/security/audits/quick")
             .json(&audit_request)
             .send()
         {
@@ -235,7 +235,7 @@ mod tests {
         let audit_request = json!({"name": "test", "version": "1.0.0"});
 
         match client
-            .post("/-/npm/v1/security/audits")
+            .post("/registry/-/npm/v1/security/audits")
             .header("User-Agent", "pnpm/7.14.0 node/v18.12.1 linux x64")
             .json(&audit_request)
             .send()
@@ -327,7 +327,7 @@ mod tests {
 
         // Test with malformed JSON
         let response = client
-            .post("/-/npm/v1/security/advisories/bulk")
+            .post("/registry/-/npm/v1/security/advisories/bulk")
             .header("Content-Type", "application/json")
             .body("invalid json")
             .send()
@@ -372,7 +372,7 @@ mod tests {
         });
 
         let response = client
-            .post("/-/npm/v1/security/audits/quick")
+            .post("/registry/-/npm/v1/security/audits/quick")
             .json(&large_request)
             .send()
             .unwrap();
@@ -400,7 +400,7 @@ mod tests {
         let empty_request = json!({});
 
         match client
-            .post("/-/npm/v1/security/advisories/bulk")
+            .post("/registry/-/npm/v1/security/advisories/bulk")
             .json(&empty_request)
             .send()
         {
@@ -428,7 +428,7 @@ mod tests {
         let audit_request = json!({"name": "test", "version": "1.0.0"});
 
         match client
-            .post("/-/npm/v1/security/audits/quick")
+            .post("/registry/-/npm/v1/security/audits/quick")
             .header("Content-Encoding", "gzip")
             .json(&audit_request)
             .send()
@@ -467,7 +467,7 @@ mod tests {
 
         for user_agent in &user_agents {
             let response = client
-                .post("/-/npm/v1/security/audits/quick")
+                .post("/registry/-/npm/v1/security/audits/quick")
                 .header("User-Agent", *user_agent)
                 .json(&audit_request)
                 .send()
@@ -498,7 +498,7 @@ mod tests {
                 std::thread::spawn(move || {
                     let client = ApiClient::new(base_url);
                     client
-                        .post("/-/npm/v1/security/audits/quick")
+                        .post("/registry/-/npm/v1/security/audits/quick")
                         .json(&request)
                         .send()
                 })
@@ -541,7 +541,7 @@ mod tests {
         let audit_request = json!({"name": "test", "version": "1.0.0"});
 
         match client
-            .post("/-/npm/v1/security/audits/quick")
+            .post("/registry/-/npm/v1/security/audits/quick")
             .json(&audit_request)
             .send()
         {
