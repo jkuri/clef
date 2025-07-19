@@ -1,3 +1,4 @@
+-- Create users table for authentication and user management
 CREATE TABLE users (
     id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     username TEXT NOT NULL UNIQUE,
@@ -8,6 +9,7 @@ CREATE TABLE users (
     is_active BOOLEAN NOT NULL DEFAULT TRUE
 );
 
+-- Create user_tokens table for authentication tokens
 CREATE TABLE user_tokens (
     id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
@@ -19,6 +21,7 @@ CREATE TABLE user_tokens (
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );
 
+-- Create indexes for performance
 CREATE INDEX idx_users_username ON users(username);
 CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_user_tokens_token ON user_tokens(token);
