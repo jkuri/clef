@@ -28,11 +28,16 @@ mod tests {
             .send()
             .unwrap();
 
-        if response.status().is_success() {
-            let result: serde_json::Value = response.json().unwrap();
-            assert_eq!(result["ok"], true);
-            assert!(result["token"].is_string());
-        }
+        // The register endpoint should succeed
+        assert!(
+            response.status().is_success(),
+            "Register endpoint failed with status: {}",
+            response.status()
+        );
+
+        let result: serde_json::Value = response.json().unwrap();
+        assert_eq!(result["ok"], true);
+        assert!(result["token"].is_string());
     }
 
     #[test]
@@ -57,21 +62,31 @@ mod tests {
             .send()
             .unwrap();
 
-        if register_response.status().is_success() {
-            // Then test login
-            let login_data = json!({
-                "name": "loginuser",
-                "password": "loginpassword123"
-            });
+        // The register endpoint should succeed
+        assert!(
+            register_response.status().is_success(),
+            "Register endpoint failed with status: {}",
+            register_response.status()
+        );
 
-            let login_response = client.post("/login").json(&login_data).send().unwrap();
+        // Then test login
+        let login_data = json!({
+            "name": "loginuser",
+            "password": "loginpassword123"
+        });
 
-            if login_response.status().is_success() {
-                let result: serde_json::Value = login_response.json().unwrap();
-                assert_eq!(result["ok"], true);
-                assert!(result["token"].is_string());
-            }
-        }
+        let login_response = client.post("/login").json(&login_data).send().unwrap();
+
+        // The login endpoint should succeed
+        assert!(
+            login_response.status().is_success(),
+            "Login endpoint failed with status: {}",
+            login_response.status()
+        );
+
+        let result: serde_json::Value = login_response.json().unwrap();
+        assert_eq!(result["ok"], true);
+        assert!(result["token"].is_string());
     }
 
     #[test]
@@ -85,6 +100,7 @@ mod tests {
 
         // Test npm-style login (PUT /-/user/org.couchdb.user:username)
         let npm_user_doc = json!({
+            "_id": "org.couchdb.user:npmuser",
             "name": "npmuser",
             "password": "npmpassword123",
             "email": "npmuser@example.com",
@@ -99,12 +115,17 @@ mod tests {
             .send()
             .unwrap();
 
-        if response.status().is_success() {
-            let result: serde_json::Value = response.json().unwrap();
-            assert_eq!(result["ok"], true);
-            assert_eq!(result["id"], "org.couchdb.user:npmuser");
-            assert!(result["token"].is_string());
-        }
+        // The npm user registration should succeed
+        assert!(
+            response.status().is_success(),
+            "NPM user registration failed with status: {}",
+            response.status()
+        );
+
+        let result: serde_json::Value = response.json().unwrap();
+        assert_eq!(result["ok"], true);
+        assert_eq!(result["id"], "org.couchdb.user:npmuser");
+        assert!(result["token"].is_string());
     }
 
     #[test]
@@ -118,6 +139,7 @@ mod tests {
 
         // First login to get a token
         let npm_user_doc = json!({
+            "_id": "org.couchdb.user:whoamiuser",
             "name": "whoamiuser",
             "password": "whoamipassword123",
             "email": "whoamiuser@example.com",
@@ -132,19 +154,29 @@ mod tests {
             .send()
             .unwrap();
 
-        if login_response.status().is_success() {
-            let login_result: serde_json::Value = login_response.json().unwrap();
-            let token = login_result["token"].as_str().unwrap();
-            client.set_auth_token(token.to_string());
+        // The login response should succeed
+        assert!(
+            login_response.status().is_success(),
+            "Login response failed with status: {}",
+            login_response.status()
+        );
 
-            // Test whoami endpoint
-            let whoami_response = client.get("/registry/-/whoami").send().unwrap();
+        let login_result: serde_json::Value = login_response.json().unwrap();
+        let token = login_result["token"].as_str().unwrap();
+        client.set_auth_token(token.to_string());
 
-            if whoami_response.status().is_success() {
-                let result: serde_json::Value = whoami_response.json().unwrap();
-                assert_eq!(result["username"], "whoamiuser");
-            }
-        }
+        // Test whoami endpoint
+        let whoami_response = client.get("/registry/-/whoami").send().unwrap();
+
+        // The whoami endpoint should succeed
+        assert!(
+            whoami_response.status().is_success(),
+            "Whoami endpoint failed with status: {}",
+            whoami_response.status()
+        );
+
+        let result: serde_json::Value = whoami_response.json().unwrap();
+        assert_eq!(result["username"], "whoamiuser");
     }
 
     #[test]
@@ -257,6 +289,7 @@ mod tests {
 
         // First, register a user
         let npm_user_doc = json!({
+            "_id": "org.couchdb.user:existinguser",
             "name": "existinguser",
             "password": "existingpassword123",
             "email": "existinguser@example.com",
@@ -271,20 +304,30 @@ mod tests {
             .send()
             .unwrap();
 
-        if first_response.status().is_success() {
-            // Then try to "login" again (should authenticate existing user)
-            let second_response = client
-                .put("/registry/-/user/org.couchdb.user:existinguser")
-                .json(&npm_user_doc)
-                .send()
-                .unwrap();
+        // The first registration should succeed
+        assert!(
+            first_response.status().is_success(),
+            "First user registration failed with status: {}",
+            first_response.status()
+        );
 
-            if second_response.status().is_success() {
-                let result: serde_json::Value = second_response.json().unwrap();
-                assert_eq!(result["ok"], true);
-                assert!(result["token"].is_string());
-            }
-        }
+        // Then try to "login" again (should authenticate existing user)
+        let second_response = client
+            .put("/registry/-/user/org.couchdb.user:existinguser")
+            .json(&npm_user_doc)
+            .send()
+            .unwrap();
+
+        // The second authentication should succeed
+        assert!(
+            second_response.status().is_success(),
+            "Second user authentication failed with status: {}",
+            second_response.status()
+        );
+
+        let result: serde_json::Value = second_response.json().unwrap();
+        assert_eq!(result["ok"], true);
+        assert!(result["token"].is_string());
     }
 
     #[test]
@@ -309,16 +352,21 @@ mod tests {
             .send()
             .unwrap();
 
-        if first_response.status().is_success() {
-            // Try to register the same user again
-            let second_response = client
-                .post("/register")
-                .json(&register_data)
-                .send()
-                .unwrap();
+        // The first registration should succeed
+        assert!(
+            first_response.status().is_success(),
+            "First user registration failed with status: {}",
+            first_response.status()
+        );
 
-            // Should fail with conflict or bad request
-            assert!(!second_response.status().is_success());
-        }
+        // Try to register the same user again
+        let second_response = client
+            .post("/register")
+            .json(&register_data)
+            .send()
+            .unwrap();
+
+        // Should fail with conflict or bad request
+        assert!(!second_response.status().is_success());
     }
 }

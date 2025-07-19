@@ -306,22 +306,26 @@ impl DatabaseService {
             None => return Ok(None),
         };
 
-        // Get all versions with their files
-        let version_files: Vec<(PackageVersion, PackageFile)> = package_versions::table
-            .inner_join(package_files::table)
+        // Get all versions with their files (use LEFT JOIN to include versions without files)
+        let version_files: Vec<(PackageVersion, Option<PackageFile>)> = package_versions::table
+            .left_join(package_files::table)
             .filter(package_versions::package_id.eq(package.id))
             .order(package_versions::created_at.desc())
-            .load::<(PackageVersion, PackageFile)>(&mut conn)?;
+            .load::<(PackageVersion, Option<PackageFile>)>(&mut conn)?;
 
         // Group files by version
         let mut versions_map: std::collections::HashMap<i32, (PackageVersion, Vec<PackageFile>)> =
             std::collections::HashMap::new();
 
-        for (version, file) in version_files {
+        for (version, file_opt) in version_files {
             let entry = versions_map
                 .entry(version.id)
                 .or_insert((version.clone(), Vec::new()));
-            entry.1.push(file);
+
+            // Only add file if it exists (LEFT JOIN can return None)
+            if let Some(file) = file_opt {
+                entry.1.push(file);
+            }
         }
 
         let versions: Vec<PackageVersionWithFiles> = versions_map

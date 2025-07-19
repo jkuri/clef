@@ -23,7 +23,14 @@ mod tests {
 
         // Test packages list endpoint
         match client.get("/packages").send() {
-            Ok(response) if response.status().is_success() => {
+            Ok(response) => {
+                // The packages endpoint should succeed
+                assert!(
+                    response.status().is_success(),
+                    "Packages endpoint failed with status: {}",
+                    response.status()
+                );
+
                 match response.json::<serde_json::Value>() {
                     Ok(packages) => {
                         println!("Packages response: {}", packages);
@@ -49,12 +56,6 @@ mod tests {
                     }
                 }
             }
-            Ok(response) => {
-                println!(
-                    "Packages endpoint failed with status: {}",
-                    response.status()
-                );
-            }
             Err(e) => {
                 println!("Packages endpoint error: {}", e);
             }
@@ -71,26 +72,32 @@ mod tests {
         let client = ApiClient::new(server.base_url.clone());
 
         // Make a request to populate package data
-        let _ = client.get("/registry/lodash").send();
-        thread::sleep(Duration::from_millis(200));
+        let populate_response = client.get("/registry/lodash").send().unwrap();
+        println!("Populate request status: {}", populate_response.status());
+
+        // The populate request should succeed
+        assert!(
+            populate_response.status().is_success(),
+            "Populate request failed with status: {}",
+            populate_response.status()
+        );
+
+        thread::sleep(Duration::from_millis(500)); // Wait for data to be stored
 
         // Test package versions endpoint
         let response = client.get("/packages/lodash").send().unwrap();
 
-        if response.status().is_success() {
-            let package_versions: serde_json::Value = response.json().unwrap();
-            assert!(package_versions["package_name"].is_string());
-            assert_eq!(package_versions["package_name"], "lodash");
-            assert!(package_versions["versions"].is_array());
+        // The package versions endpoint should now succeed since we fixed the LEFT JOIN issue
+        assert!(
+            response.status().is_success(),
+            "Package versions endpoint failed with status: {}",
+            response.status()
+        );
 
-            if let Some(versions) = package_versions["versions"].as_array() {
-                for version in versions {
-                    assert!(version["version"].is_string());
-                    assert!(version["download_count"].is_number());
-                    assert!(version["created_at"].is_string());
-                }
-            }
-        }
+        let package_versions: serde_json::Value = response.json().unwrap();
+        assert!(package_versions["package"]["name"].is_string());
+        assert_eq!(package_versions["package"]["name"], "lodash");
+        assert!(package_versions["versions"].is_array());
     }
 
     #[test]
@@ -110,7 +117,14 @@ mod tests {
 
         // Test popular packages endpoint with default limit
         match client.get("/packages/popular").send() {
-            Ok(response) if response.status().is_success() => {
+            Ok(response) => {
+                // The popular packages endpoint should succeed
+                assert!(
+                    response.status().is_success(),
+                    "Popular packages endpoint failed with status: {}",
+                    response.status()
+                );
+
                 match response.json::<serde_json::Value>() {
                     Ok(popular_packages) => {
                         println!("Popular packages response: {}", popular_packages);
@@ -137,12 +151,6 @@ mod tests {
                     }
                 }
             }
-            Ok(response) => {
-                println!(
-                    "Popular packages endpoint failed with status: {}",
-                    response.status()
-                );
-            }
             Err(e) => {
                 println!("Popular packages endpoint error: {}", e);
             }
@@ -168,13 +176,18 @@ mod tests {
         // Test popular packages endpoint with custom limit
         let response = client.get("/packages/popular?limit=3").send().unwrap();
 
-        if response.status().is_success() {
-            let popular_packages: serde_json::Value = response.json().unwrap();
-            assert!(popular_packages.is_array());
+        // The popular packages endpoint with limit should succeed
+        assert!(
+            response.status().is_success(),
+            "Popular packages endpoint with limit failed with status: {}",
+            response.status()
+        );
 
-            if let Some(packages) = popular_packages.as_array() {
-                assert!(packages.len() <= 3); // Custom limit
-            }
+        let popular_packages: serde_json::Value = response.json().unwrap();
+        assert!(popular_packages.is_array());
+
+        if let Some(packages) = popular_packages.as_array() {
+            assert!(packages.len() <= 3); // Custom limit
         }
     }
 
@@ -196,7 +209,14 @@ mod tests {
 
         // Test comprehensive analytics endpoint
         match client.get("/analytics").send() {
-            Ok(response) if response.status().is_success() => {
+            Ok(response) => {
+                // The analytics endpoint should succeed
+                assert!(
+                    response.status().is_success(),
+                    "Analytics endpoint failed with status: {}",
+                    response.status()
+                );
+
                 match response.json::<serde_json::Value>() {
                     Ok(analytics) => {
                         println!("Analytics response: {}", analytics);
@@ -232,12 +252,6 @@ mod tests {
                         println!("Failed to parse analytics response: {}", e);
                     }
                 }
-            }
-            Ok(response) => {
-                println!(
-                    "Analytics endpoint failed with status: {}",
-                    response.status()
-                );
             }
             Err(e) => {
                 println!("Analytics endpoint error: {}", e);
@@ -338,18 +352,23 @@ mod tests {
         // Check if package metadata is stored
         let response = client.get("/packages").send().unwrap();
 
-        if response.status().is_success() {
-            let packages: serde_json::Value = response.json().unwrap();
+        // The packages endpoint should succeed
+        assert!(
+            response.status().is_success(),
+            "Packages endpoint failed with status: {}",
+            response.status()
+        );
 
-            if let Some(packages_array) = packages.as_array() {
-                let lodash_package = packages_array.iter().find(|p| p["name"] == "lodash");
+        let packages: serde_json::Value = response.json().unwrap();
 
-                if let Some(package) = lodash_package {
-                    assert!(package["description"].is_string());
-                    assert!(package["latest_version"].is_string());
-                    assert!(package["created_at"].is_string());
-                    assert!(package["updated_at"].is_string());
-                }
+        if let Some(packages_array) = packages.as_array() {
+            let lodash_package = packages_array.iter().find(|p| p["name"] == "lodash");
+
+            if let Some(package) = lodash_package {
+                assert!(package["description"].is_string());
+                assert!(package["latest_version"].is_string());
+                assert!(package["created_at"].is_string());
+                assert!(package["updated_at"].is_string());
             }
         }
     }
@@ -383,7 +402,14 @@ mod tests {
 
         // Check analytics
         match client.get("/analytics").send() {
-            Ok(response) if response.status().is_success() => {
+            Ok(response) => {
+                // The analytics endpoint should succeed
+                assert!(
+                    response.status().is_success(),
+                    "Analytics endpoint failed with status: {}",
+                    response.status()
+                );
+
                 match response.json::<serde_json::Value>() {
                     Ok(analytics) => {
                         let total_packages = analytics["total_packages"].as_i64().unwrap_or(0);
@@ -403,12 +429,6 @@ mod tests {
                         println!("Failed to parse analytics response: {}", e);
                     }
                 }
-            }
-            Ok(response) => {
-                println!(
-                    "Analytics request failed with status: {}",
-                    response.status()
-                );
             }
             Err(e) => {
                 println!("Analytics request error: {}", e);
@@ -437,13 +457,18 @@ mod tests {
         // Check analytics includes cache hit rate
         let response = client.get("/analytics").send().unwrap();
 
-        if response.status().is_success() {
-            let analytics: serde_json::Value = response.json().unwrap();
-            let cache_hit_rate = analytics["cache_hit_rate"].as_f64().unwrap_or(0.0);
+        // The analytics endpoint should succeed
+        assert!(
+            response.status().is_success(),
+            "Analytics endpoint failed with status: {}",
+            response.status()
+        );
 
-            // Should have a valid hit rate
-            assert!(cache_hit_rate >= 0.0 && cache_hit_rate <= 100.0);
-        }
+        let analytics: serde_json::Value = response.json().unwrap();
+        let cache_hit_rate = analytics["cache_hit_rate"].as_f64().unwrap_or(0.0);
+
+        // Should have a valid hit rate
+        assert!(cache_hit_rate >= 0.0 && cache_hit_rate <= 100.0);
     }
 
     #[test]
@@ -489,22 +514,27 @@ mod tests {
         // Check that timestamps are properly recorded
         let response = client.get("/packages").send().unwrap();
 
-        if response.status().is_success() {
-            let packages: serde_json::Value = response.json().unwrap();
+        // The packages endpoint should succeed
+        assert!(
+            response.status().is_success(),
+            "Packages endpoint failed with status: {}",
+            response.status()
+        );
 
-            if let Some(packages_array) = packages.as_array() {
-                for package in packages_array {
-                    let created_at = package["created_at"].as_str().unwrap();
-                    let updated_at = package["updated_at"].as_str().unwrap();
+        let packages: serde_json::Value = response.json().unwrap();
 
-                    // Should be valid ISO timestamps
-                    assert!(created_at.contains("T"));
-                    assert!(updated_at.contains("T"));
+        if let Some(packages_array) = packages.as_array() {
+            for package in packages_array {
+                let created_at = package["created_at"].as_str().unwrap();
+                let updated_at = package["updated_at"].as_str().unwrap();
 
-                    // Parse timestamps to verify they're valid
-                    assert!(chrono::DateTime::parse_from_rfc3339(created_at).is_ok());
-                    assert!(chrono::DateTime::parse_from_rfc3339(updated_at).is_ok());
-                }
+                // Should be valid ISO timestamps
+                assert!(created_at.contains("T"));
+                assert!(updated_at.contains("T"));
+
+                // Parse timestamps to verify they're valid
+                assert!(chrono::DateTime::parse_from_rfc3339(created_at).is_ok());
+                assert!(chrono::DateTime::parse_from_rfc3339(updated_at).is_ok());
             }
         }
     }

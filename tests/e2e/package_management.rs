@@ -17,17 +17,17 @@ mod tests {
         let client = ApiClient::new(server.base_url.clone());
 
         match client.get("/registry/express").send() {
-            Ok(response) if response.status().is_success() => {
-                let metadata: serde_json::Value = response.json().unwrap();
-                assert_eq!(metadata["name"], "express");
-                assert!(metadata["versions"].is_object());
-            }
             Ok(response) => {
-                println!(
+                // The package metadata request should succeed
+                assert!(
+                    response.status().is_success(),
                     "Package metadata request failed with status: {}",
                     response.status()
                 );
-                // Don't fail the test - this might be due to network issues
+
+                let metadata: serde_json::Value = response.json().unwrap();
+                assert_eq!(metadata["name"], "express");
+                assert!(metadata["versions"].is_object());
             }
             Err(e) => {
                 println!(
@@ -55,44 +55,45 @@ mod tests {
                     "npm-style package metadata request returned: {}",
                     response.status()
                 );
-                if response.status().is_success() {
-                    // Test tarball download (what npm would do next)
-                    let tarball_response = client
-                        .get("/registry/lodash/-/lodash-4.17.21.tgz")
-                        .send()
-                        .expect("Failed to make tarball request");
 
-                    println!(
-                        "npm-style tarball download returned: {}",
-                        tarball_response.status()
-                    );
+                // The npm metadata request should succeed
+                assert!(
+                    response.status().is_success(),
+                    "npm metadata request failed with status: {} - this should succeed",
+                    response.status()
+                );
 
-                    // Tarball download should succeed
-                    assert!(
-                        tarball_response.status().is_success(),
-                        "npm tarball download failed with status: {}",
-                        tarball_response.status()
-                    );
+                // Test tarball download (what npm would do next)
+                let tarball_response = client
+                    .get("/registry/lodash/-/lodash-4.17.21.tgz")
+                    .send()
+                    .expect("Failed to make tarball request");
 
-                    // Verify we got actual tarball data
-                    let content_length = tarball_response
-                        .headers()
-                        .get("content-length")
-                        .and_then(|v| v.to_str().ok())
-                        .and_then(|s| s.parse::<u64>().ok())
-                        .unwrap_or(0);
+                println!(
+                    "npm-style tarball download returned: {}",
+                    tarball_response.status()
+                );
 
-                    assert!(
-                        content_length > 1000,
-                        "Tarball seems too small: {} bytes",
-                        content_length
-                    );
-                } else {
-                    panic!(
-                        "npm metadata request failed with status: {} - this should succeed",
-                        response.status()
-                    );
-                }
+                // Tarball download should succeed
+                assert!(
+                    tarball_response.status().is_success(),
+                    "npm tarball download failed with status: {}",
+                    tarball_response.status()
+                );
+
+                // Verify we got actual tarball data
+                let content_length = tarball_response
+                    .headers()
+                    .get("content-length")
+                    .and_then(|v| v.to_str().ok())
+                    .and_then(|s| s.parse::<u64>().ok())
+                    .unwrap_or(0);
+
+                assert!(
+                    content_length > 1000,
+                    "Tarball seems too small: {} bytes",
+                    content_length
+                );
             }
             Err(e) => println!("npm-style request error: {} (acceptable)", e),
         }
@@ -237,16 +238,17 @@ mod tests {
         let client = ApiClient::new(server.base_url.clone());
 
         match client.get("/registry/express/4.18.2").send() {
-            Ok(response) if response.status().is_success() => {
-                let metadata: serde_json::Value = response.json().unwrap();
-                assert_eq!(metadata["name"], "express");
-                assert_eq!(metadata["version"], "4.18.2");
-            }
             Ok(response) => {
-                println!(
+                // The version metadata request should succeed
+                assert!(
+                    response.status().is_success(),
                     "Version metadata request failed with status: {}",
                     response.status()
                 );
+
+                let metadata: serde_json::Value = response.json().unwrap();
+                assert_eq!(metadata["name"], "express");
+                assert_eq!(metadata["version"], "4.18.2");
             }
             Err(e) => {
                 println!(
@@ -268,7 +270,14 @@ mod tests {
         let client = ApiClient::new(server.base_url.clone());
 
         match client.get("/registry/lodash/-/lodash-4.17.21.tgz").send() {
-            Ok(response) if response.status().is_success() => {
+            Ok(response) => {
+                // The tarball download should succeed
+                assert!(
+                    response.status().is_success(),
+                    "Tarball download failed with status: {}",
+                    response.status()
+                );
+
                 match response.bytes() {
                     Ok(content) => {
                         assert!(content.len() > 0);
@@ -279,9 +288,6 @@ mod tests {
                         println!("Failed to read tarball content: {}", e);
                     }
                 }
-            }
-            Ok(response) => {
-                println!("Tarball download failed with status: {}", response.status());
             }
             Err(e) => {
                 println!(
@@ -440,15 +446,16 @@ mod tests {
 
         // Test package with special characters (URL encoded)
         match client.get("/registry/@types/node").send() {
-            Ok(response) if response.status().is_success() => {
-                let metadata: serde_json::Value = response.json().unwrap();
-                assert_eq!(metadata["name"], "@types/node");
-            }
             Ok(response) => {
-                println!(
+                // The scoped package request should succeed
+                assert!(
+                    response.status().is_success(),
                     "Scoped package request failed with status: {}",
                     response.status()
                 );
+
+                let metadata: serde_json::Value = response.json().unwrap();
+                assert_eq!(metadata["name"], "@types/node");
             }
             Err(e) => {
                 println!(

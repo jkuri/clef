@@ -76,12 +76,18 @@ mod tests {
 
         // Verify cache is cleared by checking stats
         let stats_response = client.get("/cache/stats").send().unwrap();
-        if stats_response.status().is_success() {
-            let stats: serde_json::Value = stats_response.json().unwrap();
-            // After clearing, total_entries should be 0
-            assert_eq!(stats["total_entries"], 0);
-            assert_eq!(stats["total_size_bytes"], 0);
-        }
+
+        // The cache stats endpoint should succeed
+        assert!(
+            stats_response.status().is_success(),
+            "Cache stats endpoint failed with status: {}",
+            stats_response.status()
+        );
+
+        let stats: serde_json::Value = stats_response.json().unwrap();
+        // After clearing, total_entries should be 0
+        assert_eq!(stats["total_entries"], 0);
+        assert_eq!(stats["total_size_bytes"], 0);
     }
 
     #[test]

@@ -18,11 +18,16 @@ mod tests {
         // Test fetching scoped package metadata
         let response = client.get("/registry/@types/node").send().unwrap();
 
-        if response.status().is_success() {
-            let metadata: serde_json::Value = response.json().unwrap();
-            assert_eq!(metadata["name"], "@types/node");
-            assert!(metadata["versions"].is_object());
-        }
+        // The scoped package metadata request should succeed
+        assert!(
+            response.status().is_success(),
+            "Scoped package metadata request failed with status: {}",
+            response.status()
+        );
+
+        let metadata: serde_json::Value = response.json().unwrap();
+        assert_eq!(metadata["name"], "@types/node");
+        assert!(metadata["versions"].is_object());
     }
 
     #[test]
@@ -37,11 +42,16 @@ mod tests {
         // Test fetching specific version of scoped package
         let response = client.get("/registry/@types/node/18.11.9").send().unwrap();
 
-        if response.status().is_success() {
-            let metadata: serde_json::Value = response.json().unwrap();
-            assert_eq!(metadata["name"], "@types/node");
-            assert_eq!(metadata["version"], "18.11.9");
-        }
+        // The scoped package version request should succeed
+        assert!(
+            response.status().is_success(),
+            "Scoped package version request failed with status: {}",
+            response.status()
+        );
+
+        let metadata: serde_json::Value = response.json().unwrap();
+        assert_eq!(metadata["name"], "@types/node");
+        assert_eq!(metadata["version"], "18.11.9");
     }
 
     #[test]
@@ -59,13 +69,18 @@ mod tests {
             .send()
             .unwrap();
 
-        if response.status().is_success() {
-            let content = response.bytes().unwrap();
-            assert!(content.len() > 0);
+        // The request should succeed
+        assert!(
+            response.status().is_success(),
+            "Scoped package tarball download failed with status: {}",
+            response.status()
+        );
 
-            // Verify it's a gzipped tarball
-            assert_eq!(&content[0..2], &[0x1f, 0x8b]);
-        }
+        let content = response.bytes().unwrap();
+        assert!(content.len() > 0);
+
+        // Verify it's a gzipped tarball
+        assert_eq!(&content[0..2], &[0x1f, 0x8b]);
     }
 
     #[test]
@@ -238,10 +253,15 @@ mod tests {
         // Test URL encoded scoped package name
         let response = client.get("/registry/@types%2fnode").send().unwrap();
 
-        if response.status().is_success() {
-            let metadata: serde_json::Value = response.json().unwrap();
-            assert_eq!(metadata["name"], "@types/node");
-        }
+        // The URL encoded scoped package request should succeed
+        assert!(
+            response.status().is_success(),
+            "URL encoded scoped package request failed with status: {}",
+            response.status()
+        );
+
+        let metadata: serde_json::Value = response.json().unwrap();
+        assert_eq!(metadata["name"], "@types/node");
     }
 
     #[test]

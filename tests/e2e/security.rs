@@ -474,10 +474,15 @@ mod tests {
                 .unwrap();
 
             // Should handle requests from different package managers
-            if response.status().is_success() {
-                let result: serde_json::Value = response.json().unwrap();
-                assert!(result.is_object());
-            }
+            assert!(
+                response.status().is_success(),
+                "Security audit request from {} failed with status: {}",
+                user_agent,
+                response.status()
+            );
+
+            let result: serde_json::Value = response.json().unwrap();
+            assert!(result.is_object());
         }
     }
 

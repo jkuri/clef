@@ -22,7 +22,14 @@ mod tests {
 
         // Test package metadata endpoint (used by all package managers)
         match client.get("/registry/lodash").send() {
-            Ok(response) if response.status().is_success() => {
+            Ok(response) => {
+                // The package metadata request should succeed
+                assert!(
+                    response.status().is_success(),
+                    "Package metadata request failed with status: {}",
+                    response.status()
+                );
+
                 let metadata: serde_json::Value = response.json().unwrap();
 
                 // Should have standard npm registry format
@@ -31,12 +38,6 @@ mod tests {
                 assert!(metadata["dist-tags"].is_object());
 
                 println!("Package metadata format is compatible");
-            }
-            Ok(response) => {
-                println!(
-                    "Package metadata request failed with status: {}",
-                    response.status()
-                );
             }
             Err(e) => {
                 println!("Package metadata request error: {}", e);

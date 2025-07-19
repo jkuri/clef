@@ -238,21 +238,27 @@ mod tests {
                 .unwrap();
             let elapsed = start_time.elapsed();
 
-            if response.status().is_success() {
-                println!("Package {} metadata fetched in {:?}", package, elapsed);
+            // Package metadata request should succeed
+            assert!(
+                response.status().is_success(),
+                "Package {} metadata request failed with status: {}",
+                package,
+                response.status()
+            );
 
-                // Should complete within reasonable time (increased for large packages)
-                // Large packages like 'next' can have extensive metadata and may take longer
-                assert!(
-                    elapsed < Duration::from_secs(45),
-                    "Package {} took too long: {:?}",
-                    package,
-                    elapsed
-                );
+            println!("Package {} metadata fetched in {:?}", package, elapsed);
 
-                let metadata: serde_json::Value = response.json().unwrap();
-                assert_eq!(metadata["name"], *package);
-            }
+            // Should complete within reasonable time (increased for large packages)
+            // Large packages like 'next' can have extensive metadata and may take longer
+            assert!(
+                elapsed < Duration::from_secs(45),
+                "Package {} took too long: {:?}",
+                package,
+                elapsed
+            );
+
+            let metadata: serde_json::Value = response.json().unwrap();
+            assert_eq!(metadata["name"], *package);
         }
     }
 
@@ -473,10 +479,16 @@ mod tests {
             let response = client.get(endpoint).send().unwrap();
             let elapsed = start_time.elapsed();
 
-            if response.status().is_success() {
-                println!("Analytics endpoint {} responded in {:?}", endpoint, elapsed);
-                assert!(elapsed < Duration::from_secs(5));
-            }
+            // Analytics endpoints should succeed
+            assert!(
+                response.status().is_success(),
+                "Analytics endpoint {} failed with status: {}",
+                endpoint,
+                response.status()
+            );
+
+            println!("Analytics endpoint {} responded in {:?}", endpoint, elapsed);
+            assert!(elapsed < Duration::from_secs(5));
         }
     }
 

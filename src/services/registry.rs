@@ -49,6 +49,42 @@ impl RegistryService {
         Ok(())
     }
 
+    async fn store_package_metadata_in_database(
+        package: &str,
+        json: &Value,
+        state: &AppState,
+    ) -> Result<(), ApiError> {
+        // Extract basic package information from the npm metadata
+        let description = json["description"].as_str().map(|s| s.to_string());
+
+        // Create or get the package
+        let pkg = state
+            .database
+            .create_or_get_package(package, description, None)
+            .map_err(|e| ApiError::InternalServerError(format!("Database error: {}", e)))?;
+
+        // Extract and store version information
+        if let Some(versions) = json["versions"].as_object() {
+            for (version_str, version_data) in versions {
+                let package_json_str = serde_json::to_string(version_data).ok();
+
+                // Create or get the package version
+                if let Err(e) = state.database.create_or_get_package_version(
+                    pkg.id,
+                    version_str,
+                    package_json_str,
+                ) {
+                    warn!(
+                        "Failed to store version {} for package {}: {:?}",
+                        version_str, package, e
+                    );
+                }
+            }
+        }
+
+        Ok(())
+    }
+
     pub async fn get_package_metadata(package: &str, state: &AppState) -> Result<Value, ApiError> {
         info!("Fetching metadata for package: {}", package);
 
@@ -155,6 +191,13 @@ impl RegistryService {
                         Self::rewrite_tarball_urls(&mut json, &state.config, scheme)?;
 
                         info!("Successfully proxied metadata for package: {}", package);
+
+                        // Store basic package information in database for analytics
+                        if let Err(e) =
+                            Self::store_package_metadata_in_database(package, &json, state).await
+                        {
+                            warn!("Failed to store package metadata in database: {:?}", e);
+                        }
 
                         // Cache with ETag if available
                         let metadata_str = serde_json::to_string(&json).map_err(|e| {

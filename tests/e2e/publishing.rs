@@ -90,11 +90,16 @@ mod tests {
                 .send()
                 .unwrap();
 
-            if response.status().is_success() {
-                let result: serde_json::Value = response.json().unwrap();
-                assert_eq!(result["ok"], true);
-                assert_eq!(result["id"], "test-package");
-            }
+            // The package publish should succeed
+            assert!(
+                response.status().is_success(),
+                "Package publish failed with status: {}",
+                response.status()
+            );
+
+            let result: serde_json::Value = response.json().unwrap();
+            assert_eq!(result["ok"], true);
+            assert_eq!(result["id"], "test-package");
         }
     }
 
@@ -187,11 +192,16 @@ mod tests {
                 .send()
                 .unwrap();
 
-            if response.status().is_success() {
-                let result: serde_json::Value = response.json().unwrap();
-                assert_eq!(result["ok"], true);
-                assert_eq!(result["id"], "@testscope/scoped-package");
-            }
+            // The scoped package publish should succeed
+            assert!(
+                response.status().is_success(),
+                "Scoped package publish failed with status: {}",
+                response.status()
+            );
+
+            let result: serde_json::Value = response.json().unwrap();
+            assert_eq!(result["ok"], true);
+            assert_eq!(result["id"], "@testscope/scoped-package");
         }
     }
 
