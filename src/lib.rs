@@ -1,4 +1,5 @@
 pub mod config;
+pub mod database;
 pub mod error;
 pub mod fairings;
 pub mod models;
@@ -12,8 +13,9 @@ use rocket_cors::{AllowedOrigins, CorsOptions};
 use std::sync::Arc;
 
 pub use config::AppConfig;
+pub use database::DatabaseService;
 pub use fairings::RequestLogger;
-pub use services::{CacheService, DatabaseService};
+pub use services::CacheService;
 pub use state::AppState;
 
 pub fn create_rocket() -> rocket::Rocket<rocket::Build> {
