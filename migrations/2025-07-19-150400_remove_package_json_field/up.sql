@@ -41,3 +41,27 @@ ALTER TABLE package_versions_new RENAME TO package_versions;
 CREATE INDEX idx_package_versions_package_id ON package_versions(package_id);
 CREATE INDEX idx_package_versions_version ON package_versions(version);
 CREATE INDEX idx_package_versions_created_at ON package_versions(created_at);
+
+-- 5. Recreate the packages_legacy view without package_json column
+DROP VIEW IF EXISTS packages_legacy;
+CREATE VIEW packages_legacy AS
+SELECT
+    pf.id,
+    p.name,
+    pv.version,
+    pf.filename,
+    pf.size_bytes,
+    pf.etag,
+    pf.content_type,
+    pf.upstream_url,
+    pf.file_path,
+    pf.created_at,
+    pf.last_accessed,
+    pf.access_count,
+    p.author_id,
+    COALESCE(pv.description, p.description) as description,
+    NULL as package_json, -- package_json field removed
+    p.is_private
+FROM packages p
+JOIN package_versions pv ON p.id = pv.package_id
+JOIN package_files pf ON pv.id = pf.package_version_id;
