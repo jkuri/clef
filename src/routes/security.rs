@@ -101,7 +101,7 @@ pub async fn security_advisories_bulk(
     let mut req_builder = state
         .client
         .post(&url)
-        .header("User-Agent", "pnrs-proxy/1.0")
+        .header("User-Agent", "clef-proxy/1.0")
         .header("Content-Type", "application/json");
 
     // Add gzip encoding if appropriate
@@ -178,7 +178,7 @@ pub async fn security_audits(
     let mut req_builder = state
         .client
         .post(&url)
-        .header("User-Agent", "pnrs-proxy/1.0")
+        .header("User-Agent", "clef-proxy/1.0")
         .header("Content-Type", "application/json");
 
     // Add gzip encoding if appropriate
@@ -271,7 +271,7 @@ pub async fn security_audits_quick(
     let mut req_builder = state
         .client
         .post(&url)
-        .header("User-Agent", "pnrs-proxy/1.0")
+        .header("User-Agent", "clef-proxy/1.0")
         .header("Content-Type", "application/json");
 
     // Add gzip encoding if appropriate

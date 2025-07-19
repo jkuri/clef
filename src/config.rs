@@ -23,7 +23,7 @@ impl Default for AppConfig {
             cache_enabled: true,
             cache_dir: "./data".to_string(),
             cache_ttl_hours: 24, // 24 hours default
-            database_url: "./data/pnrs.db".to_string(),
+            database_url: "./data/clef.db".to_string(),
         }
     }
 }
@@ -34,18 +34,18 @@ impl AppConfig {
     }
 
     pub fn from_env() -> Self {
-        let upstream_registry = env::var("PNRS_UPSTREAM_REGISTRY")
+        let upstream_registry = env::var("CLEF_UPSTREAM_REGISTRY")
             .unwrap_or_else(|_| "https://registry.npmjs.org".to_string());
 
-        let port = env::var("PNRS_PORT")
+        let port = env::var("CLEF_PORT")
             .unwrap_or_else(|_| "8000".to_string())
             .parse::<u16>()
             .unwrap_or(8000);
 
-        let host = env::var("PNRS_HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
+        let host = env::var("CLEF_HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
 
         // Auto-detect scheme based on port or explicit configuration
-        let scheme = env::var("PNRS_SCHEME").unwrap_or_else(|_| {
+        let scheme = env::var("CLEF_SCHEME").unwrap_or_else(|_| {
             if port == 443 {
                 "https".to_string()
             } else {
@@ -53,20 +53,20 @@ impl AppConfig {
             }
         });
 
-        let cache_enabled = env::var("PNRS_CACHE_ENABLED")
+        let cache_enabled = env::var("CLEF_CACHE_ENABLED")
             .unwrap_or_else(|_| "true".to_string())
             .parse::<bool>()
             .unwrap_or(true);
 
-        let cache_dir = env::var("PNRS_CACHE_DIR").unwrap_or_else(|_| "./data".to_string());
+        let cache_dir = env::var("CLEF_CACHE_DIR").unwrap_or_else(|_| "./data".to_string());
 
-        let cache_ttl_hours = env::var("PNRS_CACHE_TTL_HOURS")
+        let cache_ttl_hours = env::var("CLEF_CACHE_TTL_HOURS")
             .unwrap_or_else(|_| "24".to_string())
             .parse::<u64>()
             .unwrap_or(24);
 
         let database_url =
-            env::var("PNRS_DATABASE_URL").unwrap_or_else(|_| format!("{cache_dir}/pnrs.db"));
+            env::var("CLEF_DATABASE_URL").unwrap_or_else(|_| format!("{cache_dir}/clef.db"));
 
         info!("Configuration loaded:");
         info!("  Upstream Registry: {upstream_registry}");

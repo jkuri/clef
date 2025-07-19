@@ -22,12 +22,12 @@ RUN apk add --no-cache sqlite ca-certificates
 WORKDIR /app
 
 # Copy the binary from builder stage
-COPY --from=builder /app/target/release/pnrs /usr/local/bin/pnrs
+COPY --from=builder /app/target/release/clef /usr/local/bin/clef
 
 # Set default environment variables
-ENV PNRS_HOST=0.0.0.0
-ENV PNRS_PORT=8000
-ENV PNRS_UPSTREAM_REGISTRY=https://registry.npmjs.org
+ENV CLEF_HOST=0.0.0.0
+ENV CLEF_PORT=8000
+ENV CLEF_UPSTREAM_REGISTRY=https://registry.npmjs.org
 ENV RUST_LOG=info
 
 # Expose the port
@@ -38,4 +38,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/ || exit 1
 
 # Run the application
-CMD ["pnrs"]
+CMD ["clef"]

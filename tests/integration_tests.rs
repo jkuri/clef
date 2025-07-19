@@ -1,4 +1,4 @@
-use pnrs::{AppConfig, AppState, CacheService, DatabaseService};
+use clef::{AppConfig, AppState, CacheService, DatabaseService};
 use rocket::Config;
 use rocket::http::Status;
 use rocket::local::blocking::Client;
@@ -19,10 +19,10 @@ struct TestRocket {
 fn create_test_rocket() -> TestRocket {
     // Clear any environment variables that might interfere with tests
     unsafe {
-        env::remove_var("PNRS_UPSTREAM_REGISTRY");
-        env::remove_var("PNRS_PORT");
-        env::remove_var("PNRS_HOST");
-        env::remove_var("PNRS_CACHE_DIR");
+        env::remove_var("CLEF_UPSTREAM_REGISTRY");
+        env::remove_var("CLEF_PORT");
+        env::remove_var("CLEF_HOST");
+        env::remove_var("CLEF_CACHE_DIR");
     }
 
     // Create temporary directory for this test
@@ -31,7 +31,7 @@ fn create_test_rocket() -> TestRocket {
     std::fs::create_dir_all(&cache_dir).expect("Failed to create cache directory");
 
     unsafe {
-        env::set_var("PNRS_CACHE_DIR", cache_dir.to_string_lossy().as_ref());
+        env::set_var("CLEF_CACHE_DIR", cache_dir.to_string_lossy().as_ref());
     }
 
     // Load configuration from environment
@@ -73,8 +73,8 @@ fn create_test_rocket() -> TestRocket {
     let rocket = rocket::custom(&rocket_config)
         .manage(state)
         .attach(cors)
-        .attach(pnrs::RequestLogger)
-        .mount("/", pnrs::routes::get_routes());
+        .attach(clef::RequestLogger)
+        .mount("/", clef::routes::get_routes());
 
     TestRocket {
         rocket,
@@ -92,7 +92,7 @@ fn test_health_check() {
     assert_eq!(response.status(), Status::Ok);
     assert_eq!(
         response.into_string(),
-        Some("PNRS - Private NPM Registry Server is running!".into())
+        Some("CLEF - Private NPM Registry Server is running!".into())
     );
 }
 
@@ -209,7 +209,7 @@ fn test_tarball_download_not_found() {
 
 #[cfg(test)]
 mod config_tests {
-    use pnrs::AppConfig;
+    use clef::AppConfig;
     use std::env;
 
     #[test]

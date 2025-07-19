@@ -30,7 +30,7 @@ fn ensure_binary_built() -> PathBuf {
             // Get the binary path
             let target_dir =
                 std::env::var("CARGO_TARGET_DIR").unwrap_or_else(|_| "target".to_string());
-            let binary_path = PathBuf::from(target_dir).join("debug").join("pnrs");
+            let binary_path = PathBuf::from(target_dir).join("debug").join("clef");
 
             println!("Binary built successfully and cached");
             binary_path
@@ -70,13 +70,13 @@ impl TestServer {
         let binary_path = ensure_binary_built();
 
         let mut cmd = Command::new(&binary_path);
-        cmd.env("PNRS_PORT", self.port.to_string())
-            .env("PNRS_HOST", "127.0.0.1")
-            .env("PNRS_CACHE_DIR", &self.cache_dir)
-            .env("PNRS_DATABASE_URL", self.db_path.display().to_string())
-            .env("PNRS_UPSTREAM_REGISTRY", "https://registry.npmjs.org") // Add upstream registry
-            .env("PNRS_CACHE_ENABLED", "true")
-            .env("PNRS_CACHE_TTL_HOURS", "24")
+        cmd.env("CLEF_PORT", self.port.to_string())
+            .env("CLEF_HOST", "127.0.0.1")
+            .env("CLEF_CACHE_DIR", &self.cache_dir)
+            .env("CLEF_DATABASE_URL", self.db_path.display().to_string())
+            .env("CLEF_UPSTREAM_REGISTRY", "https://registry.npmjs.org") // Add upstream registry
+            .env("CLEF_CACHE_ENABLED", "true")
+            .env("CLEF_CACHE_TTL_HOURS", "24")
             .env("RUST_LOG", "-") // Enable info logging to see our custom logs
             .stdout(Stdio::inherit()) // Show stdout for debugging
             .stderr(Stdio::inherit()); // Show stderr for debugging

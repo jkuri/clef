@@ -42,7 +42,7 @@ mod tests {
         assert!(response.status().is_success());
         assert_eq!(
             response.text().unwrap(),
-            "PNRS - Private NPM Registry Server is running!"
+            "CLEF - Private NPM Registry Server is running!"
         );
     }
 

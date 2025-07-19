@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# PNRS End-to-End Test Runner
-# This script runs comprehensive e2e tests for PNRS with npm, pnpm, and yarn
+# CLEF End-to-End Test Runner
+# This script runs comprehensive e2e tests for CLEF with npm, pnpm, and yarn
 # Now optimized: builds binary once and reuses it across all tests for faster execution
 
 set -e
@@ -245,7 +245,7 @@ done
 
 # Main execution
 main() {
-    print_status "PNRS End-to-End Test Runner"
+    print_status "CLEF End-to-End Test Runner"
     print_status "============================"
 
     # Check prerequisites
@@ -262,9 +262,9 @@ main() {
 
     # Build the project first (unless running integration tests which don't need it)
     if [ "$INTEGRATION" != true ]; then
-        print_status "Building PNRS..."
+        print_status "Building CLEF..."
         if ! cargo build; then
-            print_error "Failed to build PNRS"
+            print_error "Failed to build CLEF"
             exit 1
         fi
         print_success "Build completed"

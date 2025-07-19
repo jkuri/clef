@@ -1,17 +1,17 @@
-# PNRS Makefile
-# Provides convenient commands for building, testing, and running PNRS
+# CLEF Makefile
+# Provides convenient commands for building, testing, and running CLEF
 
 .PHONY: help build test test-unit test-integration test-e2e test-e2e-quick test-all clean run dev install-deps check lint format
 
 # Default target
 help:
-	@echo "PNRS - Private NPM Registry Server"
+	@echo "CLEF - Private NPM Registry Server"
 	@echo "=================================="
 	@echo ""
 	@echo "Available targets:"
 	@echo "  build           Build the project"
-	@echo "  run             Run PNRS server"
-	@echo "  dev             Run PNRS server in development mode with debug logging"
+	@echo "  run             Run CLEF server"
+	@echo "  dev             Run CLEF server in development mode with debug logging"
 	@echo ""
 	@echo "Testing:"
 	@echo "  test            Run all tests (unit + integration + e2e)"
@@ -41,20 +41,20 @@ help:
 
 # Build targets
 build:
-	@echo "Building PNRS..."
+	@echo "Building CLEF..."
 	cargo build
 
 build-release:
-	@echo "Building PNRS (release mode)..."
+	@echo "Building CLEF (release mode)..."
 	cargo build --release
 
 # Run targets
 run:
-	@echo "Starting PNRS server..."
+	@echo "Starting CLEF server..."
 	cargo run
 
 dev:
-	@echo "Starting PNRS server in development mode..."
+	@echo "Starting CLEF server in development mode..."
 	RUST_LOG=debug cargo run
 
 # Test targets
@@ -151,16 +151,16 @@ clean:
 # Docker targets
 docker-build:
 	@echo "Building Docker image..."
-	docker build -t pnrs .
+	docker build -t clef .
 
 docker-run:
-	@echo "Running PNRS in Docker..."
-	docker run -p 8000:8000 pnrs
+	@echo "Running CLEF in Docker..."
+	docker run -p 8000:8000 clef
 
 # Database targets
 db-reset:
 	@echo "Resetting database..."
-	rm -f data/pnrs.db
+	rm -f data/clef.db
 	cargo run -- --reset-db || true
 
 # Benchmark targets
