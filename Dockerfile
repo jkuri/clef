@@ -19,19 +19,10 @@ FROM alpine:latest
 # Install CA certificates for HTTPS requests
 RUN apk add --no-cache sqlite ca-certificates
 
-# Create a non-root user
-RUN adduser -D pnrs
-
 WORKDIR /app
 
 # Copy the binary from builder stage
 COPY --from=builder /app/target/release/pnrs /usr/local/bin/pnrs
-
-# Change ownership to pnrs user
-RUN chown pnrs:pnrs /usr/local/bin/pnrs
-
-# Switch to non-root user
-USER pnrs
 
 # Set default environment variables
 ENV PNRS_HOST=0.0.0.0
