@@ -258,9 +258,23 @@ pub async fn npm_publish(
         ApiError::InternalServerError(format!("Failed to write tarball: {}", e))
     })?;
 
-    // Create package record using the normalized database service
+    // Store package.json to filesystem instead of database
     let package_json = serde_json::to_string(&version_data).map_err(|e| {
         ApiError::InternalServerError(format!("Failed to serialize package.json: {}", e))
+    })?;
+
+    // Save package.json alongside the tarball
+    let package_json_path = package_dir.join(format!(
+        "{}-{}.json",
+        if package.starts_with('@') {
+            package.split('/').last().unwrap_or(package)
+        } else {
+            package
+        },
+        version
+    ));
+    fs::write(&package_json_path, &package_json).map_err(|e| {
+        ApiError::InternalServerError(format!("Failed to write package.json: {}", e))
     })?;
 
     // Use the normalized database service to create the complete package entry
@@ -275,8 +289,7 @@ pub async fn npm_publish(
             &tarball_path.to_string_lossy().to_string(),
             None,                                         // etag
             Some("application/octet-stream".to_string()), // content_type
-            Some(package_json),
-            Some(user.user_id), // author_id
+            Some(user.user_id),                           // author_id
             version_data.description.clone(),
         )
         .map_err(|e| ApiError::InternalServerError(format!("Failed to create package: {}", e)))?;

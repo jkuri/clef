@@ -313,7 +313,6 @@ impl CacheService {
                 &cache_path.to_string_lossy().to_string(),
                 etag.map(|s| s.to_string()),
                 Some("application/octet-stream".to_string()),
-                None, // package_json
                 None, // author_id (cached packages don't have authors)
                 None, // description
             ) {

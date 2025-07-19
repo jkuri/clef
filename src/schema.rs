@@ -38,7 +38,6 @@ diesel::table! {
         dev_dependencies -> Nullable<Text>,
         peer_dependencies -> Nullable<Text>,
         engines -> Nullable<Text>,
-        package_json -> Nullable<Text>,
         shasum -> Nullable<Text>,
         created_at -> Timestamp,
         updated_at -> Timestamp,

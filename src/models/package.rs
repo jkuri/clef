@@ -62,7 +62,6 @@ pub struct PackageVersion {
     pub dev_dependencies: Option<String>,  // JSON object as text
     pub peer_dependencies: Option<String>, // JSON object as text
     pub engines: Option<String>,           // JSON object as text
-    pub package_json: Option<String>,      // Full package.json
     pub shasum: Option<String>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
@@ -80,7 +79,6 @@ pub struct NewPackageVersion {
     pub dev_dependencies: Option<String>,
     pub peer_dependencies: Option<String>,
     pub engines: Option<String>,
-    pub package_json: Option<String>,
     pub shasum: Option<String>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
@@ -96,7 +94,6 @@ pub struct UpdatePackageVersion {
     pub dev_dependencies: Option<String>,
     pub peer_dependencies: Option<String>,
     pub engines: Option<String>,
-    pub package_json: Option<String>,
     pub shasum: Option<String>,
     pub updated_at: Option<NaiveDateTime>,
 }
@@ -220,7 +217,7 @@ impl NewPackage {
 }
 
 impl NewPackageVersion {
-    pub fn new(package_id: i32, version: String, package_json: Option<String>) -> Self {
+    pub fn new(package_id: i32, version: String) -> Self {
         let now = chrono::Utc::now().naive_utc();
         Self {
             package_id,
@@ -232,7 +229,6 @@ impl NewPackageVersion {
             dev_dependencies: None,
             peer_dependencies: None,
             engines: None,
-            package_json,
             shasum: None,
             created_at: now,
             updated_at: now,

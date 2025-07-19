@@ -58,29 +58,12 @@ impl RegistryService {
         let description = json["description"].as_str().map(|s| s.to_string());
 
         // Create or get the package
-        let pkg = state
+        let _pkg = state
             .database
             .create_or_get_package(package, description, None)
             .map_err(|e| ApiError::InternalServerError(format!("Database error: {}", e)))?;
 
-        // Extract and store version information
-        if let Some(versions) = json["versions"].as_object() {
-            for (version_str, version_data) in versions {
-                let package_json_str = serde_json::to_string(version_data).ok();
-
-                // Create or get the package version
-                if let Err(e) = state.database.create_or_get_package_version(
-                    pkg.id,
-                    version_str,
-                    package_json_str,
-                ) {
-                    warn!(
-                        "Failed to store version {} for package {}: {:?}",
-                        version_str, package, e
-                    );
-                }
-            }
-        }
+        // Note: Version information is stored individually when packages are accessed
 
         Ok(())
     }
@@ -453,6 +436,44 @@ impl RegistryService {
         }
     }
 
+    fn load_package_json_from_filesystem(
+        package_name: &str,
+        version: &str,
+        state: &AppState,
+    ) -> Result<Option<Value>, ApiError> {
+        use std::path::Path;
+
+        let cache_dir = Path::new(&state.config.cache_dir);
+        let packages_dir = cache_dir.join("packages");
+        let package_dir = packages_dir.join(package_name);
+
+        // Generate the package.json filename
+        let package_json_filename = format!(
+            "{}-{}.json",
+            if package_name.starts_with('@') {
+                package_name.split('/').last().unwrap_or(package_name)
+            } else {
+                package_name
+            },
+            version
+        );
+        let package_json_path = package_dir.join(package_json_filename);
+
+        if package_json_path.exists() {
+            let package_json_str = std::fs::read_to_string(&package_json_path).map_err(|e| {
+                ApiError::InternalServerError(format!("Failed to read package.json: {}", e))
+            })?;
+
+            let package_json: Value = serde_json::from_str(&package_json_str).map_err(|e| {
+                ApiError::InternalServerError(format!("Failed to parse package.json: {}", e))
+            })?;
+
+            Ok(Some(package_json))
+        } else {
+            Ok(None)
+        }
+    }
+
     fn generate_metadata_from_published_packages(
         package_name: &str,
         published_packages: &[Package],
@@ -475,19 +496,12 @@ impl RegistryService {
             {
                 // Process each version
                 for version_with_files in pkg_with_versions.versions {
-                    if let Some(package_json_str) = &version_with_files.version.package_json {
-                        // Parse the stored package.json
-                        let package_json: Value =
-                            serde_json::from_str(package_json_str).map_err(|e| {
-                                ApiError::InternalServerError(format!(
-                                    "Failed to parse package.json: {}",
-                                    e
-                                ))
-                            })?;
+                    let version = version_with_files.version.version.clone();
 
-                        // Extract version info
-                        let version = version_with_files.version.version.clone();
-
+                    // Load package.json from filesystem
+                    if let Some(package_json) =
+                        Self::load_package_json_from_filesystem(package_name, &version, state)?
+                    {
                         // Update latest version (simple string comparison for now)
                         if version > latest_version {
                             latest_version = version.clone();
