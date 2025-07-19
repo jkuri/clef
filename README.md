@@ -101,20 +101,7 @@ Create `.npmrc` in your project root:
 
 ```ini
 registry=http://localhost:8000/registry
-@myorg:registry=http://localhost:8000/registry
-//localhost:8000/registry/:_authToken=${NPM_TOKEN}
 ```
-
-## API Endpoints
-
-| Method   | Endpoint                                     | Description          |
-| -------- | -------------------------------------------- | -------------------- |
-| `PUT`    | `/registry/-/user/org.couchdb.user:username` | Login/Register       |
-| `GET`    | `/registry/-/whoami`                         | Get current user     |
-| `DELETE` | `/registry/-/user/token/{token}`             | Logout               |
-| `PUT`    | `/registry/{package}`                        | Publish package      |
-| `GET`    | `/registry/{package}`                        | Get package metadata |
-| `GET`    | `/registry/{package}/-/{filename}`           | Download tarball     |
 
 ## Development
 
