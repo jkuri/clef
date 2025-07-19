@@ -26,7 +26,6 @@ pub async fn get_cache_stats(state: &State<AppState>) -> Result<Json<CacheStatsR
         miss_count: stats.miss_count,
         hit_rate,
         cache_dir: state.config.cache_dir.clone(),
-        max_size_mb: state.config.cache_max_size_mb,
         ttl_hours: state.config.cache_ttl_hours,
     };
 
@@ -53,13 +52,7 @@ pub async fn cache_health(state: &State<AppState>) -> Result<Json<serde_json::Va
         .map_err(|e| ApiError::ParseError(format!("Failed to get cache stats: {}", e)))?;
 
     let health_status = if state.config.cache_enabled {
-        let size_usage_percent = (stats.total_size_bytes as f64 / (state.config.cache_max_size_mb * 1024 * 1024) as f64) * 100.0;
-
-        if size_usage_percent > 90.0 {
-            "warning"
-        } else {
-            "healthy"
-        }
+        "healthy"
     } else {
         "disabled"
     };
@@ -67,10 +60,6 @@ pub async fn cache_health(state: &State<AppState>) -> Result<Json<serde_json::Va
     Ok(Json(serde_json::json!({
         "status": health_status,
         "enabled": state.config.cache_enabled,
-        "size_usage_percent": if state.config.cache_enabled {
-            Some((stats.total_size_bytes as f64 / (state.config.cache_max_size_mb * 1024 * 1024) as f64) * 100.0)
-        } else {
-            None
-        }
+        "total_size_mb": stats.total_size_bytes as f64 / 1024.0 / 1024.0
     })))
 }

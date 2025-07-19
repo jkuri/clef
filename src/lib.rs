@@ -27,8 +27,7 @@ pub fn create_rocket() -> rocket::Rocket<rocket::Build> {
     let cache = Arc::new(CacheService::new(config.clone()).expect("Failed to initialize cache"));
 
     // Initialize database service
-    let database_url = format!("{}/pnrs.db", config.cache_dir);
-    let database = Arc::new(DatabaseService::new(&database_url).expect("Failed to initialize database"));
+    let database = Arc::new(DatabaseService::new(&config.database_url).expect("Failed to initialize database"));
 
     // Create app state
     let state = AppState {

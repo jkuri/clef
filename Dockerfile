@@ -1,23 +1,26 @@
 # Build stage
-FROM rust:1.75 as builder
+FROM rust:1.88-alpine AS builder
+
+RUN apk add --no-cache musl-dev sqlite-dev sqlite-static openssl-dev openssl-libs-static
+
 
 WORKDIR /app
 COPY Cargo.toml Cargo.lock ./
 COPY src ./src
+COPY diesel.toml ./
+COPY migrations/ ./migrations/
 
 # Build the application
 RUN cargo build --release
 
 # Runtime stage
-FROM debian:bookworm-slim
+FROM alpine:latest
 
 # Install CA certificates for HTTPS requests
-RUN apt-get update && apt-get install -y \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache sqlite ca-certificates
 
 # Create a non-root user
-RUN useradd -r -s /bin/false pnrs
+RUN adduser -D pnrs
 
 WORKDIR /app
 

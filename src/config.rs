@@ -9,8 +9,8 @@ pub struct AppConfig {
     pub scheme: String,
     pub cache_enabled: bool,
     pub cache_dir: String,
-    pub cache_max_size_mb: u64,
     pub cache_ttl_hours: u64,
+    pub database_url: String,
 }
 
 impl Default for AppConfig {
@@ -22,8 +22,8 @@ impl Default for AppConfig {
             scheme: "http".to_string(),
             cache_enabled: true,
             cache_dir: "./data".to_string(),
-            cache_max_size_mb: 1024, // 1GB default
             cache_ttl_hours: 24, // 24 hours default
+            database_url: "./data/pnrs.db".to_string(),
         }
     }
 }
@@ -63,15 +63,13 @@ impl AppConfig {
         let cache_dir = env::var("PNRS_CACHE_DIR")
             .unwrap_or_else(|_| "./data".to_string());
 
-        let cache_max_size_mb = env::var("PNRS_CACHE_MAX_SIZE_MB")
-            .unwrap_or_else(|_| "1024".to_string())
-            .parse::<u64>()
-            .unwrap_or(1024);
-
         let cache_ttl_hours = env::var("PNRS_CACHE_TTL_HOURS")
             .unwrap_or_else(|_| "24".to_string())
             .parse::<u64>()
             .unwrap_or(24);
+
+        let database_url = env::var("PNRS_DATABASE_URL")
+            .unwrap_or_else(|_| format!("{}/pnrs.db", cache_dir));
 
         info!("Configuration loaded:");
         info!("  Upstream Registry: {}", upstream_registry);
@@ -80,8 +78,8 @@ impl AppConfig {
         info!("  Scheme: {}", scheme);
         info!("  Cache Enabled: {}", cache_enabled);
         info!("  Cache Directory: {}", cache_dir);
-        info!("  Cache Max Size: {} MB", cache_max_size_mb);
         info!("  Cache TTL: {} hours", cache_ttl_hours);
+        info!("  Database URL: {}", database_url);
 
         Self {
             upstream_registry,
@@ -90,8 +88,8 @@ impl AppConfig {
             scheme,
             cache_enabled,
             cache_dir,
-            cache_max_size_mb,
             cache_ttl_hours,
+            database_url,
         }
     }
 }
@@ -107,8 +105,7 @@ mod tests {
         assert_eq!(config.port, 8000);
         assert_eq!(config.host, "127.0.0.1");
         assert_eq!(config.cache_enabled, true);
-        assert_eq!(config.cache_dir, "./cache");
-        assert_eq!(config.cache_max_size_mb, 1024);
+        assert_eq!(config.cache_dir, "./data");
         assert_eq!(config.cache_ttl_hours, 24);
     }
 

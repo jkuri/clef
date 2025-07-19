@@ -67,8 +67,7 @@ Configure PNRS using environment variables:
 | `PNRS_HOST`              | `127.0.0.1`                  | Server bind address                  |
 | `PNRS_PORT`              | `8000`                       | Server port                          |
 | `PNRS_CACHE_ENABLED`     | `true`                       | Enable/disable tarball caching       |
-| `PNRS_CACHE_DIR`         | `./cache`                    | Cache directory path                 |
-| `PNRS_CACHE_MAX_SIZE_MB` | `1024`                       | Maximum cache size in MB             |
+| `PNRS_CACHE_DIR`         | `./data`                     | Cache directory path                 |
 | `PNRS_CACHE_TTL_HOURS`   | `24`                         | Cache TTL in hours                   |
 | `RUST_LOG`               | -                            | Log level (info, debug, warn, error) |
 
@@ -246,16 +245,47 @@ npm config set registry https://registry.npmjs.org
 
 ### Running Tests
 
+PNRS includes comprehensive test suites:
+
 ```bash
-# Run all tests
-cargo test
+# Run all tests (unit + integration + e2e quick)
+make test
 
-# Run with output
-cargo test -- --nocapture
+# Run unit tests only
+make test-unit
 
-# Run specific test
-cargo test test_health_check
+# Run integration tests only
+make test-integration
+
+# Run end-to-end tests
+make test-e2e-quick    # Quick e2e tests (recommended)
+make test-e2e          # Full e2e test suite
+
+# Run specific e2e test modules
+make test-e2e-package  # Package management tests
+make test-e2e-auth     # Authentication tests
+make test-e2e-cache    # Cache management tests
+# ... see 'make help' for all modules
+
+# Alternative: use the test script directly
+./scripts/run-e2e-tests.sh --quick
+./scripts/run-e2e-tests.sh --module package_management
+./scripts/run-e2e-tests.sh --help
 ```
+
+#### End-to-End Tests
+
+The e2e tests comprehensively test PNRS with real npm, pnpm, and yarn package managers:
+
+- ✅ Package installation and resolution
+- ✅ Authentication and publishing
+- ✅ Cache management and analytics
+- ✅ Scoped package handling
+- ✅ Security audit endpoints
+- ✅ Cross-package-manager compatibility
+- ✅ Performance and load testing
+
+See [tests/e2e/README.md](tests/e2e/README.md) for detailed documentation.
 
 ### Development Mode
 

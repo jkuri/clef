@@ -31,6 +31,7 @@ pub fn get_routes() -> Vec<rocket::Route> {
         analytics::get_popular_packages,
         analytics::get_cache_analytics,
         security::security_advisories_bulk,
+        security::security_audits,
         security::security_audits_quick,
         auth::npm_login,
         auth::npm_whoami,

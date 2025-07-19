@@ -37,7 +37,6 @@ pub struct CacheStatsResponse {
     pub miss_count: u64,
     pub hit_rate: f64,
     pub cache_dir: String,
-    pub max_size_mb: u64,
     pub ttl_hours: u64,
 }
 

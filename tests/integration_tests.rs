@@ -5,8 +5,14 @@ use std::sync::Arc;
 use pnrs::{AppConfig, AppState, CacheService, DatabaseService};
 use rocket::Config;
 use rocket_cors::{AllowedOrigins, CorsOptions};
+use tempfile::TempDir;
 
-fn create_test_rocket() -> rocket::Rocket<rocket::Build> {
+struct TestRocket {
+    rocket: rocket::Rocket<rocket::Build>,
+    _temp_dir: TempDir, // Keep alive for cleanup
+}
+
+fn create_test_rocket() -> TestRocket {
     // Clear any environment variables that might interfere with tests
     unsafe {
         env::remove_var("PNRS_UPSTREAM_REGISTRY");
@@ -15,11 +21,13 @@ fn create_test_rocket() -> rocket::Rocket<rocket::Build> {
         env::remove_var("PNRS_CACHE_DIR");
     }
 
-    // Create unique cache directory for this test
-    let test_id = std::thread::current().id();
-    let cache_dir = format!("./test_cache_{:?}", test_id);
+    // Create temporary directory for this test
+    let temp_dir = TempDir::new().expect("Failed to create temp directory");
+    let cache_dir = temp_dir.path().join("cache");
+    std::fs::create_dir_all(&cache_dir).expect("Failed to create cache directory");
+
     unsafe {
-        env::set_var("PNRS_CACHE_DIR", &cache_dir);
+        env::set_var("PNRS_CACHE_DIR", cache_dir.to_string_lossy().as_ref());
     }
 
     // Load configuration from environment
@@ -32,7 +40,7 @@ fn create_test_rocket() -> rocket::Rocket<rocket::Build> {
     let cache = Arc::new(CacheService::new(config.clone()).expect("Failed to initialize cache"));
 
     // Initialize database service with unique database file
-    let database_url = format!("{}/test_cache_{:?}.db", config.cache_dir, test_id);
+    let database_url = format!("{}/test.db", config.cache_dir);
     let database = Arc::new(DatabaseService::new(&database_url).expect("Failed to initialize database"));
 
     // Create app state
@@ -56,16 +64,22 @@ fn create_test_rocket() -> rocket::Rocket<rocket::Build> {
         ..Config::default()
     };
 
-    rocket::custom(&rocket_config)
+    let rocket = rocket::custom(&rocket_config)
         .manage(state)
         .attach(cors)
         .attach(pnrs::RequestLogger)
-        .mount("/", pnrs::routes::get_routes())
+        .mount("/", pnrs::routes::get_routes());
+
+    TestRocket {
+        rocket,
+        _temp_dir: temp_dir,
+    }
 }
 
 #[test]
 fn test_health_check() {
-    let client = Client::tracked(create_test_rocket()).expect("valid rocket instance");
+    let test_rocket = create_test_rocket();
+    let client = Client::tracked(test_rocket.rocket).expect("valid rocket instance");
     let response = client.get("/").dispatch();
 
     assert_eq!(response.status(), Status::Ok);
@@ -74,7 +88,8 @@ fn test_health_check() {
 
 #[test]
 fn test_package_metadata_success() {
-    let client = Client::tracked(create_test_rocket()).expect("valid rocket instance");
+    let test_rocket = create_test_rocket();
+    let client = Client::tracked(test_rocket.rocket).expect("valid rocket instance");
     let response = client.get("/lodash").dispatch();
 
     assert_eq!(response.status(), Status::Ok);
@@ -86,7 +101,8 @@ fn test_package_metadata_success() {
 
 #[test]
 fn test_package_metadata_not_found() {
-    let client = Client::tracked(create_test_rocket()).expect("valid rocket instance");
+    let test_rocket = create_test_rocket();
+    let client = Client::tracked(test_rocket.rocket).expect("valid rocket instance");
     let response = client.get("/nonexistent-package-12345").dispatch();
 
     assert_eq!(response.status(), Status::BadRequest);
@@ -97,7 +113,8 @@ fn test_package_metadata_not_found() {
 
 #[test]
 fn test_package_version_metadata_success() {
-    let client = Client::tracked(create_test_rocket()).expect("valid rocket instance");
+    let test_rocket = create_test_rocket();
+    let client = Client::tracked(test_rocket.rocket).expect("valid rocket instance");
     let response = client.get("/lodash/4.17.21").dispatch();
 
     assert_eq!(response.status(), Status::Ok);
@@ -109,7 +126,8 @@ fn test_package_version_metadata_success() {
 
 #[test]
 fn test_package_version_metadata_not_found() {
-    let client = Client::tracked(create_test_rocket()).expect("valid rocket instance");
+    let test_rocket = create_test_rocket();
+    let client = Client::tracked(test_rocket.rocket).expect("valid rocket instance");
     let response = client.get("/lodash/999.999.999").dispatch();
 
     assert_eq!(response.status(), Status::BadRequest);
@@ -120,7 +138,8 @@ fn test_package_version_metadata_not_found() {
 
 #[test]
 fn test_tarball_head_success() {
-    let client = Client::tracked(create_test_rocket()).expect("valid rocket instance");
+    let test_rocket = create_test_rocket();
+    let client = Client::tracked(test_rocket.rocket).expect("valid rocket instance");
     let response = client.head("/lodash/-/lodash-4.17.21.tgz").dispatch();
 
     assert_eq!(response.status(), Status::Ok);
@@ -128,7 +147,8 @@ fn test_tarball_head_success() {
 
 #[test]
 fn test_tarball_head_not_found() {
-    let client = Client::tracked(create_test_rocket()).expect("valid rocket instance");
+    let test_rocket = create_test_rocket();
+    let client = Client::tracked(test_rocket.rocket).expect("valid rocket instance");
     let response = client.head("/nonexistent/-/nonexistent-1.0.0.tgz").dispatch();
 
     assert_eq!(response.status(), Status::BadRequest);
@@ -136,7 +156,8 @@ fn test_tarball_head_not_found() {
 
 #[test]
 fn test_tarball_download_success() {
-    let client = Client::tracked(create_test_rocket()).expect("valid rocket instance");
+    let test_rocket = create_test_rocket();
+    let client = Client::tracked(test_rocket.rocket).expect("valid rocket instance");
     let response = client.get("/lodash/-/lodash-4.17.21.tgz").dispatch();
 
     assert_eq!(response.status(), Status::Ok);
@@ -150,7 +171,8 @@ fn test_tarball_download_success() {
 
 #[test]
 fn test_tarball_download_not_found() {
-    let client = Client::tracked(create_test_rocket()).expect("valid rocket instance");
+    let test_rocket = create_test_rocket();
+    let client = Client::tracked(test_rocket.rocket).expect("valid rocket instance");
     let response = client.get("/nonexistent/-/nonexistent-1.0.0.tgz").dispatch();
 
     assert_eq!(response.status(), Status::BadRequest);
@@ -187,20 +209,21 @@ mod config_tests {
 
 #[test]
 fn test_cache_stats() {
-    let client = Client::tracked(create_test_rocket()).expect("valid rocket instance");
+    let test_rocket = create_test_rocket();
+    let client = Client::tracked(test_rocket.rocket).expect("valid rocket instance");
     let response = client.get("/cache/stats").dispatch();
 
     assert_eq!(response.status(), Status::Ok);
 
     let body = response.into_string().expect("valid response body");
     assert!(body.contains("\"enabled\":true"));
-    assert!(body.contains("\"cache_dir\":\"./test_cache_"));
-    assert!(body.contains("\"max_size_mb\":1024"));
+    assert!(body.contains("\"cache_dir\":"));
 }
 
 #[test]
 fn test_cache_health() {
-    let client = Client::tracked(create_test_rocket()).expect("valid rocket instance");
+    let test_rocket = create_test_rocket();
+    let client = Client::tracked(test_rocket.rocket).expect("valid rocket instance");
     let response = client.get("/cache/health").dispatch();
 
     assert_eq!(response.status(), Status::Ok);
