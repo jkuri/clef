@@ -1,0 +1,27 @@
+name: API
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install package managers
+        run: npm install -g npm yarn pnpm
+      - name: Build program
+        run: cargo build --release
+      - name: Run tests
+        run: make ci-test-full
