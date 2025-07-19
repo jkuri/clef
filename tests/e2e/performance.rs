@@ -33,7 +33,7 @@ mod tests {
                 }
             }
             Err(e) => {
-                println!("Cache clear error: {}", e);
+                println!("Cache clear error: {e}");
             }
         }
 
@@ -46,13 +46,13 @@ mod tests {
         // Test root endpoint
         match client.get("/").send() {
             Ok(response) => println!("Root endpoint: {}", response.status()),
-            Err(e) => println!("Root endpoint error: {}", e),
+            Err(e) => println!("Root endpoint error: {e}"),
         }
 
         // Test cache stats (we know this works)
         match client.get("/cache/stats").send() {
             Ok(response) => println!("Cache stats: {}", response.status()),
-            Err(e) => println!("Cache stats error: {}", e),
+            Err(e) => println!("Cache stats error: {e}"),
         }
 
         // Now test a package request
@@ -73,10 +73,7 @@ mod tests {
                 }
             }
             Err(e) => {
-                println!(
-                    "Single request error: {} - but proceeding with concurrent test",
-                    e
-                );
+                println!("Single request error: {e} - but proceeding with concurrent test");
             }
         }
 
@@ -97,7 +94,7 @@ mod tests {
             "uuid",
         ];
         let concurrent_requests = packages.len();
-        println!("Testing {} concurrent requests", concurrent_requests);
+        println!("Testing {concurrent_requests} concurrent requests");
         let start_time = Instant::now();
 
         // Make concurrent requests to different packages
@@ -117,7 +114,7 @@ mod tests {
 
                     // Use the same request pattern as the working test
                     match client
-                        .get(&format!("/registry/{}", package_name))
+                        .get(&format!("/registry/{package_name}"))
                         .header("User-Agent", "npm/8.19.2 node/v18.12.1 linux x64")
                         .send()
                     {
@@ -165,7 +162,7 @@ mod tests {
 
         println!("Concurrent package request results:");
         for result in results.iter() {
-            println!("  {}", result);
+            println!("  {result}");
 
             if result.contains("SUCCESS") {
                 success_count += 1;
@@ -173,36 +170,31 @@ mod tests {
         }
 
         println!(
-            "Concurrent package requests: {}/{} succeeded in {:?}",
-            success_count, concurrent_requests, elapsed
+            "Concurrent package requests: {success_count}/{concurrent_requests} succeeded in {elapsed:?}"
         );
 
         // Should handle concurrent requests without crashing and complete reasonably quickly
         // Allow more time since we're seeing network timeouts
         assert!(
             elapsed < Duration::from_secs(60),
-            "Requests took too long: {:?}",
-            elapsed
+            "Requests took too long: {elapsed:?}"
         );
 
         // Main assertion: server should handle concurrent requests without hanging
         assert_eq!(
             results.len(),
             concurrent_requests,
-            "Should have processed all {} requests",
-            concurrent_requests
+            "Should have processed all {concurrent_requests} requests"
         );
 
         // The key test is that the server handles concurrent load gracefully
         if success_count == concurrent_requests {
             println!(
-                "🎉 Excellent! All {}/{} concurrent requests succeeded!",
-                success_count, concurrent_requests
+                "🎉 Excellent! All {success_count}/{concurrent_requests} concurrent requests succeeded!"
             );
         } else if success_count > 0 {
             println!(
-                "✅ Good! Server handled {}/{} concurrent requests successfully",
-                success_count, concurrent_requests
+                "✅ Good! Server handled {success_count}/{concurrent_requests} concurrent requests successfully"
             );
         } else {
             println!(
@@ -213,8 +205,7 @@ mod tests {
         // Performance check: concurrent requests should be fast even if they fail
         assert!(
             elapsed < Duration::from_secs(15),
-            "Concurrent requests should complete quickly: {:?}",
-            elapsed
+            "Concurrent requests should complete quickly: {elapsed:?}"
         );
     }
 
@@ -232,10 +223,7 @@ mod tests {
 
         for package in &large_packages {
             let start_time = Instant::now();
-            let response = client
-                .get(&format!("/registry/{}", package))
-                .send()
-                .unwrap();
+            let response = client.get(&format!("/registry/{package}")).send().unwrap();
             let elapsed = start_time.elapsed();
 
             // Package metadata request should succeed
@@ -246,15 +234,13 @@ mod tests {
                 response.status()
             );
 
-            println!("Package {} metadata fetched in {:?}", package, elapsed);
+            println!("Package {package} metadata fetched in {elapsed:?}");
 
             // Should complete within reasonable time (increased for large packages)
             // Large packages like 'next' can have extensive metadata and may take longer
             assert!(
                 elapsed < Duration::from_secs(45),
-                "Package {} took too long: {:?}",
-                package,
-                elapsed
+                "Package {package} took too long: {elapsed:?}"
             );
 
             let metadata: serde_json::Value = response.json().unwrap();
@@ -291,7 +277,7 @@ mod tests {
             let hit_time = start_time.elapsed();
 
             if response2.status().is_success() {
-                println!("Cache miss: {:?}, Cache hit: {:?}", miss_time, hit_time);
+                println!("Cache miss: {miss_time:?}, Cache hit: {hit_time:?}");
 
                 // Cache hit should be significantly faster
                 // Allow some variance for network/system conditions
@@ -321,7 +307,7 @@ mod tests {
                 _ => "angular",
             };
 
-            let _ = client.get(&format!("/registry/{}", package)).send();
+            let _ = client.get(&format!("/registry/{package}")).send();
 
             // Small delay to prevent overwhelming the server
             thread::sleep(Duration::from_millis(10));
@@ -382,7 +368,7 @@ mod tests {
         let total_requests =
             stats["hit_count"].as_u64().unwrap_or(0) + stats["miss_count"].as_u64().unwrap_or(0);
 
-        println!("Processed {} cache operations", total_requests);
+        println!("Processed {total_requests} cache operations");
 
         // Should have processed some cache operations since we made package requests
         assert!(
@@ -422,7 +408,7 @@ mod tests {
                     let elapsed = start_time.elapsed();
                     if response.status().is_success() {
                         results.push((*manager, elapsed));
-                        println!("{} request took {:?}", manager, elapsed);
+                        println!("{manager} request took {elapsed:?}");
                     } else {
                         println!(
                             "{} request failed with status: {}",
@@ -432,7 +418,7 @@ mod tests {
                     }
                 }
                 Err(e) => {
-                    println!("{} request error: {}", manager, e);
+                    println!("{manager} request error: {e}");
                 }
             }
         }
@@ -441,9 +427,7 @@ mod tests {
         for (manager, elapsed) in results {
             assert!(
                 elapsed < Duration::from_secs(10),
-                "{} took too long: {:?}",
-                manager,
-                elapsed
+                "{manager} took too long: {elapsed:?}"
             );
         }
     }
@@ -460,8 +444,8 @@ mod tests {
         // Generate some analytics data
         let packages = ["lodash", "express", "react", "vue", "angular"];
         for package in &packages {
-            let _ = client.get(&format!("/registry/{}", package)).send();
-            let _ = client.get(&format!("/registry/{}", package)).send(); // Second request for cache hits
+            let _ = client.get(&format!("/registry/{package}")).send();
+            let _ = client.get(&format!("/registry/{package}")).send(); // Second request for cache hits
         }
 
         thread::sleep(Duration::from_millis(200));
@@ -487,7 +471,7 @@ mod tests {
                 response.status()
             );
 
-            println!("Analytics endpoint {} responded in {:?}", endpoint, elapsed);
+            println!("Analytics endpoint {endpoint} responded in {elapsed:?}");
             assert!(elapsed < Duration::from_secs(5));
         }
     }
@@ -551,7 +535,7 @@ mod tests {
         for package in &packages_to_test {
             let start_time = Instant::now();
 
-            match client.get(&format!("/registry/{}", package)).send() {
+            match client.get(&format!("/registry/{package}")).send() {
                 Ok(response) => {
                     let elapsed = start_time.elapsed();
 
@@ -561,26 +545,20 @@ mod tests {
                                 if let Some(versions) = metadata["versions"].as_object() {
                                     let version_count = versions.len();
                                     println!(
-                                        "Package {} has {} versions, fetched in {:?}",
-                                        package, version_count, elapsed
+                                        "Package {package} has {version_count} versions, fetched in {elapsed:?}"
                                     );
 
                                     // Should handle responses efficiently
                                     assert!(
                                         elapsed < Duration::from_secs(15),
-                                        "Package {} took too long: {:?}",
-                                        package,
-                                        elapsed
+                                        "Package {package} took too long: {elapsed:?}"
                                     );
                                 } else {
-                                    println!(
-                                        "Package {} metadata received in {:?}",
-                                        package, elapsed
-                                    );
+                                    println!("Package {package} metadata received in {elapsed:?}");
                                 }
                             }
                             Err(_) => {
-                                println!("Package {} response not JSON (acceptable)", package);
+                                println!("Package {package} response not JSON (acceptable)");
                             }
                         }
                     } else {
@@ -592,7 +570,7 @@ mod tests {
                     }
                 }
                 Err(e) => {
-                    println!("Package {} request error: {} (acceptable)", package, e);
+                    println!("Package {package} request error: {e} (acceptable)");
                 }
             }
         }

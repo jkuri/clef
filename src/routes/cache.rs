@@ -13,7 +13,7 @@ pub async fn get_cache_stats(
         .cache
         .get_stats()
         .await
-        .map_err(|e| ApiError::ParseError(format!("Failed to get cache stats: {}", e)))?;
+        .map_err(|e| ApiError::ParseError(format!("Failed to get cache stats: {e}")))?;
 
     let total_requests = stats.hit_count + stats.miss_count;
     let hit_rate = if total_requests > 0 {
@@ -47,7 +47,7 @@ pub async fn clear_cache(state: &State<AppState>) -> Result<Json<serde_json::Val
         .cache
         .clear()
         .await
-        .map_err(|e| ApiError::ParseError(format!("Failed to clear cache: {}", e)))?;
+        .map_err(|e| ApiError::ParseError(format!("Failed to clear cache: {e}")))?;
 
     Ok(Json(serde_json::json!({
         "message": "Cache cleared successfully"
@@ -60,7 +60,7 @@ pub async fn cache_health(state: &State<AppState>) -> Result<Json<serde_json::Va
         .cache
         .get_stats()
         .await
-        .map_err(|e| ApiError::ParseError(format!("Failed to get cache stats: {}", e)))?;
+        .map_err(|e| ApiError::ParseError(format!("Failed to get cache stats: {e}")))?;
 
     let health_status = if state.config.cache_enabled {
         "healthy"

@@ -33,7 +33,7 @@ mod tests {
 
                 match response.json::<serde_json::Value>() {
                     Ok(packages) => {
-                        println!("Packages response: {}", packages);
+                        println!("Packages response: {packages}");
 
                         // Handle both array and object responses
                         if packages.is_array() {
@@ -52,12 +52,12 @@ mod tests {
                         }
                     }
                     Err(e) => {
-                        println!("Failed to parse packages response: {}", e);
+                        println!("Failed to parse packages response: {e}");
                     }
                 }
             }
             Err(e) => {
-                println!("Packages endpoint error: {}", e);
+                println!("Packages endpoint error: {e}");
             }
         }
     }
@@ -127,7 +127,7 @@ mod tests {
 
                 match response.json::<serde_json::Value>() {
                     Ok(popular_packages) => {
-                        println!("Popular packages response: {}", popular_packages);
+                        println!("Popular packages response: {popular_packages}");
 
                         if popular_packages.is_array() {
                             if let Some(packages) = popular_packages.as_array() {
@@ -147,12 +147,12 @@ mod tests {
                         }
                     }
                     Err(e) => {
-                        println!("Failed to parse popular packages response: {}", e);
+                        println!("Failed to parse popular packages response: {e}");
                     }
                 }
             }
             Err(e) => {
-                println!("Popular packages endpoint error: {}", e);
+                println!("Popular packages endpoint error: {e}");
             }
         }
     }
@@ -169,7 +169,7 @@ mod tests {
         // Make requests to populate data
         let packages = ["lodash", "express", "react", "vue", "angular"];
         for package in &packages {
-            let _ = client.get(&format!("/{}", package)).send();
+            let _ = client.get(&format!("/{package}")).send();
         }
         thread::sleep(Duration::from_millis(300));
 
@@ -219,7 +219,7 @@ mod tests {
 
                 match response.json::<serde_json::Value>() {
                     Ok(analytics) => {
-                        println!("Analytics response: {}", analytics);
+                        println!("Analytics response: {analytics}");
 
                         // Check fields that exist
                         if analytics["total_packages"].is_number() {
@@ -249,12 +249,12 @@ mod tests {
                         }
                     }
                     Err(e) => {
-                        println!("Failed to parse analytics response: {}", e);
+                        println!("Failed to parse analytics response: {e}");
                     }
                 }
             }
             Err(e) => {
-                println!("Analytics endpoint error: {}", e);
+                println!("Analytics endpoint error: {e}");
             }
         }
     }
@@ -298,7 +298,7 @@ mod tests {
                 Ok(response) if response.status().is_success() => {
                     match response.json::<serde_json::Value>() {
                         Ok(package_data) => {
-                            println!("Package data response: {}", package_data);
+                            println!("Package data response: {package_data}");
 
                             if let Some(versions) = package_data["versions"].as_array() {
                                 println!("Found {} versions", versions.len());
@@ -307,7 +307,7 @@ mod tests {
                                     if version["version"] == "4.17.21" {
                                         let download_count =
                                             version["download_count"].as_u64().unwrap_or(0);
-                                        println!("Download count for 4.17.21: {}", download_count);
+                                        println!("Download count for 4.17.21: {download_count}");
                                         // Just log the count - don't assert specific values
                                         break;
                                     }
@@ -317,7 +317,7 @@ mod tests {
                             }
                         }
                         Err(e) => {
-                            println!("Failed to parse package data: {}", e);
+                            println!("Failed to parse package data: {e}");
                         }
                     }
                 }
@@ -328,7 +328,7 @@ mod tests {
                     );
                 }
                 Err(e) => {
-                    println!("Package data request error: {}", e);
+                    println!("Package data request error: {e}");
                 }
             }
         } else {
@@ -413,25 +413,24 @@ mod tests {
                 match response.json::<serde_json::Value>() {
                     Ok(analytics) => {
                         let total_packages = analytics["total_packages"].as_i64().unwrap_or(0);
-                        println!("Total packages tracked: {}", total_packages);
+                        println!("Total packages tracked: {total_packages}");
 
                         // Should have tracked some packages (allow for network failures)
                         if total_packages == 0 {
                             println!("No packages tracked - may be due to network issues");
                         } else {
                             println!(
-                                "Successfully tracked {} packages from different managers",
-                                total_packages
+                                "Successfully tracked {total_packages} packages from different managers"
                             );
                         }
                     }
                     Err(e) => {
-                        println!("Failed to parse analytics response: {}", e);
+                        println!("Failed to parse analytics response: {e}");
                     }
                 }
             }
             Err(e) => {
-                println!("Analytics request error: {}", e);
+                println!("Analytics request error: {e}");
             }
         }
     }
@@ -468,7 +467,7 @@ mod tests {
         let cache_hit_rate = analytics["cache_hit_rate"].as_f64().unwrap_or(0.0);
 
         // Should have a valid hit rate
-        assert!(cache_hit_rate >= 0.0 && cache_hit_rate <= 100.0);
+        assert!((0.0..=100.0).contains(&cache_hit_rate));
     }
 
     #[test]

@@ -1,7 +1,7 @@
+use super::connection::{DbPool, get_connection_with_retry};
 use crate::models::package::*;
 use crate::schema::package_versions;
 use diesel::prelude::*;
-use super::connection::{DbPool, get_connection_with_retry};
 
 /// Package version-related database operations
 pub struct VersionOperations<'a> {
@@ -114,9 +114,7 @@ impl<'a> VersionOperations<'a> {
             .map(|s| s.to_string());
 
         // Create new version with metadata
-        let new_version = NewPackageVersion::with_metadata(
-            package_id,
-            version.to_string(),
+        let metadata = PackageVersionMetadata {
             description,
             main_file,
             scripts,
@@ -125,7 +123,9 @@ impl<'a> VersionOperations<'a> {
             peer_dependencies,
             engines,
             shasum,
-        );
+        };
+        let new_version =
+            NewPackageVersion::with_metadata(package_id, version.to_string(), metadata);
 
         // Check if we need to update existing version or insert new one
         let existing_count: i64 = package_versions::table

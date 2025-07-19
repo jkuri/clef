@@ -1,4 +1,5 @@
 use crate::config::AppConfig;
+use crate::database::files::CompletePackageParams;
 use crate::models::{CacheEntry, CacheStats};
 use crate::services::DatabaseService;
 use log::{debug, info, warn};
@@ -37,7 +38,7 @@ impl CacheService {
 
     fn extract_version_from_filename(&self, package: &str, filename: &str) -> Option<String> {
         // Extract version from filename like "package-1.2.3.tgz"
-        let name_prefix = format!("{}-", package);
+        let name_prefix = format!("{package}-");
         if let Some(version_part) = filename.strip_prefix(&name_prefix) {
             if let Some(version) = version_part.strip_suffix(".tgz") {
                 return Some(version.to_string());
@@ -47,7 +48,7 @@ impl CacheService {
     }
 
     pub fn get_cache_key(&self, package: &str, filename: &str) -> String {
-        format!("{}/{}", package, filename)
+        format!("{package}/{filename}")
     }
 
     pub fn get_cache_path(&self, package: &str, filename: &str) -> PathBuf {
@@ -61,7 +62,7 @@ impl CacheService {
         // Scoped packages like @jkuri/test-scoped-package are stored as @jkuri/test-scoped-package/
         let packages_dir = Path::new(&self.config.cache_dir).join("packages");
         let package_dir = packages_dir.join(package);
-        let meta_filename = format!("{}.meta", filename);
+        let meta_filename = format!("{filename}.meta");
         package_dir.join(meta_filename)
     }
 
@@ -107,7 +108,7 @@ impl CacheService {
 
         let cache_key = self.get_cache_key(package, filename);
 
-        debug!("Checking cache for key: {}", cache_key);
+        debug!("Checking cache for key: {cache_key}");
 
         // First check if we have this package file in the database
         let file_path = if let Some(database) = database {
@@ -130,10 +131,7 @@ impl CacheService {
         if !file_path.exists() {
             self.miss_count
                 .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-            debug!(
-                "Cache miss for key: {} - file not found at {:?}",
-                cache_key, file_path
-            );
+            debug!("Cache miss for key: {cache_key} - file not found at {file_path:?}");
             return None;
         }
 
@@ -152,7 +150,7 @@ impl CacheService {
 
                 self.hit_count
                     .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                debug!("Cache hit for key: {} (size: {} bytes)", cache_key, size);
+                debug!("Cache hit for key: {cache_key} (size: {size} bytes)");
 
                 // Update access info in database if available
                 if let Some(database) = database {
@@ -171,7 +169,7 @@ impl CacheService {
                 })
             }
             Err(e) => {
-                warn!("Failed to read cache entry {}: {}", cache_key, e);
+                warn!("Failed to read cache entry {cache_key}: {e}");
                 self.miss_count
                     .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 None
@@ -184,18 +182,15 @@ impl CacheService {
             return None;
         }
 
-        let cache_key = format!("{}.metadata", package);
+        let cache_key = format!("{package}.metadata");
         let cache_path = self.get_metadata_cache_path(package);
 
-        debug!("Checking metadata cache for key: {}", cache_key);
+        debug!("Checking metadata cache for key: {cache_key}");
 
         if !cache_path.exists() {
             self.miss_count
                 .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-            debug!(
-                "Metadata cache miss for key: {} - file not found",
-                cache_key
-            );
+            debug!("Metadata cache miss for key: {cache_key} - file not found");
             return None;
         }
 
@@ -208,15 +203,12 @@ impl CacheService {
                 let ttl_seconds = self.config.cache_ttl_hours * 3600;
 
                 // Only apply TTL to upstream packages (check if this is a published package by looking for author_id in cached metadata)
-                if age.as_secs() > ttl_seconds as u64 {
+                if age.as_secs() > ttl_seconds {
                     if let Ok(data) = fs::read_to_string(&cache_path) {
                         if let Ok(json) = serde_json::from_str::<serde_json::Value>(&data) {
                             // If it doesn't have published versions (no author_id), it's upstream and should expire
                             if !self.has_published_versions(&json) {
-                                debug!(
-                                    "Metadata cache expired for upstream package: {}",
-                                    cache_key
-                                );
+                                debug!("Metadata cache expired for upstream package: {cache_key}");
                                 self.miss_count
                                     .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                                 return None;
@@ -237,10 +229,7 @@ impl CacheService {
 
                 self.hit_count
                     .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                debug!(
-                    "Metadata cache hit for key: {} (size: {} bytes)",
-                    cache_key, size
-                );
+                debug!("Metadata cache hit for key: {cache_key} (size: {size} bytes)");
 
                 // Try to read ETag from metadata file
                 let etag_path = self.get_metadata_etag_path(package);
@@ -254,7 +243,7 @@ impl CacheService {
                 })
             }
             Err(e) => {
-                warn!("Failed to read metadata cache entry {}: {}", cache_key, e);
+                warn!("Failed to read metadata cache entry {cache_key}: {e}");
                 self.miss_count
                     .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 None
@@ -301,29 +290,26 @@ impl CacheService {
         // Store metadata in database if available and version is known
         if let Some(db) = database {
             if let Some(version) = self.extract_version_from_filename(package, filename) {
-                if let Err(e) = db.create_complete_package_entry(
-                    package,
-                    &version,
-                    filename,
-                    data.len() as i64,
-                    _upstream_url,
-                    &cache_path.to_string_lossy().to_string(),
-                    etag.map(|s| s.to_string()),
-                    Some("application/octet-stream".to_string()),
-                    None, // author_id (cached packages don't have authors)
-                    None, // description
-                ) {
-                    warn!("Failed to store package metadata in database: {}", e);
+                let params = CompletePackageParams {
+                    name: package.to_string(),
+                    version,
+                    filename: filename.to_string(),
+                    size_bytes: data.len() as i64,
+                    upstream_url: _upstream_url.to_string(),
+                    file_path: cache_path.to_string_lossy().to_string(),
+                    etag: etag.map(|s| s.to_string()),
+                    content_type: Some("application/octet-stream".to_string()),
+                    author_id: None, // cached packages don't have authors
+                    description: None,
+                };
+                if let Err(e) = db.create_complete_package_entry(&params) {
+                    warn!("Failed to store package metadata in database: {e}");
                 } else {
-                    debug!(
-                        "Stored package metadata in database for {}/{}",
-                        package, filename
-                    );
+                    debug!("Stored package metadata in database for {package}/{filename}");
                 }
             } else {
                 debug!(
-                    "Skipping database storage for {}/{} - version could not be extracted",
-                    package, filename
+                    "Skipping database storage for {package}/{filename} - version could not be extracted"
                 );
             }
         }
@@ -356,7 +342,7 @@ impl CacheService {
             return Ok(());
         }
 
-        let cache_key = format!("{}.metadata", package);
+        let cache_key = format!("{package}.metadata");
         let cache_path = self.get_metadata_cache_path(package);
         let etag_path = self.get_metadata_etag_path(package);
 
@@ -377,10 +363,7 @@ impl CacheService {
         // Write ETag if provided
         if let Some(etag_value) = etag {
             fs::write(&etag_path, etag_value)?;
-            debug!(
-                "Stored ETag for metadata cache: {} -> {}",
-                package, etag_value
-            );
+            debug!("Stored ETag for metadata cache: {package} -> {etag_value}");
         } else if etag_path.exists() {
             // Remove old ETag file if no new ETag provided
             let _ = fs::remove_file(&etag_path);
@@ -415,7 +398,7 @@ impl CacheService {
         }
 
         if removed_files > 0 {
-            info!("Invalidated metadata cache for package: {}", package);
+            info!("Invalidated metadata cache for package: {package}");
         }
 
         Ok(())
@@ -433,7 +416,6 @@ impl CacheService {
     }
 
     fn collect_cache_entries(
-        &self,
         dir: &Path,
         entries: &mut Vec<(PathBuf, SystemTime, u64)>,
     ) -> Result<(), std::io::Error> {
@@ -443,7 +425,7 @@ impl CacheService {
 
             if path.is_dir() {
                 // Recursively check package directories
-                self.collect_cache_entries(&path, entries)?;
+                Self::collect_cache_entries(&path, entries)?;
             } else if path.extension().and_then(|s| s.to_str()) == Some("tgz") {
                 // Only collect .tgz files (actual tarballs)
                 if let Ok(metadata) = entry.metadata() {
@@ -469,7 +451,7 @@ impl CacheService {
         }
 
         let mut entries = Vec::new();
-        self.collect_cache_entries(&packages_dir, &mut entries)?;
+        Self::collect_cache_entries(&packages_dir, &mut entries)?;
 
         let total_entries = entries.len();
         let total_size_bytes = entries.iter().map(|(_, _, size)| *size).sum();

@@ -67,10 +67,10 @@ fn parse_package_path(path: &str) -> Option<(String, PackageRequestType)> {
     let decoded_path = decode_package_name(path);
 
     // Strip the /registry/ prefix if present
-    let package_path = if decoded_path.starts_with("/registry/") {
-        &decoded_path[10..] // Remove "/registry/"
-    } else if decoded_path.starts_with("registry/") {
-        &decoded_path[9..] // Remove "registry/"
+    let package_path = if let Some(stripped) = decoded_path.strip_prefix("/registry/") {
+        stripped // Remove "/registry/"
+    } else if let Some(stripped) = decoded_path.strip_prefix("registry/") {
+        stripped // Remove "registry/"
     } else {
         &decoded_path
     };
@@ -134,7 +134,7 @@ pub async fn handle_scoped_package_metadata(
     state: &State<AppState>,
 ) -> Result<PackageResponse, ApiError> {
     let full_package_name = format!("{}/{}", scope.0, package);
-    log::info!("Scoped package metadata request: {}", full_package_name);
+    log::info!("Scoped package metadata request: {full_package_name}");
     let result = RegistryService::get_package_metadata(&full_package_name, state).await?;
     Ok(PackageResponse::Json(result))
 }
@@ -164,11 +164,7 @@ pub async fn handle_scoped_package_version(
     state: &State<AppState>,
 ) -> Result<PackageResponse, ApiError> {
     let full_package_name = format!("{}/{}", scope.0, package);
-    log::info!(
-        "Scoped package version request: {} version {}",
-        full_package_name,
-        version
-    );
+    log::info!("Scoped package version request: {full_package_name} version {version}");
     let result =
         RegistryService::get_package_version_metadata(&full_package_name, version, state).await?;
     Ok(PackageResponse::Json(result))
@@ -183,11 +179,7 @@ pub async fn handle_scoped_package_tarball(
     state: &State<AppState>,
 ) -> Result<PackageResponse, ApiError> {
     let full_package_name = format!("{}/{}", scope.0, package);
-    log::info!(
-        "Scoped package tarball request: {} file {}",
-        full_package_name,
-        filename
-    );
+    log::info!("Scoped package tarball request: {full_package_name} file {filename}");
     let result = RegistryService::get_package_tarball(&full_package_name, filename, state).await?;
     Ok(PackageResponse::Binary(result))
 }
@@ -201,11 +193,7 @@ pub async fn handle_scoped_package_tarball_head(
     state: &State<AppState>,
 ) -> Result<PackageResponse, ApiError> {
     let full_package_name = format!("{}/{}", scope.0, package);
-    log::info!(
-        "Scoped package tarball HEAD request: {} file {}",
-        full_package_name,
-        filename
-    );
+    log::info!("Scoped package tarball HEAD request: {full_package_name} file {filename}");
     RegistryService::head_package_tarball(&full_package_name, filename, state).await?;
     Ok(PackageResponse::Empty)
 }
@@ -217,23 +205,23 @@ pub async fn handle_regular_package_metadata(
     package: &str,
     state: &State<AppState>,
 ) -> Result<PackageResponse, ApiError> {
-    log::info!("Regular package metadata handler received: '{}'", package);
+    log::info!("Regular package metadata handler received: '{package}'");
 
     // Check if this is a decoded scoped package (starts with @ and contains /)
     // This happens when npm sends @types%2fnode-forge and Rocket decodes it to @types/node-forge
     if package.starts_with('@') && package.contains('/') {
-        log::info!("Decoded scoped package metadata request: {}", package);
+        log::info!("Decoded scoped package metadata request: {package}");
         let result = RegistryService::get_package_metadata(package, state).await?;
         return Ok(PackageResponse::Json(result));
     }
     // Skip if this looks like a regular scoped package (starts with @ but no /)
     if package.starts_with('@') {
-        log::info!("Rejecting malformed scoped package: {}", package);
+        log::info!("Rejecting malformed scoped package: {package}");
         return Err(ApiError::BadRequest(
             "Invalid scoped package format".to_string(),
         ));
     }
-    log::info!("Regular package metadata request: {}", package);
+    log::info!("Regular package metadata request: {package}");
     let result = RegistryService::get_package_metadata(package, state).await?;
     Ok(PackageResponse::Json(result))
 }
@@ -249,11 +237,7 @@ pub async fn handle_regular_package_version(
     if package.starts_with('@') {
         return Err(ApiError::BadRequest("Use scoped package route".to_string()));
     }
-    log::info!(
-        "Regular package version request: {} version {}",
-        package,
-        version
-    );
+    log::info!("Regular package version request: {package} version {version}");
     let result = RegistryService::get_package_version_metadata(package, version, state).await?;
     Ok(PackageResponse::Json(result))
 }
@@ -269,11 +253,7 @@ pub async fn handle_regular_package_tarball(
     if package.starts_with('@') {
         return Err(ApiError::BadRequest("Use scoped package route".to_string()));
     }
-    log::info!(
-        "Regular package tarball request: {} file {}",
-        package,
-        filename
-    );
+    log::info!("Regular package tarball request: {package} file {filename}");
     let result = RegistryService::get_package_tarball(package, filename, state).await?;
     Ok(PackageResponse::Binary(result))
 }
@@ -289,11 +269,7 @@ pub async fn handle_regular_package_tarball_head(
     if package.starts_with('@') {
         return Err(ApiError::BadRequest("Use scoped package route".to_string()));
     }
-    log::info!(
-        "Regular package tarball HEAD request: {} file {}",
-        package,
-        filename
-    );
+    log::info!("Regular package tarball HEAD request: {package} file {filename}");
     RegistryService::head_package_tarball(package, filename, state).await?;
     Ok(PackageResponse::Empty)
 }
@@ -312,11 +288,7 @@ pub async fn handle_package_request(
     );
 
     if let Some((package_name, request_type)) = parse_package_path(&uri_path.0) {
-        log::info!(
-            "Parsed package: {} with request type: {:?}",
-            package_name,
-            request_type
-        );
+        log::info!("Parsed package: {package_name} with request type: {request_type:?}");
         match request_type {
             PackageRequestType::Metadata => {
                 let result = RegistryService::get_package_metadata(&package_name, state).await?;

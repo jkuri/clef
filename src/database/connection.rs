@@ -22,7 +22,7 @@ impl CustomizeConnection<SqliteConnection, diesel::r2d2::Error> for SqliteConnec
         // Set busy timeout first (before WAL mode) - this one is critical
         sql_query("PRAGMA busy_timeout = 60000") // 60 seconds
             .execute(conn)
-            .map_err(|e| diesel::r2d2::Error::QueryError(e))?;
+            .map_err(diesel::r2d2::Error::QueryError)?;
 
         // Enable WAL mode for better concurrency - critical for avoiding locks
         // Retry WAL mode setup since it's important for concurrency
@@ -34,10 +34,7 @@ impl CustomizeConnection<SqliteConnection, diesel::r2d2::Error> for SqliteConnec
                 Err(e) => {
                     wal_attempts += 1;
                     if wal_attempts >= max_wal_attempts {
-                        warn!(
-                            "Failed to enable WAL mode after {} attempts: {}",
-                            max_wal_attempts, e
-                        );
+                        warn!("Failed to enable WAL mode after {max_wal_attempts} attempts: {e}");
                         break;
                     }
                     // Short delay before retry
@@ -48,32 +45,32 @@ impl CustomizeConnection<SqliteConnection, diesel::r2d2::Error> for SqliteConnec
 
         // Enable foreign key constraints - important but not critical
         if let Err(e) = sql_query("PRAGMA foreign_keys = ON").execute(conn) {
-            warn!("Failed to enable foreign keys: {}", e);
+            warn!("Failed to enable foreign keys: {e}");
         }
 
         // Optimize for concurrent access - use NORMAL instead of FULL for better performance
         if let Err(e) = sql_query("PRAGMA synchronous = NORMAL").execute(conn) {
-            warn!("Failed to set synchronous mode: {}", e);
+            warn!("Failed to set synchronous mode: {e}");
         }
 
         // Set cache size (negative value means KB) - performance optimization
         if let Err(e) = sql_query("PRAGMA cache_size = -32000").execute(conn) {
-            warn!("Failed to set cache size: {}", e);
+            warn!("Failed to set cache size: {e}");
         }
 
         // Set WAL autocheckpoint for better performance - performance optimization
         if let Err(e) = sql_query("PRAGMA wal_autocheckpoint = 1000").execute(conn) {
-            warn!("Failed to set WAL autocheckpoint: {}", e);
+            warn!("Failed to set WAL autocheckpoint: {e}");
         }
 
         // Set temp store to memory for better performance - performance optimization
         if let Err(e) = sql_query("PRAGMA temp_store = MEMORY").execute(conn) {
-            warn!("Failed to set temp store: {}", e);
+            warn!("Failed to set temp store: {e}");
         }
 
         // Set mmap size for better I/O performance - performance optimization
         if let Err(e) = sql_query("PRAGMA mmap_size = 268435456").execute(conn) {
-            warn!("Failed to set mmap size: {}", e);
+            warn!("Failed to set mmap size: {e}");
         }
 
         Ok(())
@@ -100,7 +97,7 @@ pub fn create_pool(database_url: &str) -> Result<DbPool, Box<dyn std::error::Err
     // Run migrations
     let mut conn = pool.get()?;
     conn.run_pending_migrations(MIGRATIONS)
-        .map_err(|e| format!("Failed to run migrations: {}", e))?;
+        .map_err(|e| format!("Failed to run migrations: {e}"))?;
 
     info!("Database initialized successfully with WAL mode and optimized settings");
 
@@ -121,8 +118,7 @@ pub fn get_connection_with_retry(pool: &DbPool) -> Result<DbConnection, diesel::
                 if attempts >= max_attempts {
                     return Err(diesel::r2d2::Error::ConnectionError(
                         diesel::ConnectionError::BadConnection(format!(
-                            "Failed to get connection after {} attempts: {}",
-                            max_attempts, e
+                            "Failed to get connection after {max_attempts} attempts: {e}"
                         )),
                     ));
                 }

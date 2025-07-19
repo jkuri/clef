@@ -1,8 +1,34 @@
+use super::connection::{DbPool, get_connection_with_retry};
 use crate::models::package::*;
-use crate::schema::{package_files, packages, package_versions};
+use crate::schema::{package_files, package_versions, packages};
 use chrono::Utc;
 use diesel::prelude::*;
-use super::connection::{DbPool, get_connection_with_retry};
+
+/// Parameters for creating or updating a package file
+#[derive(Debug)]
+pub struct PackageFileParams {
+    pub filename: String,
+    pub size_bytes: i64,
+    pub upstream_url: String,
+    pub file_path: String,
+    pub etag: Option<String>,
+    pub content_type: Option<String>,
+}
+
+/// Parameters for creating a complete package entry
+#[derive(Debug)]
+pub struct CompletePackageParams {
+    pub name: String,
+    pub version: String,
+    pub filename: String,
+    pub size_bytes: i64,
+    pub upstream_url: String,
+    pub file_path: String,
+    pub etag: Option<String>,
+    pub content_type: Option<String>,
+    pub author_id: Option<i32>,
+    pub description: Option<String>,
+}
 
 /// Package file-related database operations
 pub struct FileOperations<'a> {
@@ -18,12 +44,7 @@ impl<'a> FileOperations<'a> {
     pub fn create_or_update_package_file(
         &self,
         package_version_id: i32,
-        filename: &str,
-        size_bytes: i64,
-        upstream_url: &str,
-        file_path: &str,
-        etag: Option<String>,
-        content_type: Option<String>,
+        params: &PackageFileParams,
     ) -> Result<PackageFile, diesel::result::Error> {
         let mut conn = get_connection_with_retry(self.pool).map_err(|e| {
             diesel::result::Error::DatabaseError(
@@ -35,7 +56,7 @@ impl<'a> FileOperations<'a> {
         // Try to get existing file first
         if let Some(existing_file) = package_files::table
             .filter(package_files::package_version_id.eq(package_version_id))
-            .filter(package_files::filename.eq(filename))
+            .filter(package_files::filename.eq(&params.filename))
             .first::<PackageFile>(&mut conn)
             .optional()?
         {
@@ -47,13 +68,13 @@ impl<'a> FileOperations<'a> {
         // Create new file
         let mut new_file = NewPackageFile::new(
             package_version_id,
-            filename.to_string(),
-            size_bytes,
-            upstream_url.to_string(),
-            file_path.to_string(),
+            params.filename.clone(),
+            params.size_bytes,
+            params.upstream_url.clone(),
+            params.file_path.clone(),
         );
-        new_file.etag = etag;
-        new_file.content_type = content_type;
+        new_file.etag = params.etag.clone();
+        new_file.content_type = params.content_type.clone();
 
         diesel::insert_into(package_files::table)
             .values(&new_file)
@@ -61,7 +82,7 @@ impl<'a> FileOperations<'a> {
 
         package_files::table
             .filter(package_files::package_version_id.eq(package_version_id))
-            .filter(package_files::filename.eq(filename))
+            .filter(package_files::filename.eq(&params.filename))
             .first::<PackageFile>(&mut conn)
     }
 
@@ -115,16 +136,7 @@ impl<'a> FileOperations<'a> {
     /// Helper method to create a complete package entry (package + version + file)
     pub fn create_complete_package_entry(
         &self,
-        name: &str,
-        version: &str,
-        filename: &str,
-        size_bytes: i64,
-        upstream_url: &str,
-        file_path: &str,
-        etag: Option<String>,
-        content_type: Option<String>,
-        author_id: Option<i32>,
-        description: Option<String>,
+        params: &CompletePackageParams,
     ) -> Result<(Package, PackageVersion, PackageFile), diesel::result::Error> {
         use super::packages::PackageOperations;
         use super::versions::VersionOperations;
@@ -133,21 +145,26 @@ impl<'a> FileOperations<'a> {
         let version_ops = VersionOperations::new(self.pool);
 
         // Create or get package
-        let package = package_ops.create_or_get_package(name, description, author_id)?;
+        let package = package_ops.create_or_get_package(
+            &params.name,
+            params.description.clone(),
+            params.author_id,
+        )?;
 
         // Create or get version
-        let package_version = version_ops.create_or_get_package_version(package.id, version)?;
+        let package_version =
+            version_ops.create_or_get_package_version(package.id, &params.version)?;
 
         // Create or update file
-        let package_file = self.create_or_update_package_file(
-            package_version.id,
-            filename,
-            size_bytes,
-            upstream_url,
-            file_path,
-            etag,
-            content_type,
-        )?;
+        let file_params = PackageFileParams {
+            filename: params.filename.clone(),
+            size_bytes: params.size_bytes,
+            upstream_url: params.upstream_url.clone(),
+            file_path: params.file_path.clone(),
+            etag: params.etag.clone(),
+            content_type: params.content_type.clone(),
+        };
+        let package_file = self.create_or_update_package_file(package_version.id, &file_params)?;
 
         Ok((package, package_version, package_file))
     }

@@ -1,7 +1,7 @@
+use super::connection::{DbPool, get_connection_with_retry};
 use crate::models::package::*;
 use crate::schema::packages;
 use diesel::prelude::*;
-use super::connection::{DbPool, get_connection_with_retry};
 
 /// Package-related database operations
 pub struct PackageOperations<'a> {
@@ -71,8 +71,8 @@ impl<'a> PackageOperations<'a> {
         &self,
         name: &str,
     ) -> Result<Option<PackageWithVersions>, diesel::result::Error> {
-        use crate::schema::{package_versions, package_files};
-        
+        use crate::schema::{package_files, package_versions};
+
         let mut conn = get_connection_with_retry(self.pool).map_err(|e| {
             diesel::result::Error::DatabaseError(
                 diesel::result::DatabaseErrorKind::UnableToSendCommand,
@@ -124,8 +124,8 @@ impl<'a> PackageOperations<'a> {
     pub fn get_all_packages_with_versions(
         &self,
     ) -> Result<Vec<PackageWithVersions>, diesel::result::Error> {
-        use crate::schema::{package_versions, package_files};
-        
+        use crate::schema::{package_files, package_versions};
+
         let mut conn = get_connection_with_retry(self.pool).map_err(|e| {
             diesel::result::Error::DatabaseError(
                 diesel::result::DatabaseErrorKind::UnableToSendCommand,
@@ -175,8 +175,8 @@ impl<'a> PackageOperations<'a> {
         &self,
         limit: i64,
     ) -> Result<Vec<PackageWithVersions>, diesel::result::Error> {
-        use crate::schema::{package_versions, package_files};
-        
+        use crate::schema::{package_files, package_versions};
+
         let mut conn = get_connection_with_retry(self.pool).map_err(|e| {
             diesel::result::Error::DatabaseError(
                 diesel::result::DatabaseErrorKind::UnableToSendCommand,

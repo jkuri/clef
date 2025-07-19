@@ -33,10 +33,7 @@ mod tests {
                         .as_str()
                         .expect("Latest version should be available");
 
-                    println!(
-                        "Testing proxied metadata storage for lodash@{}",
-                        latest_version
-                    );
+                    println!("Testing proxied metadata storage for lodash@{latest_version}");
 
                     // Verify that version metadata exists
                     let versions = metadata["versions"].as_object().unwrap();
@@ -83,7 +80,7 @@ mod tests {
                             println!("✓ Cached metadata retrieval successful");
                         }
                         Err(e) => {
-                            println!("Warning: Cached metadata test failed: {}", e);
+                            println!("Warning: Cached metadata test failed: {e}");
                         }
                     }
 
@@ -97,8 +94,7 @@ mod tests {
             }
             Err(e) => {
                 println!(
-                    "Package metadata request failed: {} - this may be due to network issues",
-                    e
+                    "Package metadata request failed: {e} - this may be due to network issues"
                 );
             }
         }
@@ -143,7 +139,7 @@ mod tests {
 
                     if version_metadata["engines"].is_object() {
                         let engines = version_metadata["engines"].as_object().unwrap();
-                        println!("✓ Version engines: {:?}", engines);
+                        println!("✓ Version engines: {engines:?}");
                     }
 
                     // Verify dist information is present
@@ -163,8 +159,7 @@ mod tests {
             }
             Err(e) => {
                 println!(
-                    "Version metadata request failed: {} - this may be due to network issues",
-                    e
+                    "Version metadata request failed: {e} - this may be due to network issues"
                 );
             }
         }
@@ -188,7 +183,7 @@ mod tests {
                         .as_str()
                         .expect("Latest version should be available");
 
-                    println!("First request for chalk@{} completed", latest_version);
+                    println!("First request for chalk@{latest_version} completed");
 
                     // Wait a moment for database operations
                     std::thread::sleep(Duration::from_millis(500));
@@ -231,7 +226,7 @@ mod tests {
                             println!("✅ Metadata persistence across requests verified!");
                         }
                         Err(e) => {
-                            println!("Second request failed: {}", e);
+                            println!("Second request failed: {e}");
                         }
                     }
                 } else {
@@ -239,7 +234,7 @@ mod tests {
                 }
             }
             Err(e) => {
-                println!("First request failed: {}", e);
+                println!("First request failed: {e}");
             }
         }
     }

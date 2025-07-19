@@ -139,14 +139,14 @@ mod tests {
                             }
                             Ok(_) => println!("Second request failed - may be network issue"),
                             Err(e) => {
-                                println!("Second request error: {} - may be network issue", e)
+                                println!("Second request error: {e} - may be network issue")
                             }
                         }
                     }
                 }
             }
             Ok(_) => println!("First request failed - may be network issue"),
-            Err(e) => println!("First request error: {} - may be network issue", e),
+            Err(e) => println!("First request error: {e} - may be network issue"),
         }
     }
 
@@ -179,7 +179,7 @@ mod tests {
                 );
             }
             Err(e) => {
-                println!("npm-style request error: {}", e);
+                println!("npm-style request error: {e}");
             }
         }
 
@@ -196,7 +196,7 @@ mod tests {
                 );
             }
             Err(e) => {
-                println!("pnpm-style request error: {}", e);
+                println!("pnpm-style request error: {e}");
             }
         }
 
@@ -209,8 +209,7 @@ mod tests {
                     let total_entries = stats["total_entries"].as_u64().unwrap_or(0);
 
                     println!(
-                        "Cache activity: hits={}, misses={}, entries={}",
-                        hit_count, miss_count, total_entries
+                        "Cache activity: hits={hit_count}, misses={miss_count}, entries={total_entries}"
                     );
 
                     // Should have some cache activity
@@ -262,10 +261,7 @@ mod tests {
         let stats: serde_json::Value = stats_response.json().unwrap();
         let new_size = stats["total_size_bytes"].as_u64().unwrap_or(0);
 
-        println!(
-            "Cache size: initial={}, after download={}",
-            initial_size, new_size
-        );
+        println!("Cache size: initial={initial_size}, after download={new_size}");
 
         // Size should have increased (or at least stayed the same)
         assert!(
@@ -278,9 +274,7 @@ mod tests {
         let expected_mb = new_size as f64 / 1024.0 / 1024.0;
         assert!(
             (size_mb - expected_mb).abs() < 0.01,
-            "Size in MB calculation incorrect: got {}, expected {}",
-            size_mb,
-            expected_mb
+            "Size in MB calculation incorrect: got {size_mb}, expected {expected_mb}"
         );
     }
 
@@ -331,8 +325,7 @@ mod tests {
                         let hit_rate = stats["hit_rate"].as_f64().unwrap_or(0.0);
 
                         println!(
-                            "Cache stats: hits={}, misses={}, rate={}",
-                            hit_count, miss_count, hit_rate
+                            "Cache stats: hits={hit_count}, misses={miss_count}, rate={hit_rate}"
                         );
 
                         if hit_count + miss_count > 0 {
@@ -390,7 +383,7 @@ mod tests {
         // Make a HEAD request
         let head_response = client
             .client
-            .head(&format!(
+            .head(format!(
                 "{}/registry/lodash/-/lodash-4.17.21.tgz",
                 server.base_url
             ))
@@ -415,12 +408,11 @@ mod tests {
         let stats: serde_json::Value = stats_response.json().unwrap();
         // Cache might have metadata but not the full content
         let total_size = stats["total_size_bytes"].as_u64().unwrap_or(0);
-        println!("Cache size after HEAD request: {} bytes", total_size);
+        println!("Cache size after HEAD request: {total_size} bytes");
         // Size should be minimal for HEAD requests (allow some metadata)
         assert!(
             total_size < 10240,
-            "Cache size too large after HEAD request: {} bytes",
-            total_size
+            "Cache size too large after HEAD request: {total_size} bytes"
         );
     }
 
@@ -478,8 +470,7 @@ mod tests {
                         + stats["miss_count"].as_u64().unwrap_or(0);
 
                     println!(
-                        "Concurrent test: {} successful requests, {} total cache operations",
-                        successful_requests, total_requests
+                        "Concurrent test: {successful_requests} successful requests, {total_requests} total cache operations"
                     );
 
                     // Should have processed at least some requests

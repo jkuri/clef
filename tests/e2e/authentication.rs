@@ -422,7 +422,7 @@ mod tests {
 
         // Now logout using the token
         let logout_response = client
-            .delete(&format!("/registry/-/user/token/{}", token))
+            .delete(&format!("/registry/-/user/token/{token}"))
             .send()
             .unwrap();
 
@@ -459,7 +459,7 @@ mod tests {
         // Try to logout with an invalid token
         let invalid_token = "invalid-token-12345";
         let logout_response = client
-            .delete(&format!("/registry/-/user/token/{}", invalid_token))
+            .delete(&format!("/registry/-/user/token/{invalid_token}"))
             .send()
             .unwrap();
 
@@ -507,7 +507,7 @@ mod tests {
 
         // Logout once
         let first_logout = client
-            .delete(&format!("/registry/-/user/token/{}", token))
+            .delete(&format!("/registry/-/user/token/{token}"))
             .send()
             .unwrap();
 
@@ -515,7 +515,7 @@ mod tests {
 
         // Try to logout again with the same token
         let second_logout = client
-            .delete(&format!("/registry/-/user/token/{}", token))
+            .delete(&format!("/registry/-/user/token/{token}"))
             .send()
             .unwrap();
 

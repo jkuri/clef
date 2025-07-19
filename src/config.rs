@@ -66,17 +66,17 @@ impl AppConfig {
             .unwrap_or(24);
 
         let database_url =
-            env::var("PNRS_DATABASE_URL").unwrap_or_else(|_| format!("{}/pnrs.db", cache_dir));
+            env::var("PNRS_DATABASE_URL").unwrap_or_else(|_| format!("{cache_dir}/pnrs.db"));
 
         info!("Configuration loaded:");
-        info!("  Upstream Registry: {}", upstream_registry);
-        info!("  Host: {}", host);
-        info!("  Port: {}", port);
-        info!("  Scheme: {}", scheme);
-        info!("  Cache Enabled: {}", cache_enabled);
-        info!("  Cache Directory: {}", cache_dir);
-        info!("  Cache TTL: {} hours", cache_ttl_hours);
-        info!("  Database URL: {}", database_url);
+        info!("  Upstream Registry: {upstream_registry}");
+        info!("  Host: {host}");
+        info!("  Port: {port}");
+        info!("  Scheme: {scheme}");
+        info!("  Cache Enabled: {cache_enabled}");
+        info!("  Cache Directory: {cache_dir}");
+        info!("  Cache TTL: {cache_ttl_hours} hours");
+        info!("  Database URL: {database_url}");
 
         Self {
             upstream_registry,
@@ -101,7 +101,7 @@ mod tests {
         assert_eq!(config.upstream_registry, "https://registry.npmjs.org");
         assert_eq!(config.port, 8000);
         assert_eq!(config.host, "127.0.0.1");
-        assert_eq!(config.cache_enabled, true);
+        assert!(config.cache_enabled);
         assert_eq!(config.cache_dir, "./data");
         assert_eq!(config.cache_ttl_hours, 24);
     }

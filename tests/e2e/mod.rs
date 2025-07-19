@@ -16,7 +16,7 @@ fn ensure_binary_built() -> PathBuf {
         .get_or_init(|| {
             println!("Building binary once for all E2E tests...");
             let build_output = Command::new("cargo")
-                .args(&["build"])
+                .args(["build"])
                 .output()
                 .expect("Failed to build project");
 
@@ -58,7 +58,7 @@ impl TestServer {
 
         Self {
             port,
-            base_url: format!("http://localhost:{}", port),
+            base_url: format!("http://localhost:{port}"),
             _temp_dir: temp_dir,
             cache_dir,
             db_path,
@@ -92,13 +92,13 @@ impl TestServer {
             // Check if child process is still running
             match child.try_wait() {
                 Ok(Some(status)) => {
-                    panic!("Test server exited early with status: {}", status);
+                    panic!("Test server exited early with status: {status}");
                 }
                 Ok(None) => {
                     // Process is still running, continue
                 }
                 Err(e) => {
-                    panic!("Failed to check server process status: {}", e);
+                    panic!("Failed to check server process status: {e}");
                 }
             }
 
@@ -107,7 +107,7 @@ impl TestServer {
                 .timeout(Duration::from_millis(500))
                 .build()
                 .unwrap()
-                .get(&format!("{}/", base_url))
+                .get(format!("{base_url}/"))
                 .send()
             {
                 Ok(response) if response.status().is_success() => {
@@ -255,7 +255,7 @@ impl TestProject {
         .expect("Failed to write package.json");
 
         // Create .npmrc with registry configuration
-        fs::write(&npmrc_path, format!("registry={}/registry\n", registry_url))
+        fs::write(&npmrc_path, format!("registry={registry_url}/registry\n"))
             .expect("Failed to write .npmrc");
 
         Self {
@@ -345,8 +345,7 @@ where
         Ok(result) => Some(result),
         Err(e) => {
             println!(
-                "Warning: {} failed: {}. This may be due to network issues or missing upstream registry access.",
-                operation_name, e
+                "Warning: {operation_name} failed: {e}. This may be due to network issues or missing upstream registry access."
             );
             None
         }
@@ -380,7 +379,7 @@ impl ApiClient {
     }
 
     pub fn get(&self, path: &str) -> reqwest::blocking::RequestBuilder {
-        let mut req = self.client.get(&format!("{}{}", self.base_url, path));
+        let mut req = self.client.get(format!("{}{}", self.base_url, path));
         if let Some(token) = &self.auth_token {
             req = req.bearer_auth(token);
         }
@@ -388,7 +387,7 @@ impl ApiClient {
     }
 
     pub fn post(&self, path: &str) -> reqwest::blocking::RequestBuilder {
-        let mut req = self.client.post(&format!("{}{}", self.base_url, path));
+        let mut req = self.client.post(format!("{}{}", self.base_url, path));
         if let Some(token) = &self.auth_token {
             req = req.bearer_auth(token);
         }
@@ -396,7 +395,7 @@ impl ApiClient {
     }
 
     pub fn put(&self, path: &str) -> reqwest::blocking::RequestBuilder {
-        let mut req = self.client.put(&format!("{}{}", self.base_url, path));
+        let mut req = self.client.put(format!("{}{}", self.base_url, path));
         if let Some(token) = &self.auth_token {
             req = req.bearer_auth(token);
         }
@@ -404,7 +403,7 @@ impl ApiClient {
     }
 
     pub fn delete(&self, path: &str) -> reqwest::blocking::RequestBuilder {
-        let mut req = self.client.delete(&format!("{}{}", self.base_url, path));
+        let mut req = self.client.delete(format!("{}{}", self.base_url, path));
         if let Some(token) = &self.auth_token {
             req = req.bearer_auth(token);
         }

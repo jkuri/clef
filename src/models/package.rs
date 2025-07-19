@@ -3,6 +3,19 @@ use chrono::NaiveDateTime;
 use diesel::prelude::*;
 use rocket::serde::{Deserialize, Serialize};
 
+/// Parameters for creating a package version with metadata
+#[derive(Debug)]
+pub struct PackageVersionMetadata {
+    pub description: Option<String>,
+    pub main_file: Option<String>,
+    pub scripts: Option<String>,
+    pub dependencies: Option<String>,
+    pub dev_dependencies: Option<String>,
+    pub peer_dependencies: Option<String>,
+    pub engines: Option<String>,
+    pub shasum: Option<String>,
+}
+
 // Package model - stores package-level metadata
 #[derive(Queryable, Selectable, Serialize, Deserialize, Debug, Clone)]
 #[diesel(table_name = packages)]
@@ -238,27 +251,20 @@ impl NewPackageVersion {
     pub fn with_metadata(
         package_id: i32,
         version: String,
-        description: Option<String>,
-        main_file: Option<String>,
-        scripts: Option<String>,
-        dependencies: Option<String>,
-        dev_dependencies: Option<String>,
-        peer_dependencies: Option<String>,
-        engines: Option<String>,
-        shasum: Option<String>,
+        metadata: PackageVersionMetadata,
     ) -> Self {
         let now = chrono::Utc::now().naive_utc();
         Self {
             package_id,
             version,
-            description,
-            main_file,
-            scripts,
-            dependencies,
-            dev_dependencies,
-            peer_dependencies,
-            engines,
-            shasum,
+            description: metadata.description,
+            main_file: metadata.main_file,
+            scripts: metadata.scripts,
+            dependencies: metadata.dependencies,
+            dev_dependencies: metadata.dev_dependencies,
+            peer_dependencies: metadata.peer_dependencies,
+            engines: metadata.engines,
+            shasum: metadata.shasum,
             created_at: now,
             updated_at: now,
         }

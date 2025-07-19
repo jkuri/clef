@@ -77,7 +77,7 @@ mod tests {
         );
 
         let content = response.bytes().unwrap();
-        assert!(content.len() > 0);
+        assert!(!content.is_empty());
 
         // Verify it's a gzipped tarball
         assert_eq!(&content[0..2], &[0x1f, 0x8b]);
@@ -95,7 +95,7 @@ mod tests {
         // Test HEAD request for scoped package tarball
         let response = client
             .client
-            .head(&format!(
+            .head(format!(
                 "{}/registry/@types/node/-/node-18.11.9.tgz",
                 server.base_url
             ))
@@ -163,8 +163,7 @@ mod tests {
 
                     assert!(
                         content_length > 1000,
-                        "Scoped tarball seems too small: {} bytes",
-                        content_length
+                        "Scoped tarball seems too small: {content_length} bytes"
                     );
                 } else {
                     panic!(
@@ -173,7 +172,7 @@ mod tests {
                     );
                 }
             }
-            Err(e) => println!("npm-style scoped request error: {} (acceptable)", e),
+            Err(e) => println!("npm-style scoped request error: {e} (acceptable)"),
         }
     }
 
@@ -322,7 +321,7 @@ mod tests {
 
         let mut success_count = 0;
         for package in &scoped_packages {
-            match client.get(&format!("/registry/{}", package)).send() {
+            match client.get(&format!("/registry/{package}")).send() {
                 Ok(response) => {
                     println!("Scoped package {} returned: {}", package, response.status());
                     if response.status().is_success() {
@@ -330,15 +329,15 @@ mod tests {
                         match response.json::<serde_json::Value>() {
                             Ok(metadata) => {
                                 if metadata["name"] == *package {
-                                    println!("Successfully fetched scoped package: {}", package);
+                                    println!("Successfully fetched scoped package: {package}");
                                 }
                             }
-                            Err(_) => println!("Response not JSON for {} (acceptable)", package),
+                            Err(_) => println!("Response not JSON for {package} (acceptable)"),
                         }
                     }
                 }
                 Err(e) => {
-                    println!("Request for {} failed: {} (acceptable)", package, e);
+                    println!("Request for {package} failed: {e} (acceptable)");
                 }
             }
         }
@@ -366,7 +365,7 @@ mod tests {
 
         for package in &scoped_packages {
             let response = client
-                .get(&format!("/registry/{}", package))
+                .get(&format!("/registry/{package}"))
                 .send()
                 .expect("Failed to make analytics request");
 
@@ -404,7 +403,7 @@ mod tests {
                 );
             }
             Err(e) => {
-                println!("Analytics endpoint error: {} (acceptable)", e);
+                println!("Analytics endpoint error: {e} (acceptable)");
             }
         }
 
@@ -497,7 +496,7 @@ mod tests {
 
                             if let Some(versions) = metadata["versions"].as_object() {
                                 println!("Scoped package has {} versions", versions.len());
-                                assert!(versions.len() > 0);
+                                assert!(!versions.is_empty());
 
                                 // Check just the latest version for structure validation
                                 if let Some(latest) = metadata["dist-tags"]["latest"].as_str() {
@@ -522,10 +521,7 @@ mod tests {
                     );
                 }
             }
-            Err(e) => println!(
-                "Scoped package version resolution error: {} (acceptable)",
-                e
-            ),
+            Err(e) => println!("Scoped package version resolution error: {e} (acceptable)"),
         }
     }
 
@@ -552,7 +548,7 @@ mod tests {
         for invalid_name in &invalid_names {
             // Use a timeout to prevent hanging on problematic names
             match client
-                .get(&format!("/{}", invalid_name))
+                .get(&format!("/{invalid_name}"))
                 .timeout(std::time::Duration::from_secs(5))
                 .send()
             {
@@ -567,10 +563,7 @@ mod tests {
                     assert!(response.status().as_u16() >= 400 || response.status().as_u16() < 600);
                 }
                 Err(e) => {
-                    println!(
-                        "Request for invalid name '{}' failed: {} (acceptable)",
-                        invalid_name, e
-                    );
+                    println!("Request for invalid name '{invalid_name}' failed: {e} (acceptable)");
                     processed_count += 1;
                     // Timeouts and network errors are acceptable for invalid names
                 }
@@ -622,10 +615,7 @@ mod tests {
                     }
                 }
                 Err(e) => {
-                    println!(
-                        "Scoped package request with {} failed: {} (acceptable)",
-                        manager, e
-                    );
+                    println!("Scoped package request with {manager} failed: {e} (acceptable)");
                 }
             }
         }

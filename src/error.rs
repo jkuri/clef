@@ -39,6 +39,6 @@ impl<'r> Responder<'r, 'static> for ApiError {
 
 impl From<reqwest::Error> for ApiError {
     fn from(err: reqwest::Error) -> Self {
-        ApiError::NetworkError(format!("Network error: {}", err))
+        ApiError::NetworkError(format!("Network error: {err}"))
     }
 }

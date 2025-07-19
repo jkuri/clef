@@ -40,7 +40,7 @@ mod tests {
                 println!("Package metadata format is compatible");
             }
             Err(e) => {
-                println!("Package metadata request error: {}", e);
+                println!("Package metadata request error: {e}");
             }
         }
     }
@@ -75,7 +75,7 @@ mod tests {
                     let hit_count = stats["hit_count"].as_u64().unwrap_or(0);
                     let miss_count = stats["miss_count"].as_u64().unwrap_or(0);
 
-                    println!("Cache stats: hits={}, misses={}", hit_count, miss_count);
+                    println!("Cache stats: hits={hit_count}, misses={miss_count}");
                     // Should have at least one hit from the second request
                     assert!(hit_count > 0 || miss_count > 0); // At least some cache activity
                 }
@@ -84,7 +84,7 @@ mod tests {
                 println!("Package request failed with status: {}", response.status());
             }
             Err(e) => {
-                println!("Package request error: {}", e);
+                println!("Package request error: {e}");
             }
         }
     }
@@ -230,7 +230,7 @@ mod tests {
             }
         }
 
-        println!("Concurrent requests: {} succeeded", success_count);
+        println!("Concurrent requests: {success_count} succeeded");
         // All concurrent requests should succeed
         assert_eq!(success_count, 3, "All 3 concurrent requests should succeed");
     }
@@ -259,13 +259,13 @@ mod tests {
 
                     // Test specific version endpoint
                     if let Some(latest) = metadata["dist-tags"]["latest"].as_str() {
-                        let version_url = format!("/registry/lodash/{}", latest);
+                        let version_url = format!("/registry/lodash/{latest}");
                         match client.get(&version_url).send() {
                             Ok(version_response) if version_response.status().is_success() => {
                                 let version_data: serde_json::Value =
                                     version_response.json().unwrap();
                                 assert_eq!(version_data["version"], latest);
-                                println!("Version resolution is consistent for {}", latest);
+                                println!("Version resolution is consistent for {latest}");
                             }
                             _ => println!("Version-specific endpoint not available"),
                         }
@@ -279,7 +279,7 @@ mod tests {
                 );
             }
             Err(e) => {
-                println!("Package metadata request error: {}", e);
+                println!("Package metadata request error: {e}");
             }
         }
     }
@@ -393,11 +393,11 @@ mod tests {
                     let miss_count = stats["miss_count"].as_u64().unwrap_or(0);
                     let total_requests = hit_count + miss_count;
 
-                    println!("Cache efficiency: {}/{} hits", hit_count, total_requests);
+                    println!("Cache efficiency: {hit_count}/{total_requests} hits");
 
                     if total_requests > 0 {
                         let hit_rate = (hit_count as f64 / total_requests as f64) * 100.0;
-                        println!("Cache hit rate: {:.1}%", hit_rate);
+                        println!("Cache hit rate: {hit_rate:.1}%");
                         // Should have some cache activity
                         assert!(total_requests > 0);
                     }
@@ -407,7 +407,7 @@ mod tests {
                 println!("Package request failed with status: {}", response.status());
             }
             Err(e) => {
-                println!("Package request error: {}", e);
+                println!("Package request error: {e}");
             }
         }
     }
@@ -440,8 +440,7 @@ mod tests {
                     // Should return proper HTTP error codes (4xx or 5xx)
                     assert!(
                         response.status().as_u16() >= 400,
-                        "Error endpoint {} should return error status",
-                        endpoint
+                        "Error endpoint {endpoint} should return error status"
                     );
 
                     // Should not crash the server (no 5xx errors ideally, but acceptable)
@@ -454,7 +453,7 @@ mod tests {
                     }
                 }
                 Err(e) => {
-                    println!("Error endpoint {} network error: {}", endpoint, e);
+                    println!("Error endpoint {endpoint} network error: {e}");
                     // Network errors are acceptable in test environments
                 }
             }

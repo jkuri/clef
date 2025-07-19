@@ -1,7 +1,7 @@
-use crate::models::package::*;
-use crate::schema::{package_files, packages, package_versions};
-use diesel::prelude::*;
 use super::connection::{DbPool, get_connection_with_retry};
+use crate::models::package::*;
+use crate::schema::{package_files, package_versions, packages};
+use diesel::prelude::*;
 
 /// Analytics and statistics-related database operations
 pub struct AnalyticsOperations<'a> {

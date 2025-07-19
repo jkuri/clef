@@ -9,7 +9,7 @@ pub async fn list_packages(state: &State<AppState>) -> Result<Json<PackageListRe
     let packages = state
         .database
         .get_all_packages_with_versions()
-        .map_err(|e| ApiError::ParseError(format!("Failed to list packages: {}", e)))?;
+        .map_err(|e| ApiError::ParseError(format!("Failed to list packages: {e}")))?;
 
     let total_count = packages.len();
 
@@ -39,7 +39,7 @@ pub async fn get_package_versions(
     let package_with_versions = state
         .database
         .get_package_with_versions(name)
-        .map_err(|e| ApiError::ParseError(format!("Failed to get package versions: {}", e)))?;
+        .map_err(|e| ApiError::ParseError(format!("Failed to get package versions: {e}")))?;
 
     match package_with_versions {
         Some(pkg_with_versions) => {
@@ -56,7 +56,7 @@ pub async fn get_package_versions(
                 total_size_bytes,
             }))
         }
-        None => Err(ApiError::NotFound(format!("Package '{}' not found", name))),
+        None => Err(ApiError::NotFound(format!("Package '{name}' not found"))),
     }
 }
 
@@ -69,7 +69,7 @@ pub async fn get_popular_packages(
     let popular_packages = state
         .database
         .get_popular_packages(limit)
-        .map_err(|e| ApiError::ParseError(format!("Failed to get popular packages: {}", e)))?;
+        .map_err(|e| ApiError::ParseError(format!("Failed to get popular packages: {e}")))?;
 
     Ok(Json(popular_packages))
 }
@@ -81,17 +81,17 @@ pub async fn get_cache_analytics(
     let (total_packages, total_size_bytes) = state
         .database
         .get_cache_stats()
-        .map_err(|e| ApiError::ParseError(format!("Failed to get cache stats: {}", e)))?;
+        .map_err(|e| ApiError::ParseError(format!("Failed to get cache stats: {e}")))?;
 
     let popular_packages = state
         .database
         .get_popular_packages(5)
-        .map_err(|e| ApiError::ParseError(format!("Failed to get popular packages: {}", e)))?;
+        .map_err(|e| ApiError::ParseError(format!("Failed to get popular packages: {e}")))?;
 
     let recent_packages = state
         .database
         .get_recent_packages(10)
-        .map_err(|e| ApiError::ParseError(format!("Failed to get recent packages: {}", e)))?;
+        .map_err(|e| ApiError::ParseError(format!("Failed to get recent packages: {e}")))?;
 
     let cache_hit_rate = state.cache.get_hit_rate();
 

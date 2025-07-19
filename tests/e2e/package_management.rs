@@ -31,8 +31,7 @@ mod tests {
             }
             Err(e) => {
                 println!(
-                    "Package metadata request failed: {}. This may be due to network issues.",
-                    e
+                    "Package metadata request failed: {e}. This may be due to network issues."
                 );
                 // Don't fail the test - this might be due to network issues
             }
@@ -91,11 +90,10 @@ mod tests {
 
                 assert!(
                     content_length > 1000,
-                    "Tarball seems too small: {} bytes",
-                    content_length
+                    "Tarball seems too small: {content_length} bytes"
                 );
             }
-            Err(e) => println!("npm-style request error: {} (acceptable)", e),
+            Err(e) => println!("npm-style request error: {e} (acceptable)"),
         }
     }
 
@@ -149,8 +147,7 @@ mod tests {
 
                     assert!(
                         content_length > 1000,
-                        "Tarball seems too small: {} bytes",
-                        content_length
+                        "Tarball seems too small: {content_length} bytes"
                     );
                 } else {
                     panic!(
@@ -159,7 +156,7 @@ mod tests {
                     );
                 }
             }
-            Err(e) => println!("pnpm-style request error: {} (acceptable)", e),
+            Err(e) => println!("pnpm-style request error: {e} (acceptable)"),
         }
     }
 
@@ -213,8 +210,7 @@ mod tests {
 
                     assert!(
                         content_length > 1000,
-                        "Tarball seems too small: {} bytes",
-                        content_length
+                        "Tarball seems too small: {content_length} bytes"
                     );
                 } else {
                     panic!(
@@ -223,7 +219,7 @@ mod tests {
                     );
                 }
             }
-            Err(e) => println!("yarn-style request error: {} (acceptable)", e),
+            Err(e) => println!("yarn-style request error: {e} (acceptable)"),
         }
     }
 
@@ -252,8 +248,7 @@ mod tests {
             }
             Err(e) => {
                 println!(
-                    "Version metadata request failed: {}. This may be due to network issues.",
-                    e
+                    "Version metadata request failed: {e}. This may be due to network issues."
                 );
             }
         }
@@ -280,20 +275,17 @@ mod tests {
 
                 match response.bytes() {
                     Ok(content) => {
-                        assert!(content.len() > 0);
+                        assert!(!content.is_empty());
                         // Verify it's a gzipped tarball by checking magic bytes
                         assert_eq!(&content[0..2], &[0x1f, 0x8b]);
                     }
                     Err(e) => {
-                        println!("Failed to read tarball content: {}", e);
+                        println!("Failed to read tarball content: {e}");
                     }
                 }
             }
             Err(e) => {
-                println!(
-                    "Tarball download failed: {}. This may be due to network issues.",
-                    e
-                );
+                println!("Tarball download failed: {e}. This may be due to network issues.");
             }
         }
     }
@@ -310,7 +302,7 @@ mod tests {
 
         let response = client
             .client
-            .head(&format!(
+            .head(format!(
                 "{}/registry/lodash/-/lodash-4.17.21.tgz",
                 server.base_url
             ))
@@ -347,7 +339,7 @@ mod tests {
         let mut success_count = 0;
 
         for package in &packages {
-            match client.get(&format!("/registry/{}", package)).send() {
+            match client.get(&format!("/registry/{package}")).send() {
                 Ok(response) => {
                     println!(
                         "Package {} metadata request returned: {}",
@@ -358,7 +350,7 @@ mod tests {
                         success_count += 1;
                     }
                 }
-                Err(e) => println!("Package {} request error: {} (acceptable)", package, e),
+                Err(e) => println!("Package {package} request error: {e} (acceptable)"),
             }
         }
 
@@ -426,10 +418,7 @@ mod tests {
                 // Status is expected to be an error - no need to print it
             }
             Err(e) => {
-                println!(
-                    "Invalid package request failed: {}. This may be due to network issues.",
-                    e
-                );
+                println!("Invalid package request failed: {e}. This may be due to network issues.");
                 // Don't fail the test - network issues are acceptable
             }
         }
@@ -458,10 +447,7 @@ mod tests {
                 assert_eq!(metadata["name"], "@types/node");
             }
             Err(e) => {
-                println!(
-                    "Scoped package request failed: {}. This may be due to network issues.",
-                    e
-                );
+                println!("Scoped package request failed: {e}. This may be due to network issues.");
             }
         }
     }

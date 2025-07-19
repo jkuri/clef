@@ -77,7 +77,7 @@ mod tests {
                 }
             }
             Err(e) => {
-                println!("Security advisories request error: {} (acceptable)", e);
+                println!("Security advisories request error: {e} (acceptable)");
             }
         }
     }
@@ -121,7 +121,7 @@ mod tests {
                 }
             }
             Err(e) => {
-                println!("Security audits request error: {} (acceptable)", e);
+                println!("Security audits request error: {e} (acceptable)");
             }
         }
     }
@@ -165,7 +165,7 @@ mod tests {
                 }
             }
             Err(e) => {
-                println!("Security audits quick request error: {} (acceptable)", e);
+                println!("Security audits quick request error: {e} (acceptable)");
             }
         }
     }
@@ -259,7 +259,7 @@ mod tests {
                 }
             }
             Err(e) => {
-                println!("pnpm audit request error: {} (acceptable)", e);
+                println!("pnpm audit request error: {e} (acceptable)");
             }
         }
     }
@@ -304,7 +304,7 @@ mod tests {
                 assert!(
                     stdout.contains("audit")
                         || stdout.contains("vulnerabilities")
-                        || stdout.len() > 0
+                        || !stdout.is_empty()
                 );
             } else {
                 // yarn audit failed - might be due to network issues or upstream problems
@@ -357,7 +357,7 @@ mod tests {
         let mut large_dependencies = serde_json::Map::new();
         for i in 0..100 {
             large_dependencies.insert(
-                format!("package-{}", i),
+                format!("package-{i}"),
                 json!({
                     "version": "1.0.0",
                     "requires": {}
@@ -410,7 +410,7 @@ mod tests {
                 assert!(response.status().as_u16() < 500 || response.status().as_u16() == 502);
             }
             Err(e) => {
-                println!("Empty request error: {} (acceptable)", e);
+                println!("Empty request error: {e} (acceptable)");
             }
         }
     }
@@ -442,7 +442,7 @@ mod tests {
                 assert!(response.status().as_u16() < 500 || response.status().as_u16() == 502);
             }
             Err(e) => {
-                println!("Content-Encoding test error: {} (acceptable)", e);
+                println!("Content-Encoding test error: {e} (acceptable)");
             }
         }
     }
@@ -523,10 +523,7 @@ mod tests {
         }
 
         // Should handle concurrent requests without server errors
-        println!(
-            "Concurrent security requests: {}/{} handled gracefully",
-            success_count, total_count
-        );
+        println!("Concurrent security requests: {success_count}/{total_count} handled gracefully");
         assert!(
             success_count > 0,
             "At least some concurrent requests should be handled"
@@ -571,7 +568,7 @@ mod tests {
                 }
             }
             Err(e) => {
-                println!("Security fallback request error: {} (acceptable)", e);
+                println!("Security fallback request error: {e} (acceptable)");
             }
         }
     }

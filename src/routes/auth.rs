@@ -60,7 +60,7 @@ pub async fn npm_login(
         let email = user_doc
             .email
             .clone()
-            .unwrap_or_else(|| format!("{}@example.com", username));
+            .unwrap_or_else(|| format!("{username}@example.com"));
 
         let register_request = RegisterRequest {
             name: user_doc.name.clone(),
@@ -145,12 +145,12 @@ pub async fn register(
     let mut conn = state
         .database
         .get_connection()
-        .map_err(|e| ApiError::InternalServerError(format!("Database connection error: {}", e)))?;
+        .map_err(|e| ApiError::InternalServerError(format!("Database connection error: {e}")))?;
 
     diesel::insert_into(user_tokens::table)
         .values(&new_token)
         .execute(&mut conn)
-        .map_err(|e| ApiError::InternalServerError(format!("Failed to create token: {}", e)))?;
+        .map_err(|e| ApiError::InternalServerError(format!("Failed to create token: {e}")))?;
 
     Ok(Json(LoginResponse {
         ok: true,
@@ -194,7 +194,7 @@ pub async fn npm_publish(
     let mut conn = state
         .database
         .get_connection()
-        .map_err(|e| ApiError::InternalServerError(format!("Database connection error: {}", e)))?;
+        .map_err(|e| ApiError::InternalServerError(format!("Database connection error: {e}")))?;
 
     // For new packages, user automatically gets ownership
     // For existing packages, check ownership
@@ -203,7 +203,7 @@ pub async fn npm_publish(
         .filter(package_owners::user_id.eq(user.user_id))
         .first::<crate::models::PackageOwner>(&mut conn)
         .optional()
-        .map_err(|e| ApiError::InternalServerError(format!("Database query error: {}", e)))?;
+        .map_err(|e| ApiError::InternalServerError(format!("Database query error: {e}")))?;
 
     let is_new_package = existing_owner.is_none();
 
@@ -214,12 +214,12 @@ pub async fn npm_publish(
         .next()
         .ok_or_else(|| ApiError::BadRequest("No version data provided".to_string()))?;
 
-    debug!("Publishing version: {}", version);
+    debug!("Publishing version: {version}");
 
     // Get the attachment (tarball)
     // npm sends the attachment key using the full package name, including scope
-    let attachment_key = format!("{}-{}.tgz", package, version);
-    debug!("Looking for attachment with key: {}", attachment_key);
+    let attachment_key = format!("{package}-{version}.tgz");
+    debug!("Looking for attachment with key: {attachment_key}");
     debug!(
         "Available attachment keys: {:?}",
         publish_request._attachments.keys().collect::<Vec<_>>()
@@ -239,7 +239,7 @@ pub async fn npm_publish(
     // Decode the base64 tarball data
     let tarball_data = BASE64_STANDARD
         .decode(&attachment.data)
-        .map_err(|e| ApiError::BadRequest(format!("Invalid base64 data: {}", e)))?;
+        .map_err(|e| ApiError::BadRequest(format!("Invalid base64 data: {e}")))?;
 
     // Create packages directory structure
     // Scoped packages like @jkuri/test-scoped-package are stored as @jkuri/test-scoped-package/
@@ -247,48 +247,47 @@ pub async fn npm_publish(
     let packages_dir = cache_dir.join("packages");
     let package_dir = packages_dir.join(package);
 
-    debug!("Package name: {}", package);
-    debug!("Package directory: {:?}", package_dir);
-    debug!("Creating directory: {:?}", package_dir);
+    debug!("Package name: {package}");
+    debug!("Package directory: {package_dir:?}");
+    debug!("Creating directory: {package_dir:?}");
     fs::create_dir_all(&package_dir).map_err(|e| {
-        debug!("Failed to create directory {:?}: {}", package_dir, e);
-        ApiError::InternalServerError(format!("Failed to create package directory: {}", e))
+        debug!("Failed to create directory {package_dir:?}: {e}");
+        ApiError::InternalServerError(format!("Failed to create package directory: {e}"))
     })?;
 
     // Save the tarball
     // For scoped packages like @jkuri/test-scoped-package, the tarball filename should be test-scoped-package-1.0.0.tgz
     let tarball_filename = if package.starts_with('@') {
         // Extract the package name without the scope for the filename
-        let package_name = package.split('/').last().unwrap_or(package);
-        format!("{}-{}.tgz", package_name, version)
+        let package_name = package.split('/').next_back().unwrap_or(package);
+        format!("{package_name}-{version}.tgz")
     } else {
-        format!("{}-{}.tgz", package, version)
+        format!("{package}-{version}.tgz")
     };
     let tarball_path = package_dir.join(&tarball_filename);
-    debug!("Writing tarball to: {:?}", tarball_path);
+    debug!("Writing tarball to: {tarball_path:?}");
     fs::write(&tarball_path, &tarball_data).map_err(|e| {
-        debug!("Failed to write tarball to {:?}: {}", tarball_path, e);
-        ApiError::InternalServerError(format!("Failed to write tarball: {}", e))
+        debug!("Failed to write tarball to {tarball_path:?}: {e}");
+        ApiError::InternalServerError(format!("Failed to write tarball: {e}"))
     })?;
 
     // Store package.json to filesystem instead of database
     let package_json = serde_json::to_string(&version_data).map_err(|e| {
-        ApiError::InternalServerError(format!("Failed to serialize package.json: {}", e))
+        ApiError::InternalServerError(format!("Failed to serialize package.json: {e}"))
     })?;
 
     // Save package.json alongside the tarball
     let package_json_path = package_dir.join(format!(
         "{}-{}.json",
         if package.starts_with('@') {
-            package.split('/').last().unwrap_or(package)
+            package.split('/').next_back().unwrap_or(package)
         } else {
             package
         },
         version
     ));
-    fs::write(&package_json_path, &package_json).map_err(|e| {
-        ApiError::InternalServerError(format!("Failed to write package.json: {}", e))
-    })?;
+    fs::write(&package_json_path, &package_json)
+        .map_err(|e| ApiError::InternalServerError(format!("Failed to write package.json: {e}")))?;
 
     // Create or get the package first
     let pkg = state
@@ -298,18 +297,18 @@ pub async fn npm_publish(
             version_data.description.clone(),
             Some(user.user_id),
         )
-        .map_err(|e| ApiError::InternalServerError(format!("Failed to create package: {}", e)))?;
+        .map_err(|e| ApiError::InternalServerError(format!("Failed to create package: {e}")))?;
 
     // Create the package version with full metadata from package.json
-    let version_json = serde_json::to_value(&version_data).map_err(|e| {
-        ApiError::InternalServerError(format!("Failed to serialize version data: {}", e))
+    let version_json = serde_json::to_value(version_data).map_err(|e| {
+        ApiError::InternalServerError(format!("Failed to serialize version data: {e}"))
     })?;
 
     let package_version = state
         .database
-        .create_or_get_package_version_with_metadata(pkg.id, &version, &version_json)
+        .create_or_get_package_version_with_metadata(pkg.id, version, &version_json)
         .map_err(|e| {
-            ApiError::InternalServerError(format!("Failed to create package version: {}", e))
+            ApiError::InternalServerError(format!("Failed to create package version: {e}"))
         })?;
 
     // Create the package file entry
@@ -319,13 +318,13 @@ pub async fn npm_publish(
             package_version.id,
             &tarball_filename,
             tarball_data.len() as i64,
-            &format!("published://{}/{}", package, version),
-            &tarball_path.to_string_lossy().to_string(),
+            format!("published://{package}/{version}").as_str(),
+            tarball_path.to_string_lossy().as_ref(),
             None,                                         // etag
             Some("application/octet-stream".to_string()), // content_type
         )
         .map_err(|e| {
-            ApiError::InternalServerError(format!("Failed to create package file: {}", e))
+            ApiError::InternalServerError(format!("Failed to create package file: {e}"))
         })?;
 
     // If this is a new package, create ownership record
@@ -337,16 +336,13 @@ pub async fn npm_publish(
             .values(&new_owner)
             .execute(&mut conn)
             .map_err(|e| {
-                ApiError::InternalServerError(format!("Failed to create ownership: {}", e))
+                ApiError::InternalServerError(format!("Failed to create ownership: {e}"))
             })?;
     }
 
     // Invalidate metadata cache since we've published a new version
     if let Err(e) = state.cache.invalidate_metadata(package).await {
-        warn!(
-            "Failed to invalidate metadata cache for package {}: {}",
-            package, e
-        );
+        warn!("Failed to invalidate metadata cache for package {package}: {e}");
     }
 
     Ok(Json(NpmPublishResponse {

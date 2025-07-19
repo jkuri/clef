@@ -1,9 +1,9 @@
-use crate::models::package::*;
-use super::connection::{DbPool, DbConnection, create_pool, get_connection_with_retry};
+use super::analytics::AnalyticsOperations;
+use super::connection::{DbConnection, DbPool, create_pool, get_connection_with_retry};
+use super::files::{CompletePackageParams, FileOperations, PackageFileParams};
 use super::packages::PackageOperations;
 use super::versions::VersionOperations;
-use super::files::FileOperations;
-use super::analytics::AnalyticsOperations;
+use crate::models::package::*;
 
 /// Main database service that provides a unified interface to all database operations
 #[derive(Debug)]
@@ -94,6 +94,7 @@ impl DatabaseService {
     }
 
     // Package file operations
+    #[allow(clippy::too_many_arguments)]
     pub fn create_or_update_package_file(
         &self,
         package_version_id: i32,
@@ -105,15 +106,15 @@ impl DatabaseService {
         content_type: Option<String>,
     ) -> Result<PackageFile, diesel::result::Error> {
         let ops = FileOperations::new(&self.pool);
-        ops.create_or_update_package_file(
-            package_version_id,
-            filename,
+        let params = PackageFileParams {
+            filename: filename.to_string(),
             size_bytes,
-            upstream_url,
-            file_path,
+            upstream_url: upstream_url.to_string(),
+            file_path: file_path.to_string(),
             etag,
             content_type,
-        )
+        };
+        ops.create_or_update_package_file(package_version_id, &params)
     }
 
     pub fn get_package_file(
@@ -132,30 +133,10 @@ impl DatabaseService {
 
     pub fn create_complete_package_entry(
         &self,
-        name: &str,
-        version: &str,
-        filename: &str,
-        size_bytes: i64,
-        upstream_url: &str,
-        file_path: &str,
-        etag: Option<String>,
-        content_type: Option<String>,
-        author_id: Option<i32>,
-        description: Option<String>,
+        params: &CompletePackageParams,
     ) -> Result<(Package, PackageVersion, PackageFile), diesel::result::Error> {
         let ops = FileOperations::new(&self.pool);
-        ops.create_complete_package_entry(
-            name,
-            version,
-            filename,
-            size_bytes,
-            upstream_url,
-            file_path,
-            etag,
-            content_type,
-            author_id,
-            description,
-        )
+        ops.create_complete_package_entry(params)
     }
 
     // Analytics operations
