@@ -35,6 +35,7 @@ pub fn get_routes() -> Vec<rocket::Route> {
         security::security_audits_quick,
         auth::npm_login,
         auth::npm_whoami,
+        auth::npm_logout,
         auth::npm_publish,
         auth::login,
         auth::register

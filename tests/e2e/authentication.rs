@@ -369,4 +369,164 @@ mod tests {
         // Should fail with conflict or bad request
         assert!(!second_response.status().is_success());
     }
+
+    #[test]
+    #[serial]
+    fn test_npm_logout_endpoint() {
+        init_test_env();
+        let server = TestServer::new();
+        let _handle = server.start();
+
+        let client = ApiClient::new(server.base_url.clone());
+
+        // First login to get a token
+        let npm_user_doc = json!({
+            "_id": "org.couchdb.user:logoutuser",
+            "name": "logoutuser",
+            "password": "logoutpassword123",
+            "email": "logoutuser@example.com",
+            "type": "user",
+            "roles": [],
+            "date": "2025-07-18T00:00:00.000Z"
+        });
+
+        let login_response = client
+            .put("/registry/-/user/org.couchdb.user:logoutuser")
+            .json(&npm_user_doc)
+            .send()
+            .unwrap();
+
+        // The login response should succeed
+        assert!(
+            login_response.status().is_success(),
+            "Login response failed with status: {}",
+            login_response.status()
+        );
+
+        let login_result: serde_json::Value = login_response.json().unwrap();
+        assert_eq!(login_result["ok"], true);
+        let token = login_result["token"].as_str().unwrap();
+
+        // Verify the token works by calling whoami
+        let whoami_response = client
+            .get("/registry/-/whoami")
+            .bearer_auth(token)
+            .send()
+            .unwrap();
+
+        assert!(
+            whoami_response.status().is_success(),
+            "Whoami failed with status: {}",
+            whoami_response.status()
+        );
+
+        // Now logout using the token
+        let logout_response = client
+            .delete(&format!("/registry/-/user/token/{}", token))
+            .send()
+            .unwrap();
+
+        // The logout should succeed
+        assert!(
+            logout_response.status().is_success(),
+            "Logout failed with status: {}",
+            logout_response.status()
+        );
+
+        let logout_result: serde_json::Value = logout_response.json().unwrap();
+        assert_eq!(logout_result["ok"], true);
+
+        // Verify the token no longer works by calling whoami again
+        let whoami_after_logout = client
+            .get("/registry/-/whoami")
+            .bearer_auth(token)
+            .send()
+            .unwrap();
+
+        // Should fail with unauthorized
+        assert_eq!(whoami_after_logout.status(), 401);
+    }
+
+    #[test]
+    #[serial]
+    fn test_npm_logout_invalid_token() {
+        init_test_env();
+        let server = TestServer::new();
+        let _handle = server.start();
+
+        let client = ApiClient::new(server.base_url.clone());
+
+        // Try to logout with an invalid token
+        let invalid_token = "invalid-token-12345";
+        let logout_response = client
+            .delete(&format!("/registry/-/user/token/{}", invalid_token))
+            .send()
+            .unwrap();
+
+        // The logout should still succeed (idempotent behavior)
+        // Even if the token doesn't exist, logout should return ok: true
+        assert!(
+            logout_response.status().is_success(),
+            "Logout with invalid token failed with status: {}",
+            logout_response.status()
+        );
+
+        let logout_result: serde_json::Value = logout_response.json().unwrap();
+        assert_eq!(logout_result["ok"], true);
+    }
+
+    #[test]
+    #[serial]
+    fn test_npm_logout_already_revoked_token() {
+        init_test_env();
+        let server = TestServer::new();
+        let _handle = server.start();
+
+        let client = ApiClient::new(server.base_url.clone());
+
+        // First login to get a token
+        let npm_user_doc = json!({
+            "_id": "org.couchdb.user:revokeuser",
+            "name": "revokeuser",
+            "password": "revokepassword123",
+            "email": "revokeuser@example.com",
+            "type": "user",
+            "roles": [],
+            "date": "2025-07-18T00:00:00.000Z"
+        });
+
+        let login_response = client
+            .put("/registry/-/user/org.couchdb.user:revokeuser")
+            .json(&npm_user_doc)
+            .send()
+            .unwrap();
+
+        assert!(login_response.status().is_success());
+        let login_result: serde_json::Value = login_response.json().unwrap();
+        let token = login_result["token"].as_str().unwrap();
+
+        // Logout once
+        let first_logout = client
+            .delete(&format!("/registry/-/user/token/{}", token))
+            .send()
+            .unwrap();
+
+        assert!(first_logout.status().is_success());
+
+        // Try to logout again with the same token
+        let second_logout = client
+            .delete(&format!("/registry/-/user/token/{}", token))
+            .send()
+            .unwrap();
+
+        // Should still succeed (idempotent)
+        assert!(
+            second_logout.status().is_success(),
+            "Second logout failed with status: {}",
+            second_logout.status()
+        );
+
+        let logout_result: serde_json::Value = second_logout.json().unwrap();
+        assert_eq!(logout_result["ok"], true);
+    }
 }

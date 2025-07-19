@@ -1,7 +1,8 @@
 use crate::error::ApiError;
 use crate::models::{
-    AuthenticatedUser, LoginRequest, LoginResponse, NewPackageOwner, NpmPublishRequest,
-    NpmPublishResponse, NpmUserDocument, NpmUserResponse, RegisterRequest, WhoamiResponse,
+    AuthenticatedUser, LoginRequest, LoginResponse, LogoutResponse, NewPackageOwner,
+    NpmPublishRequest, NpmPublishResponse, NpmUserDocument, NpmUserResponse, RegisterRequest,
+    WhoamiResponse,
 };
 use crate::services::AuthService;
 use crate::state::AppState;
@@ -86,13 +87,25 @@ pub async fn npm_login(
     }
 }
 
-use rocket::get;
+use rocket::{delete, get};
 
 #[get("/registry/-/whoami")]
 pub async fn npm_whoami(user: AuthenticatedUser) -> Json<WhoamiResponse> {
     Json(WhoamiResponse {
         username: user.username,
     })
+}
+
+// npm logout endpoint - DELETE /registry/-/user/token/{token}
+#[delete("/registry/-/user/token/<token>")]
+pub async fn npm_logout(
+    token: &str,
+    state: &State<AppState>,
+) -> Result<Json<LogoutResponse>, ApiError> {
+    // Revoke the token
+    AuthService::revoke_token(&state.database, token)?;
+
+    Ok(Json(LogoutResponse { ok: true }))
 }
 
 // Simple login endpoint for testing

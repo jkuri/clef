@@ -57,6 +57,12 @@ pub struct WhoamiResponse {
     pub username: String,
 }
 
+// npm logout endpoint response
+#[derive(Serialize, Debug)]
+pub struct LogoutResponse {
+    pub ok: bool,
+}
+
 // Authentication guard for extracting user from Authorization header
 #[derive(Debug, Clone)]
 pub struct AuthenticatedUser {
