@@ -277,29 +277,101 @@ fn test_static_files_index() {
 #[test]
 #[serial]
 fn test_static_files_assets() {
+    use include_dir::{Dir, include_dir};
+
+    // Include the same assets directory that the server uses
+    static ASSETS: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/web/clef/dist");
+
     let test_rocket = create_test_rocket();
     let client = Client::tracked(test_rocket.rocket).expect("valid rocket instance");
 
+    // Find CSS and JS files dynamically
+    let mut css_file = None;
+    let mut js_file = None;
+
+    // Look for CSS and JS files in the assets subdirectory
+    for entry in ASSETS.entries() {
+        if let include_dir::DirEntry::Dir(dir) = entry {
+            // Look for files in the assets subdirectory
+            if dir.path().file_name() == Some(std::ffi::OsStr::new("assets")) {
+                for file in dir.files() {
+                    let path = file.path();
+                    if let Some(extension) = path.extension() {
+                        if extension == "css" && path.to_string_lossy().contains("index-") {
+                            css_file = Some(format!("/{}", path.display()));
+                        } else if extension == "js" && path.to_string_lossy().contains("index-") {
+                            js_file = Some(format!("/{}", path.display()));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // Test CSS file
-    let response = client.get("/assets/index-VnpCtY_R.css").dispatch();
-    assert_eq!(response.status(), Status::Ok);
+    if let Some(css_path) = css_file {
+        let response = client.get(&css_path).dispatch();
+        assert_eq!(response.status(), Status::Ok);
+    } else {
+        panic!("No CSS file found in assets");
+    }
 
     // Test JS file
-    let response = client.get("/assets/index-Bm5vNtRZ.js").dispatch();
-    assert_eq!(response.status(), Status::Ok);
+    if let Some(js_path) = js_file {
+        let response = client.get(&js_path).dispatch();
+        assert_eq!(response.status(), Status::Ok);
+    } else {
+        panic!("No JS file found in assets");
+    }
 }
 
 #[test]
 #[serial]
 fn test_static_files_head_requests() {
+    use include_dir::{Dir, include_dir};
+
+    // Include the same assets directory that the server uses
+    static ASSETS: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/web/clef/dist");
+
     let test_rocket = create_test_rocket();
     let client = Client::tracked(test_rocket.rocket).expect("valid rocket instance");
 
+    // Find CSS and JS files dynamically
+    let mut css_file = None;
+    let mut js_file = None;
+
+    // Look for CSS and JS files in the assets subdirectory
+    for entry in ASSETS.entries() {
+        if let include_dir::DirEntry::Dir(dir) = entry {
+            // Look for files in the assets subdirectory
+            if dir.path().file_name() == Some(std::ffi::OsStr::new("assets")) {
+                for file in dir.files() {
+                    let path = file.path();
+                    if let Some(extension) = path.extension() {
+                        if extension == "css" && path.to_string_lossy().contains("index-") {
+                            css_file = Some(format!("/{}", path.display()));
+                        } else if extension == "js" && path.to_string_lossy().contains("index-") {
+                            js_file = Some(format!("/{}", path.display()));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // Test HEAD request for CSS file
-    let response = client.head("/assets/index-VnpCtY_R.css").dispatch();
-    assert_eq!(response.status(), Status::Ok);
+    if let Some(css_path) = css_file {
+        let response = client.head(&css_path).dispatch();
+        assert_eq!(response.status(), Status::Ok);
+    } else {
+        panic!("No CSS file found in assets");
+    }
 
     // Test HEAD request for JS file
-    let response = client.head("/assets/index-Bm5vNtRZ.js").dispatch();
-    assert_eq!(response.status(), Status::Ok);
+    if let Some(js_path) = js_file {
+        let response = client.head(&js_path).dispatch();
+        assert_eq!(response.status(), Status::Ok);
+    } else {
+        panic!("No JS file found in assets");
+    }
 }
