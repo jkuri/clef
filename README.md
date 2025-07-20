@@ -18,14 +18,16 @@ A high-performance private npm registry built with Rust and Rocket. Clef provide
 
 ### Installation
 
+Make sure you have rust and Node.JS installed on your system.
+
 ```bash
 # Clone and build
 git clone https://github.com/jkuri/clef.git
 cd clef
-cargo build --release
+make build-release
 
 # Run with default settings
-./target/release/clef
+RUST_LOG=info ./target/release/clef
 ```
 
 ### Configuration
@@ -37,6 +39,14 @@ export CLEF_HOST=127.0.0.1          # Default: 127.0.0.1
 export CLEF_PORT=8000               # Default: 8000
 export CLEF_UPSTREAM_REGISTRY=https://registry.npmjs.org  # Default
 export CLEF_DATABASE_URL=./data/clef.db  # Default
+```
+
+### Docker
+
+Run with Docker.
+
+```sh
+docker run -it --rm -p 8000:8000 -v ./data:/app/data jkuri/clef:latest
 ```
 
 ## Usage Examples
