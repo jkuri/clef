@@ -21,6 +21,18 @@ jobs:
           node-version: 24
       - name: Install package managers
         run: npm install -g npm yarn pnpm
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        with:
+          path: web/clef/node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('web/clef/package-lock.json') }}
+          restore-keys: ${{ runner.os }}-node
+      - name: Install dependencies
+        run: cd web/clef && npm ci
+      - name: Lint web application
+        run: cd web/clef && npm run lint
+      - name: Build web frontend
+        run: cd web/clef && npm run build
       - name: Build program
         run: cargo build --release
       - name: Run tests

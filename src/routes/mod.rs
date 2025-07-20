@@ -2,11 +2,12 @@ pub mod api;
 pub mod auth;
 pub mod packages;
 pub mod security;
+pub mod static_files;
 
 use rocket::routes;
 
 pub fn get_routes() -> Vec<rocket::Route> {
-    routes![
+    let api_routes = routes![
         // API routes with /api/v1/ prefix
         api::health_check,
         api::list_packages,
@@ -41,5 +42,10 @@ pub fn get_routes() -> Vec<rocket::Route> {
         auth::npm_whoami,
         auth::npm_logout,
         auth::npm_publish,
-    ]
+    ];
+
+    // Add static file routes (lowest priority)
+    let mut all_routes = api_routes;
+    all_routes.extend(static_files::get_static_routes());
+    all_routes
 }

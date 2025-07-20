@@ -9,7 +9,9 @@ help:
 	@echo "=================================="
 	@echo ""
 	@echo "Available targets:"
-	@echo "  build           Build the project"
+	@echo "  build           Build the project (backend only)"
+	@echo "  build-web       Build the web frontend"
+	@echo "  build-all       Build both backend and frontend"
 	@echo "  run             Run CLEF server"
 	@echo "  dev             Run CLEF server in development mode with debug logging"
 	@echo ""
@@ -26,7 +28,7 @@ help:
 	@echo "  check           Run cargo check"
 	@echo "  lint            Run clippy linter"
 	@echo "  format          Format code with rustfmt"
-	@echo "  clean           Clean build artifacts"
+	@echo "  clean           Clean build artifacts (removes web/clef/dist and node_modules)"
 	@echo ""
 	@echo "E2E Test Modules:"
 	@echo "  test-e2e-package        Package management tests"
@@ -40,13 +42,36 @@ help:
 	@echo "  test-e2e-perf          Performance tests"
 
 # Build targets
-build:
+build: ensure-web-dist
 	@echo "Building CLEF..."
 	cargo build
 
-build-release:
+build-release: build-web
 	@echo "Building CLEF (release mode)..."
 	cargo build --release
+
+# Ensure web/clef/dist directory exists before building
+ensure-web-dist:
+	@if [ ! -d "web/clef/dist" ]; then \
+		echo "Creating web/clef/dist directory..."; \
+		mkdir -p web/clef/dist; \
+		echo "<!DOCTYPE html><html><head><title>Clef</title></head><body><h1>Clef Registry</h1><p>Web interface not built yet. Run 'make build-web' to build the frontend.</p></body></html>" > web/clef/dist/index.html; \
+	fi
+
+# Build the web frontend
+build-web:
+	@echo "Building web frontend..."
+	@if [ -d "web/clef" ]; then \
+		echo "Installing frontend dependencies..."; \
+		cd web/clef && npm install && echo "Building frontend..." && npm run build; \
+	else \
+		echo "Web directory not found at web/clef"; \
+		exit 1; \
+	fi
+
+# Build everything (backend + frontend)
+build-all: build-web build
+	@echo "Build completed!"
 
 # Run targets
 run:
@@ -61,11 +86,11 @@ dev:
 test: test-unit test-integration test-e2e-quick
 	@echo "All tests completed!"
 
-test-unit:
+test-unit: ensure-web-dist
 	@echo "Running unit tests..."
 	cargo test --lib
 
-test-integration:
+test-integration: ensure-web-dist
 	@echo "Running integration tests (fastest)..."
 	cargo test --test integration_tests
 
@@ -125,7 +150,7 @@ install-deps:
 		echo "npm not found. Please install Node.js first."; \
 	fi
 
-check:
+check: ensure-web-dist
 	@echo "Running cargo check..."
 	cargo check
 
@@ -147,6 +172,9 @@ clean:
 	cargo clean
 	@echo "Cleaning test cache directories..."
 	rm -rf ./test_cache_*
+	@echo "Cleaning web frontend artifacts..."
+	rm -rf web/clef/node_modules
+	rm -rf web/clef/dist
 
 # Docker targets
 docker-build:
@@ -215,6 +243,11 @@ help-dev:
 	@echo "  make test-integration    # Integration tests (fastest)"
 	@echo "  make test-e2e-quick      # Core E2E tests (optimized)"
 	@echo "  make dev                 # Run with debug logging"
+	@echo ""
+	@echo "After make clean:"
+	@echo "  make build-web      # Build frontend first"
+	@echo "  make build          # Then build backend"
+	@echo "  # OR: make build-all # Build both at once"
 	@echo ""
 	@echo "Before committing:"
 	@echo "  make lint           # Check code quality"

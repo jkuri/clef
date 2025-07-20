@@ -259,3 +259,47 @@ fn test_cache_health() {
     assert!(body.contains("\"enabled\":true"));
     assert!(body.contains("\"status\":"));
 }
+
+#[test]
+#[serial]
+fn test_static_files_index() {
+    let test_rocket = create_test_rocket();
+    let client = Client::tracked(test_rocket.rocket).expect("valid rocket instance");
+    let response = client.get("/").dispatch();
+
+    assert_eq!(response.status(), Status::Ok);
+
+    let body = response.into_string().expect("valid response body");
+    assert!(body.contains("<html"));
+    assert!(body.contains("Clef"));
+}
+
+#[test]
+#[serial]
+fn test_static_files_assets() {
+    let test_rocket = create_test_rocket();
+    let client = Client::tracked(test_rocket.rocket).expect("valid rocket instance");
+
+    // Test CSS file
+    let response = client.get("/assets/index-VnpCtY_R.css").dispatch();
+    assert_eq!(response.status(), Status::Ok);
+
+    // Test JS file
+    let response = client.get("/assets/index-Bm5vNtRZ.js").dispatch();
+    assert_eq!(response.status(), Status::Ok);
+}
+
+#[test]
+#[serial]
+fn test_static_files_head_requests() {
+    let test_rocket = create_test_rocket();
+    let client = Client::tracked(test_rocket.rocket).expect("valid rocket instance");
+
+    // Test HEAD request for CSS file
+    let response = client.head("/assets/index-VnpCtY_R.css").dispatch();
+    assert_eq!(response.status(), Status::Ok);
+
+    // Test HEAD request for JS file
+    let response = client.head("/assets/index-Bm5vNtRZ.js").dispatch();
+    assert_eq!(response.status(), Status::Ok);
+}
