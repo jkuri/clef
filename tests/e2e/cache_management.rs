@@ -481,4 +481,275 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    #[serial]
+    fn test_cache_stats_persistence_across_restarts() {
+        init_test_env();
+
+        // Create a shared temporary directory for both server instances
+        let temp_dir = tempfile::TempDir::new().expect("Failed to create temp directory");
+        let shared_cache_dir = temp_dir.path().join("cache");
+        let shared_db_path = temp_dir.path().join("shared.db");
+        std::fs::create_dir_all(&shared_cache_dir).expect("Failed to create cache directory");
+
+        // Start first server instance with shared paths
+        let server1 =
+            TestServer::with_shared_paths(shared_cache_dir.clone(), shared_db_path.clone());
+        let handle1 = server1.start();
+        let client = ApiClient::new(server1.base_url.clone());
+
+        // Clear cache and make some requests to generate stats
+        let _ = client.delete("/api/v1/cache").send();
+        thread::sleep(Duration::from_millis(100));
+
+        // Make requests to generate cache activity
+        let _ = client.get("/registry/lodash").send();
+        let _ = client.get("/registry/express").send();
+        thread::sleep(Duration::from_millis(200));
+
+        // Get stats from first server instance
+        let stats1_response = client.get("/api/v1/cache/stats").send().unwrap();
+        assert!(stats1_response.status().is_success());
+        let stats1: serde_json::Value = stats1_response.json().unwrap();
+        let hit_count1 = stats1["hit_count"].as_u64().unwrap_or(0);
+        let miss_count1 = stats1["miss_count"].as_u64().unwrap_or(0);
+
+        println!("First server stats: hits={hit_count1}, misses={miss_count1}");
+
+        // Stop first server
+        drop(handle1);
+        thread::sleep(Duration::from_millis(500));
+
+        // Start second server instance with same shared paths (simulating restart)
+        let server2 = TestServer::with_shared_paths(shared_cache_dir, shared_db_path);
+        let _handle2 = server2.start();
+        let client2 = ApiClient::new(server2.base_url.clone());
+        thread::sleep(Duration::from_millis(500));
+
+        // Get stats from second server instance
+        let stats2_response = client2.get("/api/v1/cache/stats").send().unwrap();
+        assert!(stats2_response.status().is_success());
+        let stats2: serde_json::Value = stats2_response.json().unwrap();
+        let hit_count2 = stats2["hit_count"].as_u64().unwrap_or(0);
+        let miss_count2 = stats2["miss_count"].as_u64().unwrap_or(0);
+
+        println!("Second server stats: hits={hit_count2}, misses={miss_count2}");
+
+        // Cache stats should persist across restarts when using the same database
+        // The second server should restore the stats from the first server
+        if hit_count1 + miss_count1 > 0 {
+            assert!(
+                hit_count2 >= hit_count1 && miss_count2 >= miss_count1,
+                "Cache stats should persist and be restored from database: first=({hit_count1},{miss_count1}), second=({hit_count2},{miss_count2})"
+            );
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn test_analytics_endpoint_cache_data() {
+        init_test_env();
+        let server = TestServer::new();
+        let _handle = server.start();
+        let client = ApiClient::new(server.base_url.clone());
+
+        // Clear cache first
+        let _ = client.delete("/api/v1/cache").send();
+        thread::sleep(Duration::from_millis(100));
+
+        // Make some requests to populate cache
+        let _ = client.get("/registry/lodash").send();
+        let _ = client.get("/registry/express").send();
+        let _ = client.get("/registry/react").send();
+        thread::sleep(Duration::from_millis(300));
+
+        // Test analytics endpoint
+        let response = client.get("/api/v1/analytics").send().unwrap();
+        assert!(response.status().is_success());
+
+        let analytics: serde_json::Value = response.json().unwrap();
+
+        // Verify analytics structure
+        assert!(analytics["total_packages"].is_number());
+        assert!(analytics["total_size_bytes"].is_number());
+        assert!(analytics["total_size_mb"].is_number());
+        assert!(analytics["cache_hit_rate"].is_number());
+        assert!(analytics["most_popular_packages"].is_array());
+        assert!(analytics["recent_packages"].is_array());
+
+        // Verify cache hit rate is a valid percentage
+        let hit_rate = analytics["cache_hit_rate"].as_f64().unwrap_or(-1.0);
+        assert!(
+            hit_rate >= 0.0 && hit_rate <= 100.0,
+            "Hit rate should be between 0-100%"
+        );
+
+        // Verify total size calculations
+        let size_bytes = analytics["total_size_bytes"].as_i64().unwrap_or(0);
+        let size_mb = analytics["total_size_mb"].as_f64().unwrap_or(0.0);
+        let expected_mb = size_bytes as f64 / 1024.0 / 1024.0;
+        assert!(
+            (size_mb - expected_mb).abs() < 0.01,
+            "Size MB calculation should match bytes conversion"
+        );
+
+        println!(
+            "Analytics: packages={}, size={}MB, hit_rate={}%",
+            analytics["total_packages"], size_mb, hit_rate
+        );
+    }
+
+    #[test]
+    #[serial]
+    fn test_cache_database_persistence() {
+        init_test_env();
+        let server = TestServer::new();
+        let _handle = server.start();
+        let client = ApiClient::new(server.base_url.clone());
+
+        // Clear cache to start fresh
+        let _ = client.delete("/api/v1/cache").send();
+        thread::sleep(Duration::from_millis(100));
+
+        // Make requests to generate cache misses and hits
+        let _ = client.get("/registry/lodash").send(); // Should be a miss
+        thread::sleep(Duration::from_millis(100));
+        let _ = client.get("/registry/lodash").send(); // Should be a hit
+        thread::sleep(Duration::from_millis(100));
+        let _ = client.get("/registry/express").send(); // Should be a miss
+        thread::sleep(Duration::from_millis(100));
+        let _ = client.get("/registry/express").send(); // Should be a hit
+        thread::sleep(Duration::from_millis(200));
+
+        // Get final stats
+        let stats_response = client.get("/api/v1/cache/stats").send().unwrap();
+        assert!(stats_response.status().is_success());
+        let stats: serde_json::Value = stats_response.json().unwrap();
+
+        let final_hits = stats["hit_count"].as_u64().unwrap_or(0);
+        let final_misses = stats["miss_count"].as_u64().unwrap_or(0);
+
+        println!("Final cache stats: hits={final_hits}, misses={final_misses}");
+
+        // Should have both hits and misses
+        assert!(final_hits > 0, "Should have cache hits");
+        assert!(final_misses > 0, "Should have cache misses");
+
+        // Hit rate should be calculated correctly
+        let hit_rate = stats["hit_rate"].as_f64().unwrap_or(0.0);
+        let expected_rate = final_hits as f64 / (final_hits + final_misses) as f64 * 100.0;
+        assert!(
+            (hit_rate - expected_rate).abs() < 0.01,
+            "Hit rate calculation incorrect: got {hit_rate}, expected {expected_rate}"
+        );
+    }
+
+    #[test]
+    #[serial]
+    fn test_cache_file_counting_accuracy() {
+        init_test_env();
+        let server = TestServer::new();
+        let _handle = server.start();
+        let client = ApiClient::new(server.base_url.clone());
+
+        // Clear cache first
+        let _ = client.delete("/api/v1/cache").send();
+        thread::sleep(Duration::from_millis(100));
+
+        // Get initial stats
+        let initial_response = client.get("/api/v1/cache/stats").send().unwrap();
+        let initial_stats: serde_json::Value = initial_response.json().unwrap();
+        let initial_entries = initial_stats["total_entries"].as_u64().unwrap_or(0);
+        let initial_size = initial_stats["total_size_bytes"].as_u64().unwrap_or(0);
+
+        // Make requests to cache both metadata and tarballs
+        let _ = client.get("/registry/lodash").send(); // Metadata
+        thread::sleep(Duration::from_millis(100));
+        let _ = client.get("/registry/lodash/-/lodash-4.17.21.tgz").send(); // Tarball
+        thread::sleep(Duration::from_millis(200));
+
+        // Get updated stats
+        let updated_response = client.get("/api/v1/cache/stats").send().unwrap();
+        let updated_stats: serde_json::Value = updated_response.json().unwrap();
+        let updated_entries = updated_stats["total_entries"].as_u64().unwrap_or(0);
+        let updated_size = updated_stats["total_size_bytes"].as_u64().unwrap_or(0);
+
+        println!("Cache entries: initial={initial_entries}, updated={updated_entries}");
+        println!("Cache size: initial={initial_size}, updated={updated_size}");
+
+        // Should have more entries after caching
+        assert!(
+            updated_entries > initial_entries,
+            "Cache entries should increase after requests"
+        );
+
+        // Size should increase (unless cache was already populated)
+        assert!(
+            updated_size >= initial_size,
+            "Cache size should not decrease"
+        );
+
+        // Verify size calculation includes both .json and .tgz files
+        // This is tested by ensuring the total size is reasonable for the cached content
+        if updated_entries > 0 {
+            let avg_file_size = updated_size / updated_entries;
+            assert!(
+                avg_file_size > 0,
+                "Average file size should be greater than 0"
+            );
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn test_metadata_cache_with_database_persistence() {
+        init_test_env();
+        let server = TestServer::new();
+        let _handle = server.start();
+        let client = ApiClient::new(server.base_url.clone());
+
+        // Clear cache first
+        let _ = client.delete("/api/v1/cache").send();
+        thread::sleep(Duration::from_millis(100));
+
+        // Make metadata requests (not tarball downloads)
+        let _ = client.get("/registry/lodash").send();
+        let _ = client.get("/registry/express").send();
+        let _ = client.get("/registry/react").send();
+        thread::sleep(Duration::from_millis(300));
+
+        // Verify metadata is cached and stats are updated
+        let stats_response = client.get("/api/v1/cache/stats").send().unwrap();
+        assert!(stats_response.status().is_success());
+        let stats: serde_json::Value = stats_response.json().unwrap();
+
+        let hit_count = stats["hit_count"].as_u64().unwrap_or(0);
+        let miss_count = stats["miss_count"].as_u64().unwrap_or(0);
+        let total_entries = stats["total_entries"].as_u64().unwrap_or(0);
+
+        println!(
+            "Metadata cache stats: hits={hit_count}, misses={miss_count}, entries={total_entries}"
+        );
+
+        // Should have cache activity from metadata requests
+        assert!(hit_count + miss_count > 0, "Should have cache activity");
+        assert!(total_entries > 0, "Should have cached entries");
+
+        // Make the same requests again - should result in cache hits
+        let _ = client.get("/registry/lodash").send();
+        let _ = client.get("/registry/express").send();
+        thread::sleep(Duration::from_millis(200));
+
+        // Check updated stats
+        let updated_response = client.get("/api/v1/cache/stats").send().unwrap();
+        let updated_stats: serde_json::Value = updated_response.json().unwrap();
+        let updated_hits = updated_stats["hit_count"].as_u64().unwrap_or(0);
+
+        // Should have more hits after repeated requests
+        assert!(
+            updated_hits > hit_count,
+            "Repeated metadata requests should result in cache hits"
+        );
+    }
 }

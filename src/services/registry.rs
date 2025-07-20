@@ -121,7 +121,11 @@ impl RegistryService {
         info!("Fetching metadata for package: {package}");
 
         // Check metadata cache first
-        if let Some(cache_entry) = state.cache.get_metadata(package).await {
+        if let Some(cache_entry) = state
+            .cache
+            .get_metadata_with_database(package, Some(&*state.database))
+            .await
+        {
             info!(
                 "Metadata cache hit for package: {} (size: {} bytes)",
                 package,
@@ -172,7 +176,11 @@ impl RegistryService {
             let mut request = state.client.get(&url);
 
             // Add If-None-Match header if we have cached ETag
-            if let Some(cache_entry) = state.cache.get_metadata(package).await {
+            if let Some(cache_entry) = state
+                .cache
+                .get_metadata_with_database(package, Some(&*state.database))
+                .await
+            {
                 if let Some(etag) = &cache_entry.etag {
                     debug!("Adding If-None-Match header for upstream request: {etag}");
                     request = request.header("If-None-Match", etag);
@@ -184,7 +192,11 @@ impl RegistryService {
             if response.status() == 304 {
                 // Not Modified - use cached version
                 debug!("Upstream returned 304 Not Modified for package: {package}");
-                if let Some(cache_entry) = state.cache.get_metadata(package).await {
+                if let Some(cache_entry) = state
+                    .cache
+                    .get_metadata_with_database(package, Some(&*state.database))
+                    .await
+                {
                     info!(
                         "Using cached metadata after 304 Not Modified for package: {package} (size: {} bytes)",
                         cache_entry.data.len()

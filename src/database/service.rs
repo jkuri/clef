@@ -1,4 +1,5 @@
 use super::analytics::AnalyticsOperations;
+use super::cache_stats::CacheStatsOperations;
 use super::connection::{DbConnection, DbPool, create_pool, get_connection_with_retry};
 use super::files::{CompletePackageParams, FileOperations, PackageFileParams};
 use super::packages::PackageOperations;
@@ -151,5 +152,32 @@ impl DatabaseService {
     pub fn get_cache_stats(&self) -> Result<(usize, i64), diesel::result::Error> {
         let ops = AnalyticsOperations::new(&self.pool);
         ops.get_cache_stats()
+    }
+
+    // Cache stats operations
+    pub fn get_persistent_cache_stats(
+        &self,
+    ) -> Result<Option<crate::models::cache::CacheStatsRecord>, diesel::result::Error> {
+        let ops = CacheStatsOperations::new(&self.pool);
+        ops.get_cache_stats()
+    }
+
+    pub fn update_persistent_cache_stats(
+        &self,
+        hit_count: u64,
+        miss_count: u64,
+    ) -> Result<crate::models::cache::CacheStatsRecord, diesel::result::Error> {
+        let ops = CacheStatsOperations::new(&self.pool);
+        ops.update_cache_stats(hit_count, miss_count)
+    }
+
+    pub fn increment_cache_hit_count(&self) -> Result<(), diesel::result::Error> {
+        let ops = CacheStatsOperations::new(&self.pool);
+        ops.increment_hit_count()
+    }
+
+    pub fn increment_cache_miss_count(&self) -> Result<(), diesel::result::Error> {
+        let ops = CacheStatsOperations::new(&self.pool);
+        ops.increment_miss_count()
     }
 }

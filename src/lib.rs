@@ -25,12 +25,15 @@ pub fn create_rocket() -> rocket::Rocket<rocket::Build> {
     // Create HTTP client
     let client = reqwest::Client::new();
 
-    // Initialize cache service
-    let cache = Arc::new(CacheService::new(config.clone()).expect("Failed to initialize cache"));
-
-    // Initialize database service
+    // Initialize database service first
     let database = Arc::new(
         DatabaseService::new(&config.database_url).expect("Failed to initialize database"),
+    );
+
+    // Initialize cache service with database for persistent stats
+    let cache = Arc::new(
+        CacheService::new_with_database(config.clone(), Some(&database))
+            .expect("Failed to initialize cache"),
     );
 
     // Create app state

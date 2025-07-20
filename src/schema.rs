@@ -1,6 +1,16 @@
 // @generated automatically by Diesel CLI.
 
 diesel::table! {
+    cache_stats (id) {
+        id -> Integer,
+        hit_count -> BigInt,
+        miss_count -> BigInt,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
+    }
+}
+
+diesel::table! {
     package_files (id) {
         id -> Integer,
         package_version_id -> Integer,
@@ -91,6 +101,7 @@ diesel::joinable!(packages -> users (author_id));
 diesel::joinable!(user_tokens -> users (user_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
+    cache_stats,
     package_files,
     package_owners,
     package_versions,

@@ -4,6 +4,7 @@ use crate::models::{
     PopularPackage,
 };
 use crate::state::AppState;
+use log::{debug, info};
 use rocket::serde::json::Json;
 use rocket::{State, delete, get, post};
 use serde_json;
@@ -95,32 +96,56 @@ pub async fn get_popular_packages(
 pub async fn get_cache_analytics(
     state: &State<AppState>,
 ) -> Result<Json<CacheAnalytics>, ApiError> {
-    let (total_packages, total_size_bytes) = state
+    info!("Analytics endpoint called");
+
+    let (total_packages, _db_size_bytes) = state
         .database
         .get_cache_stats()
         .map_err(|e| ApiError::ParseError(format!("Failed to get cache stats: {e}")))?;
+
+    debug!("Database reports {total_packages} total packages");
 
     let popular_packages = state
         .database
         .get_popular_packages(5)
         .map_err(|e| ApiError::ParseError(format!("Failed to get popular packages: {e}")))?;
 
+    debug!("Retrieved {} popular packages", popular_packages.len());
+
     let recent_packages = state
         .database
         .get_recent_packages(10)
         .map_err(|e| ApiError::ParseError(format!("Failed to get recent packages: {e}")))?;
 
+    debug!("Retrieved {} recent packages", recent_packages.len());
+
     let cache_hit_rate = state.cache.get_hit_rate();
+    debug!("Cache hit rate: {cache_hit_rate:.2}%");
+
+    // Get actual disk usage from cache service instead of database records
+    let cache_stats = state
+        .cache
+        .get_stats()
+        .await
+        .map_err(|e| ApiError::ParseError(format!("Failed to get cache disk stats: {e}")))?;
+
+    debug!(
+        "Cache disk stats: {} entries, {} bytes ({:.2} MB)",
+        cache_stats.total_entries,
+        cache_stats.total_size_bytes,
+        cache_stats.total_size_bytes as f64 / 1024.0 / 1024.0
+    );
 
     let analytics = CacheAnalytics {
         total_packages: total_packages as i64,
-        total_size_bytes,
-        total_size_mb: total_size_bytes as f64 / 1024.0 / 1024.0,
+        total_size_bytes: cache_stats.total_size_bytes as i64,
+        total_size_mb: cache_stats.total_size_bytes as f64 / 1024.0 / 1024.0,
         most_popular_packages: popular_packages,
         recent_packages,
         cache_hit_rate,
     };
 
+    info!("Analytics response prepared successfully");
     Ok(Json(analytics))
 }
 

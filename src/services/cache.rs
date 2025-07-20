@@ -30,6 +30,47 @@ impl CacheService {
         })
     }
 
+    /// Initialize cache service with persistent stats from database
+    pub fn new_with_database(
+        config: AppConfig,
+        database: Option<&DatabaseService>,
+    ) -> Result<Self, std::io::Error> {
+        if config.cache_enabled {
+            // Create cache directory if it doesn't exist
+            fs::create_dir_all(&config.cache_dir)?;
+            info!("Cache initialized at: {}", config.cache_dir);
+        }
+
+        // Try to restore counters from database
+        let (initial_hit_count, initial_miss_count) = if let Some(db) = database {
+            match db.get_persistent_cache_stats() {
+                Ok(Some(stats)) => {
+                    info!(
+                        "Restored cache stats from database: hits={}, misses={}",
+                        stats.hit_count, stats.miss_count
+                    );
+                    (stats.hit_count as u64, stats.miss_count as u64)
+                }
+                Ok(None) => {
+                    info!("No existing cache stats found in database, starting fresh");
+                    (0, 0)
+                }
+                Err(e) => {
+                    warn!("Failed to restore cache stats from database: {e}, starting fresh");
+                    (0, 0)
+                }
+            }
+        } else {
+            (0, 0)
+        };
+
+        Ok(Self {
+            config,
+            hit_count: std::sync::atomic::AtomicU64::new(initial_hit_count),
+            miss_count: std::sync::atomic::AtomicU64::new(initial_miss_count),
+        })
+    }
+
     pub fn is_enabled(&self) -> bool {
         self.config.cache_enabled
     }
@@ -152,6 +193,11 @@ impl CacheService {
                     .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 debug!("Cache hit for key: {cache_key} (size: {size} bytes)");
 
+                // Persist hit count to database if available
+                if let Some(database) = database {
+                    let _ = database.increment_cache_hit_count();
+                }
+
                 // Update access info in database if available
                 if let Some(database) = database {
                     if let Ok(Some((_package, _version, file))) =
@@ -172,12 +218,26 @@ impl CacheService {
                 warn!("Failed to read cache entry {cache_key}: {e}");
                 self.miss_count
                     .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+
+                // Persist miss count to database if available
+                if let Some(database) = database {
+                    let _ = database.increment_cache_miss_count();
+                }
+
                 None
             }
         }
     }
 
     pub async fn get_metadata(&self, package: &str) -> Option<CacheEntry> {
+        self.get_metadata_with_database(package, None).await
+    }
+
+    pub async fn get_metadata_with_database(
+        &self,
+        package: &str,
+        database: Option<&DatabaseService>,
+    ) -> Option<CacheEntry> {
         if !self.config.cache_enabled {
             return None;
         }
@@ -191,6 +251,12 @@ impl CacheService {
             self.miss_count
                 .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             debug!("Metadata cache miss for key: {cache_key} - file not found");
+
+            // Persist miss count to database if available
+            if let Some(database) = database {
+                let _ = database.increment_cache_miss_count();
+            }
+
             return None;
         }
 
@@ -211,6 +277,12 @@ impl CacheService {
                                 debug!("Metadata cache expired for upstream package: {cache_key}");
                                 self.miss_count
                                     .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+
+                                // Persist miss count to database if available
+                                if let Some(database) = database {
+                                    let _ = database.increment_cache_miss_count();
+                                }
+
                                 return None;
                             }
                         }
@@ -231,6 +303,11 @@ impl CacheService {
                     .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 debug!("Metadata cache hit for key: {cache_key} (size: {size} bytes)");
 
+                // Persist hit count to database if available
+                if let Some(database) = database {
+                    let _ = database.increment_cache_hit_count();
+                }
+
                 // Try to read ETag from metadata file
                 let etag_path = self.get_metadata_etag_path(package);
                 let etag = fs::read_to_string(&etag_path).ok();
@@ -246,6 +323,12 @@ impl CacheService {
                 warn!("Failed to read metadata cache entry {cache_key}: {e}");
                 self.miss_count
                     .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+
+                // Persist miss count to database if available
+                if let Some(database) = database {
+                    let _ = database.increment_cache_miss_count();
+                }
+
                 None
             }
         }
@@ -426,11 +509,13 @@ impl CacheService {
             if path.is_dir() {
                 // Recursively check package directories
                 Self::collect_cache_entries(&path, entries)?;
-            } else if path.extension().and_then(|s| s.to_str()) == Some("tgz") {
-                // Only collect .tgz files (actual tarballs)
-                if let Ok(metadata) = entry.metadata() {
-                    if let Ok(created) = metadata.created() {
-                        entries.push((path, created, metadata.len()));
+            } else if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
+                // Collect both .tgz files (tarballs) and .json files (metadata)
+                if ext == "tgz" || ext == "json" {
+                    if let Ok(metadata) = entry.metadata() {
+                        if let Ok(created) = metadata.created() {
+                            entries.push((path, created, metadata.len()));
+                        }
                     }
                 }
             }

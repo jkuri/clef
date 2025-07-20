@@ -65,6 +65,19 @@ impl TestServer {
         }
     }
 
+    pub fn with_shared_paths(cache_dir: PathBuf, db_path: PathBuf) -> Self {
+        let port = find_free_port();
+        let temp_dir = TempDir::new().expect("Failed to create temp directory");
+
+        Self {
+            port,
+            base_url: format!("http://127.0.0.1:{port}"),
+            _temp_dir: temp_dir,
+            cache_dir,
+            db_path,
+        }
+    }
+
     pub fn start(&self) -> TestServerHandle {
         // Get the pre-built binary path (builds once if not already built)
         let binary_path = ensure_binary_built();

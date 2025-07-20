@@ -1,4 +1,7 @@
 use crate::models::package::{PackageWithVersions, PopularPackage};
+use crate::schema::cache_stats;
+use chrono::NaiveDateTime;
+use diesel::prelude::*;
 use rocket::serde::Serialize;
 
 #[derive(Debug, Clone)]
@@ -25,6 +28,35 @@ pub struct CacheAnalytics {
     pub most_popular_packages: Vec<PopularPackage>,
     pub recent_packages: Vec<PackageWithVersions>,
     pub cache_hit_rate: f64,
+}
+
+// Database model for persistent cache stats
+#[derive(Queryable, Selectable, Serialize, Debug, Clone)]
+#[diesel(table_name = cache_stats)]
+#[diesel(check_for_backend(diesel::sqlite::Sqlite))]
+pub struct CacheStatsRecord {
+    pub id: i32,
+    pub hit_count: i64,
+    pub miss_count: i64,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
+}
+
+#[derive(Insertable, Debug)]
+#[diesel(table_name = cache_stats)]
+pub struct NewCacheStatsRecord {
+    pub hit_count: i64,
+    pub miss_count: i64,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
+}
+
+#[derive(AsChangeset, Debug)]
+#[diesel(table_name = cache_stats)]
+pub struct UpdateCacheStatsRecord {
+    pub hit_count: Option<i64>,
+    pub miss_count: Option<i64>,
+    pub updated_at: Option<NaiveDateTime>,
 }
 
 #[derive(Serialize)]
