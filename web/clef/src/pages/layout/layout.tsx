@@ -32,6 +32,15 @@ function generateBreadcrumbs(pathname: string) {
   const config = breadcrumbConfig[pathname];
 
   if (!config) {
+    // Handle dynamic routes like /packages/:name
+    if (pathname.startsWith("/packages/") && pathname !== "/packages") {
+      const packageName = pathname.split("/packages/")[1];
+      return {
+        section: { title: "Packages", href: "/packages" },
+        page: packageName,
+      };
+    }
+
     // Fallback for unknown routes
     return {
       section: { title: "Dashboard", href: "/dashboard" },

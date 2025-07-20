@@ -3,6 +3,7 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import { format, isValid, parseISO } from "date-fns";
 import { ArrowDown, ArrowUp, ArrowUpDown, MoreHorizontal, Package } from "lucide-react";
+import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -70,14 +71,16 @@ export const createColumns = ({ onSort, sortField, sortOrder }: ColumnProps): Co
             <Package className="h-4 w-4" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="truncate font-medium text-sm leading-none">{pkg.name}</p>
-            <p className="mt-1 text-muted-foreground text-xs">
-              {pkg.description
-                ? pkg.description.length > 60
-                  ? `${pkg.description.substring(0, 60)}...`
-                  : pkg.description
-                : "No description"}
-            </p>
+            <Link to={`/packages/${pkg.name}`} className="block transition-colors hover:text-primary">
+              <p className="truncate font-medium text-sm leading-none">{pkg.name}</p>
+              <p className="mt-1 text-muted-foreground text-xs">
+                {pkg.description
+                  ? pkg.description.length > 60
+                    ? `${pkg.description.substring(0, 60)}...`
+                    : pkg.description
+                  : "No description"}
+              </p>
+            </Link>
           </div>
         </div>
       );
@@ -255,7 +258,9 @@ export const createColumns = ({ onSort, sortField, sortOrder }: ColumnProps): Co
               Copy package name
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>View details</DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link to={`/packages/${pkg.name}`}>View details</Link>
+            </DropdownMenuItem>
             <DropdownMenuItem>View versions</DropdownMenuItem>
             {pkg.homepage && (
               <DropdownMenuItem onClick={() => window.open(pkg.homepage!, "_blank")}>Open homepage</DropdownMenuItem>

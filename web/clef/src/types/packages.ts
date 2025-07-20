@@ -69,3 +69,11 @@ export interface PackageListParams {
   sort?: string;
   order?: "asc" | "desc";
 }
+
+// Single package response type
+export interface PackageResponse {
+  package: Package;
+  versions: PackageVersionWithFiles[];
+  total_size_bytes?: number;
+  total_size_mb?: number;
+}

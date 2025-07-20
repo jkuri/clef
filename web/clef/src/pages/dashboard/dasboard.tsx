@@ -1,12 +1,6 @@
 import { Database, HardDrive, Package, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAnalytics } from "@/hooks/analytics";
 import { formatBytes, formatNumber, roundNumber } from "@/lib/utils";
@@ -18,9 +12,7 @@ export function Dashboard() {
     return (
       <div className="flex min-h-[400px] flex-col items-center justify-center space-y-4">
         <div className="text-center">
-          <h3 className="font-semibold text-destructive text-lg">
-            Error loading analytics
-          </h3>
+          <h3 className="font-semibold text-destructive text-lg">Error loading analytics</h3>
           <p className="mt-2 text-muted-foreground text-sm">{String(error)}</p>
         </div>
         <Button onClick={() => window.location.reload()} variant="outline">
@@ -36,9 +28,7 @@ export function Dashboard() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="font-bold text-3xl tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground">
-            Package registry analytics overview
-          </p>
+          <p className="text-muted-foreground">Package registry analytics overview</p>
         </div>
       </div>
 
@@ -61,66 +51,44 @@ export function Dashboard() {
           <>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="font-medium text-sm">
-                  Total Packages
-                </CardTitle>
+                <CardTitle className="font-medium text-sm">Total Packages</CardTitle>
                 <Package className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="font-bold text-2xl">
-                  {formatNumber(data.total_packages)}
-                </div>
-                <p className="text-muted-foreground text-xs">
-                  Packages in registry
-                </p>
+                <div className="font-bold text-2xl">{formatNumber(data.total_packages)}</div>
+                <p className="text-muted-foreground text-xs">Packages in registry</p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="font-medium text-sm">
-                  Total Size
-                </CardTitle>
+                <CardTitle className="font-medium text-sm">Total Size</CardTitle>
                 <HardDrive className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="font-bold text-2xl">
-                  {data.total_size_mb.toFixed(1)} MB
-                </div>
-                <p className="text-muted-foreground text-xs">
-                  Cached packages size
-                </p>
+                <div className="font-bold text-2xl">{data.total_size_mb.toFixed(1)} MB</div>
+                <p className="text-muted-foreground text-xs">Cached packages size</p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="font-medium text-sm">
-                  Cache Hit Rate
-                </CardTitle>
+                <CardTitle className="font-medium text-sm">Cache Hit Rate</CardTitle>
                 <TrendingUp className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="font-bold text-2xl">
-                  {roundNumber(data.cache_hit_rate, 2)}%
-                </div>
-                <p className="text-muted-foreground text-xs">
-                  Cache efficiency
-                </p>
+                <div className="font-bold text-2xl">{roundNumber(data.cache_hit_rate, 2)}%</div>
+                <p className="text-muted-foreground text-xs">Cache efficiency</p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="font-medium text-sm">
-                  Metadata Cache
-                </CardTitle>
+                <CardTitle className="font-medium text-sm">Metadata Cache</CardTitle>
                 <Database className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="font-bold text-2xl">
-                  {data.metadata_cache_size_mb.toFixed(1)} MB
-                </div>
+                <div className="font-bold text-2xl">{data.metadata_cache_size_mb.toFixed(1)} MB</div>
                 <p className="text-muted-foreground text-xs">
                   {formatNumber(data.metadata_cache_entries)} metadata files
                 </p>
@@ -152,33 +120,24 @@ export function Dashboard() {
                   </div>
                 ))}
               </div>
-            ) : data?.most_popular_packages &&
-              data.most_popular_packages.length > 0 ? (
+            ) : data?.most_popular_packages && data.most_popular_packages.length > 0 ? (
               <div className="space-y-3">
                 {data.most_popular_packages.map((pkg, index) => (
-                  <div
-                    key={pkg.name}
-                    className="flex items-center justify-between"
-                  >
+                  <div key={pkg.name} className="flex items-center justify-between">
                     <div className="flex items-center space-x-3">
                       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10">
                         <span className="font-medium text-xs">{index + 1}</span>
                       </div>
                       <div className="min-w-0 flex-1 space-y-1">
-                        <p className="truncate font-medium text-sm leading-none">
-                          {pkg.name}
-                        </p>
+                        <p className="truncate font-medium text-sm leading-none">{pkg.name}</p>
                         <p className="text-muted-foreground text-xs">
                           {pkg.unique_versions} version
-                          {pkg.unique_versions !== 1 ? "s" : ""} •{" "}
-                          {formatBytes(pkg.total_size_bytes)}
+                          {pkg.unique_versions !== 1 ? "s" : ""} • {formatBytes(pkg.total_size_bytes)}
                         </p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="font-medium text-sm">
-                        {pkg.total_downloads}
-                      </p>
+                      <p className="font-medium text-sm">{pkg.total_downloads}</p>
                       <p className="text-muted-foreground text-xs">downloads</p>
                     </div>
                   </div>
@@ -186,9 +145,7 @@ export function Dashboard() {
               </div>
             ) : (
               <div className="flex h-32 items-center justify-center">
-                <p className="text-muted-foreground text-sm">
-                  No popular packages data
-                </p>
+                <p className="text-muted-foreground text-sm">No popular packages data</p>
               </div>
             )}
           </CardContent>
@@ -215,24 +172,16 @@ export function Dashboard() {
             ) : data?.recent_packages && data.recent_packages.length > 0 ? (
               <div className="space-y-3">
                 {data.recent_packages.slice(0, 5).map((recentPackage) => (
-                  <div
-                    key={recentPackage.package.id}
-                    className="flex items-start space-x-3"
-                  >
+                  <div key={recentPackage.package.id} className="flex items-start space-x-3">
                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10">
                       <Package className="h-4 w-4" />
                     </div>
                     <div className="min-w-0 flex-1 space-y-1">
-                      <p className="truncate font-medium text-sm leading-none">
-                        {recentPackage.package.name}
-                      </p>
+                      <p className="truncate font-medium text-sm leading-none">{recentPackage.package.name}</p>
                       <p className="text-muted-foreground text-xs">
                         {recentPackage.package.description
                           ? recentPackage.package.description.length > 80
-                            ? `${recentPackage.package.description.substring(
-                                0,
-                                80
-                              )}...`
+                            ? `${recentPackage.package.description.substring(0, 80)}...`
                             : recentPackage.package.description
                           : "No description"}
                       </p>
@@ -242,9 +191,7 @@ export function Dashboard() {
               </div>
             ) : (
               <div className="flex h-32 items-center justify-center">
-                <p className="text-muted-foreground text-sm">
-                  No recent packages
-                </p>
+                <p className="text-muted-foreground text-sm">No recent packages</p>
               </div>
             )}
           </CardContent>
