@@ -141,12 +141,12 @@ pub async fn get_cache_analytics(
 ) -> Result<Json<CacheAnalytics>, ApiError> {
     info!("Analytics endpoint called");
 
-    let (total_packages, _db_size_bytes) = state
+    let (total_packages, db_size_bytes) = state
         .database
         .get_cache_stats()
         .map_err(|e| ApiError::ParseError(format!("Failed to get cache stats: {e}")))?;
 
-    debug!("Database reports {total_packages} total packages");
+    debug!("Database reports {total_packages} total packages, {db_size_bytes} bytes total size");
 
     let popular_packages = state
         .database
@@ -165,7 +165,7 @@ pub async fn get_cache_analytics(
     let cache_hit_rate = state.cache.get_hit_rate();
     debug!("Cache hit rate: {cache_hit_rate:.2}%");
 
-    // Get actual disk usage from cache service instead of database records
+    // Also get disk usage stats for comparison/debugging
     let cache_stats = state
         .cache
         .get_stats()
@@ -179,10 +179,15 @@ pub async fn get_cache_analytics(
         cache_stats.total_size_bytes as f64 / 1024.0 / 1024.0
     );
 
+    debug!(
+        "Using database size ({} bytes) instead of disk size ({} bytes) for analytics",
+        db_size_bytes, cache_stats.total_size_bytes
+    );
+
     let analytics = CacheAnalytics {
         total_packages: total_packages as i64,
-        total_size_bytes: cache_stats.total_size_bytes as i64,
-        total_size_mb: cache_stats.total_size_bytes as f64 / 1024.0 / 1024.0,
+        total_size_bytes: db_size_bytes,
+        total_size_mb: db_size_bytes as f64 / 1024.0 / 1024.0,
         most_popular_packages: popular_packages,
         recent_packages,
         cache_hit_rate,

@@ -67,7 +67,7 @@ export function Dashboard() {
               </CardHeader>
               <CardContent>
                 <div className="font-bold text-2xl">{data.total_size_mb.toFixed(1)} MB</div>
-                <p className="text-muted-foreground text-xs">Cache storage size</p>
+                <p className="text-muted-foreground text-xs">Cached packages size</p>
               </CardContent>
             </Card>
 

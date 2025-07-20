@@ -533,13 +533,20 @@ mod tests {
                     let created_at = package["created_at"].as_str().unwrap();
                     let updated_at = package["updated_at"].as_str().unwrap();
 
-                    // Should be valid ISO timestamps
+                    // Should be valid ISO timestamps (contains T separator)
                     assert!(created_at.contains("T"));
                     assert!(updated_at.contains("T"));
 
                     // Parse timestamps to verify they're valid
-                    assert!(chrono::DateTime::parse_from_rfc3339(created_at).is_ok());
-                    assert!(chrono::DateTime::parse_from_rfc3339(updated_at).is_ok());
+                    // Use NaiveDateTime parsing since the API returns naive timestamps
+                    assert!(
+                        chrono::NaiveDateTime::parse_from_str(created_at, "%Y-%m-%dT%H:%M:%S%.f")
+                            .is_ok()
+                    );
+                    assert!(
+                        chrono::NaiveDateTime::parse_from_str(updated_at, "%Y-%m-%dT%H:%M:%S%.f")
+                            .is_ok()
+                    );
                 }
             }
         }
