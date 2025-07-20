@@ -28,6 +28,9 @@ pub struct CacheAnalytics {
     pub most_popular_packages: Vec<PopularPackage>,
     pub recent_packages: Vec<PackageWithVersions>,
     pub cache_hit_rate: f64,
+    pub metadata_cache_entries: i64,
+    pub metadata_cache_size_bytes: i64,
+    pub metadata_cache_size_mb: f64,
 }
 
 // Database model for persistent cache stats

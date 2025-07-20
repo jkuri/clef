@@ -1,7 +1,7 @@
 // Re-export all models from their respective modules
 pub mod auth;
 pub mod cache;
-
+pub mod metadata_cache;
 pub mod npm;
 pub mod package;
 pub mod user;

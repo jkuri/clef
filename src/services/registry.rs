@@ -253,7 +253,12 @@ impl RegistryService {
 
                         if let Err(e) = state
                             .cache
-                            .put_metadata_with_etag(package, &metadata_str, etag.as_deref())
+                            .put_metadata_with_etag_and_database(
+                                package,
+                                &metadata_str,
+                                etag.as_deref(),
+                                Some(&*state.database),
+                            )
                             .await
                         {
                             warn!("Failed to cache metadata for package {package}: {e}");
@@ -285,7 +290,16 @@ impl RegistryService {
             ApiError::InternalServerError(format!("Failed to serialize metadata for caching: {e}"))
         })?;
 
-        if let Err(e) = state.cache.put_metadata(package, &metadata_str).await {
+        if let Err(e) = state
+            .cache
+            .put_metadata_with_etag_and_database(
+                package,
+                &metadata_str,
+                None,
+                Some(&*state.database),
+            )
+            .await
+        {
             warn!("Failed to cache metadata for package {package}: {e}");
         }
 

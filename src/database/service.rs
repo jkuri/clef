@@ -2,8 +2,10 @@ use super::analytics::AnalyticsOperations;
 use super::cache_stats::CacheStatsOperations;
 use super::connection::{DbConnection, DbPool, create_pool, get_connection_with_retry};
 use super::files::{CompletePackageParams, FileOperations, PackageFileParams};
+use super::metadata_cache::MetadataCacheOperations;
 use super::packages::PackageOperations;
 use super::versions::VersionOperations;
+use crate::models::metadata_cache::{MetadataCacheRecord, MetadataCacheStats};
 use crate::models::package::*;
 
 /// Main database service that provides a unified interface to all database operations
@@ -191,5 +193,43 @@ impl DatabaseService {
     pub fn increment_cache_miss_count(&self) -> Result<(), diesel::result::Error> {
         let ops = CacheStatsOperations::new(&self.pool);
         ops.increment_miss_count()
+    }
+
+    // Metadata cache operations
+    pub fn get_metadata_cache_entry(
+        &self,
+        package_name: &str,
+    ) -> Result<Option<MetadataCacheRecord>, diesel::result::Error> {
+        let ops = MetadataCacheOperations::new(&self.pool);
+        ops.get_metadata_cache_entry(package_name)
+    }
+
+    pub fn upsert_metadata_cache_entry(
+        &self,
+        package_name: &str,
+        size_bytes: i64,
+        file_path: &str,
+        etag: Option<&str>,
+    ) -> Result<MetadataCacheRecord, diesel::result::Error> {
+        let ops = MetadataCacheOperations::new(&self.pool);
+        ops.upsert_metadata_cache_entry(package_name, size_bytes, file_path, etag)
+    }
+
+    pub fn update_metadata_access_info(
+        &self,
+        package_name: &str,
+    ) -> Result<(), diesel::result::Error> {
+        let ops = MetadataCacheOperations::new(&self.pool);
+        ops.update_metadata_access_info(package_name)
+    }
+
+    pub fn get_metadata_cache_stats(&self) -> Result<MetadataCacheStats, diesel::result::Error> {
+        let ops = MetadataCacheOperations::new(&self.pool);
+        ops.get_metadata_cache_stats()
+    }
+
+    pub fn clear_metadata_cache(&self) -> Result<usize, diesel::result::Error> {
+        let ops = MetadataCacheOperations::new(&self.pool);
+        ops.clear_metadata_cache()
     }
 }

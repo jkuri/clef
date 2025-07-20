@@ -7,12 +7,14 @@
 //! - `files`: Package file-related database operations
 //! - `analytics`: Analytics and statistics operations
 //! - `cache_stats`: Cache statistics operations
+//! - `metadata_cache`: Metadata cache operations
 //! - `service`: Main DatabaseService that provides a unified interface
 
 pub mod analytics;
 pub mod cache_stats;
 pub mod connection;
 pub mod files;
+pub mod metadata_cache;
 pub mod packages;
 pub mod service;
 pub mod versions;
@@ -25,5 +27,6 @@ pub use service::DatabaseService;
 pub use analytics::AnalyticsOperations;
 pub use cache_stats::CacheStatsOperations;
 pub use files::FileOperations;
+pub use metadata_cache::MetadataCacheOperations;
 pub use packages::PackageOperations;
 pub use versions::VersionOperations;

@@ -752,4 +752,240 @@ mod tests {
             "Repeated metadata requests should result in cache hits"
         );
     }
+
+    #[test]
+    #[serial]
+    fn test_metadata_cache_stats_in_analytics() {
+        init_test_env();
+        let server = TestServer::new();
+        let _handle = server.start();
+        let client = ApiClient::new(server.base_url.clone());
+
+        // Clear cache first
+        let _ = client.delete("/api/v1/cache").send();
+        thread::sleep(Duration::from_millis(100));
+
+        // Make metadata requests to populate metadata cache
+        let _ = client.get("/registry/lodash").send();
+        let _ = client.get("/registry/express").send();
+        let _ = client.get("/registry/@types/node").send();
+        thread::sleep(Duration::from_millis(300));
+
+        // Test analytics endpoint includes metadata cache stats
+        let response = client.get("/api/v1/analytics").send().unwrap();
+        assert!(response.status().is_success());
+
+        let analytics: serde_json::Value = response.json().unwrap();
+
+        // Verify metadata cache fields are present
+        assert!(analytics["metadata_cache_entries"].is_number());
+        assert!(analytics["metadata_cache_size_bytes"].is_number());
+        assert!(analytics["metadata_cache_size_mb"].is_number());
+
+        let metadata_entries = analytics["metadata_cache_entries"].as_u64().unwrap_or(0);
+        let metadata_size_bytes = analytics["metadata_cache_size_bytes"].as_u64().unwrap_or(0);
+        let metadata_size_mb = analytics["metadata_cache_size_mb"].as_f64().unwrap_or(0.0);
+
+        println!(
+            "Metadata cache: entries={metadata_entries}, size={}MB",
+            metadata_size_mb
+        );
+
+        // Should have metadata cache entries after requests
+        assert!(metadata_entries > 0, "Should have metadata cache entries");
+        assert!(metadata_size_bytes > 0, "Should have metadata cache size");
+
+        // Verify MB calculation is correct
+        let expected_mb = metadata_size_bytes as f64 / 1024.0 / 1024.0;
+        assert!(
+            (metadata_size_mb - expected_mb).abs() < 0.01,
+            "Metadata cache size MB calculation should be correct"
+        );
+    }
+
+    #[test]
+    #[serial]
+    fn test_cache_reprocess_endpoint() {
+        init_test_env();
+        let server = TestServer::new();
+        let _handle = server.start();
+        let client = ApiClient::new(server.base_url.clone());
+
+        // Clear cache first
+        let _ = client.delete("/api/v1/cache").send();
+        thread::sleep(Duration::from_millis(100));
+
+        // Make some requests to populate cache files
+        let _ = client.get("/registry/lodash").send();
+        let _ = client.get("/registry/lodash/-/lodash-4.17.21.tgz").send();
+        let _ = client.get("/registry/express").send();
+        thread::sleep(Duration::from_millis(300));
+
+        // Test cache reprocess endpoint
+        let response = client
+            .client
+            .post(format!("{}/api/v1/cache/reprocess", server.base_url))
+            .send()
+            .unwrap();
+
+        assert!(response.status().is_success());
+
+        let result: serde_json::Value = response.json().unwrap();
+        assert!(result["message"].as_str().unwrap().contains("completed"));
+        assert!(result["processed_files"].is_number());
+
+        let processed_files = result["processed_files"].as_u64().unwrap_or(0);
+        println!("Reprocessed {} files", processed_files);
+
+        // In test environment, there might not be files to reprocess
+        // The important thing is that the endpoint works
+        println!(
+            "Reprocess endpoint worked, processed {} files",
+            processed_files
+        );
+
+        // Verify analytics now includes the reprocessed data
+        thread::sleep(Duration::from_millis(200));
+        let analytics_response = client.get("/api/v1/analytics").send().unwrap();
+        let analytics: serde_json::Value = analytics_response.json().unwrap();
+
+        let total_packages = analytics["total_packages"].as_u64().unwrap_or(0);
+        let metadata_entries = analytics["metadata_cache_entries"].as_u64().unwrap_or(0);
+
+        println!("After reprocess: packages={total_packages}, metadata_entries={metadata_entries}");
+
+        // Should have metadata entries from the requests we made
+        assert!(
+            metadata_entries > 0,
+            "Should have metadata entries after requests"
+        );
+    }
+
+    #[test]
+    #[serial]
+    fn test_metadata_cache_etag_handling() {
+        init_test_env();
+        let server = TestServer::new();
+        let _handle = server.start();
+        let client = ApiClient::new(server.base_url.clone());
+
+        // Clear cache first
+        let _ = client.delete("/api/v1/cache").send();
+        thread::sleep(Duration::from_millis(100));
+
+        // Make initial metadata request
+        let response1 = client.get("/registry/lodash").send().unwrap();
+        assert!(response1.status().is_success());
+
+        // Check if ETag header is present
+        let etag1 = response1.headers().get("etag");
+        println!("First request ETag: {:?}", etag1);
+
+        thread::sleep(Duration::from_millis(100));
+
+        // Make second request - should be cached
+        let response2 = client.get("/registry/lodash").send().unwrap();
+        assert!(response2.status().is_success());
+
+        let etag2 = response2.headers().get("etag");
+        println!("Second request ETag: {:?}", etag2);
+
+        // ETags should be consistent for cached responses
+        if etag1.is_some() && etag2.is_some() {
+            assert_eq!(
+                etag1, etag2,
+                "ETags should be consistent for cached responses"
+            );
+        }
+
+        // Verify cache stats show hits
+        let stats_response = client.get("/api/v1/cache/stats").send().unwrap();
+        let stats: serde_json::Value = stats_response.json().unwrap();
+        let hit_count = stats["hit_count"].as_u64().unwrap_or(0);
+
+        assert!(
+            hit_count > 0,
+            "Should have cache hits from repeated requests"
+        );
+    }
+
+    #[test]
+    #[serial]
+    fn test_metadata_cache_scoped_packages() {
+        init_test_env();
+        let server = TestServer::new();
+        let _handle = server.start();
+        let client = ApiClient::new(server.base_url.clone());
+
+        // Clear cache first
+        let _ = client.delete("/api/v1/cache").send();
+        thread::sleep(Duration::from_millis(100));
+
+        // Test scoped package metadata caching
+        let scoped_packages = vec![
+            "/registry/@types/node",
+            "/registry/@angular/core",
+            "/registry/@babel/core",
+        ];
+
+        for package_url in &scoped_packages {
+            match client.get(package_url).send() {
+                Ok(response) if response.status().is_success() => {
+                    println!("Successfully cached metadata for {package_url}");
+                }
+                Ok(response) => {
+                    println!(
+                        "Request to {package_url} failed with status: {}",
+                        response.status()
+                    );
+                }
+                Err(e) => {
+                    println!("Request to {package_url} failed with error: {e}");
+                }
+            }
+            thread::sleep(Duration::from_millis(100));
+        }
+
+        thread::sleep(Duration::from_millis(200));
+
+        // Check analytics for scoped package metadata
+        let analytics_response = client.get("/api/v1/analytics").send().unwrap();
+        let analytics: serde_json::Value = analytics_response.json().unwrap();
+
+        let metadata_entries = analytics["metadata_cache_entries"].as_u64().unwrap_or(0);
+        let metadata_size_mb = analytics["metadata_cache_size_mb"].as_f64().unwrap_or(0.0);
+
+        println!(
+            "Scoped packages metadata cache: entries={metadata_entries}, size={}MB",
+            metadata_size_mb
+        );
+
+        // Should have cached some scoped package metadata
+        assert!(
+            metadata_entries > 0,
+            "Should have cached scoped package metadata"
+        );
+        assert!(
+            metadata_size_mb > 0.0,
+            "Should have non-zero metadata cache size"
+        );
+
+        // Test reprocess with scoped packages
+        let reprocess_response = client
+            .client
+            .post(format!("{}/api/v1/cache/reprocess", server.base_url))
+            .send()
+            .unwrap();
+
+        assert!(reprocess_response.status().is_success());
+        let reprocess_result: serde_json::Value = reprocess_response.json().unwrap();
+        let processed_files = reprocess_result["processed_files"].as_u64().unwrap_or(0);
+
+        println!(
+            "Reprocessed {} files including scoped packages",
+            processed_files
+        );
+        // In test environment, reprocess might not find files to process
+        // The important thing is that the endpoint works and metadata cache is populated
+    }
 }

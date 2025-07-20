@@ -17,6 +17,7 @@ pub fn get_routes() -> Vec<rocket::Route> {
         api::get_cache_stats,
         api::clear_cache,
         api::cache_health,
+        api::reprocess_cache,
         api::login,
         api::register,
         // Registry routes (used by npm client - no prefix change)

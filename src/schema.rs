@@ -11,6 +11,20 @@ diesel::table! {
 }
 
 diesel::table! {
+    metadata_cache (id) {
+        id -> Integer,
+        package_name -> Text,
+        size_bytes -> BigInt,
+        file_path -> Text,
+        etag -> Nullable<Text>,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
+        last_accessed -> Timestamp,
+        access_count -> Integer,
+    }
+}
+
+diesel::table! {
     package_files (id) {
         id -> Integer,
         package_version_id -> Integer,
@@ -102,6 +116,7 @@ diesel::joinable!(user_tokens -> users (user_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
     cache_stats,
+    metadata_cache,
     package_files,
     package_owners,
     package_versions,

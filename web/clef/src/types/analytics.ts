@@ -105,6 +105,9 @@ export interface AnalyticsData {
   most_popular_packages: PopularPackage[];
   recent_packages: RecentPackage[];
   cache_hit_rate: number;
+  metadata_cache_entries: number;
+  metadata_cache_size_bytes: number;
+  metadata_cache_size_mb: number;
 }
 
 // The API returns the data directly, not wrapped in a response object

@@ -79,12 +79,28 @@ impl CacheService {
 
     fn extract_version_from_filename(&self, package: &str, filename: &str) -> Option<String> {
         // Extract version from filename like "package-1.2.3.tgz"
+        // For scoped packages like "@angular/animations", the filename is "animations-17.3.12.tgz"
+
+        // First try the full package name (for non-scoped packages)
         let name_prefix = format!("{package}-");
         if let Some(version_part) = filename.strip_prefix(&name_prefix) {
             if let Some(version) = version_part.strip_suffix(".tgz") {
                 return Some(version.to_string());
             }
         }
+
+        // For scoped packages, try using just the package name part after the slash
+        if package.contains('/') {
+            if let Some(package_name) = package.split('/').next_back() {
+                let scoped_prefix = format!("{package_name}-");
+                if let Some(version_part) = filename.strip_prefix(&scoped_prefix) {
+                    if let Some(version) = version_part.strip_suffix(".tgz") {
+                        return Some(version.to_string());
+                    }
+                }
+            }
+        }
+
         None
     }
 
@@ -303,9 +319,10 @@ impl CacheService {
                     .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 debug!("Metadata cache hit for key: {cache_key} (size: {size} bytes)");
 
-                // Persist hit count to database if available
+                // Persist hit count and update access info in database if available
                 if let Some(database) = database {
                     let _ = database.increment_cache_hit_count();
+                    let _ = database.update_metadata_access_info(package);
                 }
 
                 // Try to read ETag from metadata file
@@ -421,6 +438,17 @@ impl CacheService {
         metadata_json: &str,
         etag: Option<&str>,
     ) -> Result<(), std::io::Error> {
+        self.put_metadata_with_etag_and_database(package, metadata_json, etag, None)
+            .await
+    }
+
+    pub async fn put_metadata_with_etag_and_database(
+        &self,
+        package: &str,
+        metadata_json: &str,
+        etag: Option<&str>,
+        database: Option<&DatabaseService>,
+    ) -> Result<(), std::io::Error> {
         if !self.config.cache_enabled {
             return Ok(());
         }
@@ -452,9 +480,22 @@ impl CacheService {
             let _ = fs::remove_file(&etag_path);
         }
 
+        // Store metadata information in database if available
+        if let Some(db) = database {
+            if let Err(e) = db.upsert_metadata_cache_entry(
+                package,
+                metadata_json.len() as i64,
+                &cache_path.to_string_lossy(),
+                etag,
+            ) {
+                warn!("Failed to store metadata cache info in database: {e}");
+            } else {
+                debug!("Stored metadata cache info in database for {package}");
+            }
+        }
+
         info!(
-            "Cached metadata for {} (size: {} bytes)",
-            package,
+            "Cached metadata for {package} (size: {} bytes)",
             metadata_json.len()
         );
         Ok(())
@@ -521,6 +562,162 @@ impl CacheService {
             }
         }
         Ok(())
+    }
+
+    /// Re-process existing cached files and add them to the database
+    /// This is useful when the version extraction logic is fixed and we need to
+    /// populate the database with existing cached files
+    pub async fn reprocess_cached_files(
+        &self,
+        database: &DatabaseService,
+    ) -> Result<usize, Box<dyn std::error::Error>> {
+        if !self.config.cache_enabled {
+            return Ok(0);
+        }
+
+        let cache_dir = Path::new(&self.config.cache_dir);
+        if !cache_dir.exists() {
+            return Ok(0);
+        }
+
+        let mut processed_count = 0;
+        self.reprocess_directory(cache_dir, database, &mut processed_count)?;
+
+        info!("Re-processed {processed_count} cached files and added them to database");
+        Ok(processed_count)
+    }
+
+    fn reprocess_directory(
+        &self,
+        dir: &Path,
+        database: &DatabaseService,
+        processed_count: &mut usize,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        for entry in fs::read_dir(dir)? {
+            let entry = entry?;
+            let path = entry.path();
+
+            if path.is_dir() {
+                // Recursively process subdirectories
+                self.reprocess_directory(&path, database, processed_count)?;
+            } else if let Some(filename) = path.file_name().and_then(|s| s.to_str()) {
+                if filename == "metadata.json" {
+                    // Handle metadata.json files
+                    if let Some(package_name) = self.extract_package_name_from_path(&path) {
+                        // Check if this metadata is already in the database
+                        if let Ok(Some(_)) = database.get_metadata_cache_entry(&package_name) {
+                            debug!("Metadata already in database: {package_name}");
+                            continue;
+                        }
+
+                        // Read the file to get its size
+                        if let Ok(data) = fs::read(&path) {
+                            // Try to read etag if it exists
+                            let etag_path = self.get_metadata_etag_path(&package_name);
+                            let etag = if etag_path.exists() {
+                                fs::read_to_string(&etag_path).ok()
+                            } else {
+                                None
+                            };
+
+                            match database.upsert_metadata_cache_entry(
+                                &package_name,
+                                data.len() as i64,
+                                &path.to_string_lossy(),
+                                etag.as_deref(),
+                            ) {
+                                Ok(_) => {
+                                    *processed_count += 1;
+                                    info!(
+                                        "Re-processed and added metadata to database: {package_name}"
+                                    );
+                                }
+                                Err(e) => {
+                                    warn!("Failed to add metadata {package_name} to database: {e}");
+                                }
+                            }
+                        }
+                    }
+                } else if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
+                    if ext == "tgz" {
+                        // Extract package name and filename from path
+                        if let Some(package_name) = self.extract_package_name_from_path(&path) {
+                            // Check if this file is already in the database
+                            if let Ok(Some(_)) = database.get_package_file(&package_name, filename)
+                            {
+                                debug!("File already in database: {package_name}/{filename}");
+                                continue;
+                            }
+
+                            // Try to extract version and add to database
+                            if let Some(version) =
+                                self.extract_version_from_filename(&package_name, filename)
+                            {
+                                // Read the file to get its size
+                                if let Ok(data) = fs::read(&path) {
+                                    let params = CompletePackageParams {
+                                        name: package_name.clone(),
+                                        version,
+                                        filename: filename.to_string(),
+                                        size_bytes: data.len() as i64,
+                                        upstream_url: format!(
+                                            "reprocessed://{package_name}/{filename}"
+                                        ),
+                                        file_path: path.to_string_lossy().to_string(),
+                                        etag: None,
+                                        content_type: Some("application/octet-stream".to_string()),
+                                        author_id: None,
+                                        description: None,
+                                    };
+
+                                    match database.create_complete_package_entry(&params) {
+                                        Ok(_) => {
+                                            *processed_count += 1;
+                                            info!(
+                                                "Re-processed and added to database: {package_name}/{filename}"
+                                            );
+                                        }
+                                        Err(e) => {
+                                            warn!("Failed to add {filename} to database: {e}");
+                                        }
+                                    }
+                                }
+                            } else {
+                                debug!("Could not extract version from {package_name}/{filename}");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn extract_package_name_from_path(&self, path: &Path) -> Option<String> {
+        // Extract package name from cache path structure
+        // Expected structure: cache_dir/packages/package_name/file.tgz or cache_dir/packages/@scope/package_name/file.tgz
+        let cache_dir = Path::new(&self.config.cache_dir);
+
+        if let Ok(relative_path) = path.strip_prefix(cache_dir) {
+            let components: Vec<&str> = relative_path
+                .components()
+                .filter_map(|c| c.as_os_str().to_str())
+                .collect();
+
+            // Skip the "packages" directory component
+            if components.len() >= 3 && components[0] == "packages" {
+                // Check if it's a scoped package (starts with @)
+                if components[1].starts_with('@') && components.len() >= 4 {
+                    // Scoped package: packages/@scope/package_name/file.tgz
+                    return Some(format!("{}/{}", components[1], components[2]));
+                } else {
+                    // Regular package: packages/package_name/file.tgz
+                    return Some(components[1].to_string());
+                }
+            }
+        }
+
+        None
     }
 
     pub async fn get_stats(&self) -> Result<CacheStats, std::io::Error> {
@@ -592,5 +789,85 @@ impl CacheService {
 
         info!("Permanent cache cleared - all packages removed");
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::AppConfig;
+
+    #[test]
+    fn test_extract_version_from_filename() {
+        let config = AppConfig::default();
+        let cache = CacheService::new(config).unwrap();
+
+        // Test regular packages
+        assert_eq!(
+            cache.extract_version_from_filename("lodash", "lodash-4.17.21.tgz"),
+            Some("4.17.21".to_string())
+        );
+
+        // Test scoped packages
+        assert_eq!(
+            cache.extract_version_from_filename("@angular/animations", "animations-17.3.12.tgz"),
+            Some("17.3.12".to_string())
+        );
+
+        assert_eq!(
+            cache.extract_version_from_filename("@types/node", "node-20.5.0.tgz"),
+            Some("20.5.0".to_string())
+        );
+
+        // Test cases that should fail
+        assert_eq!(
+            cache.extract_version_from_filename("lodash", "express-4.17.21.tgz"),
+            None
+        );
+
+        assert_eq!(
+            cache.extract_version_from_filename("@angular/animations", "common-17.3.12.tgz"),
+            None
+        );
+
+        // Test non-tgz files
+        assert_eq!(
+            cache.extract_version_from_filename("lodash", "lodash-4.17.21.zip"),
+            None
+        );
+    }
+
+    #[test]
+    fn test_extract_package_name_from_path() {
+        let mut config = AppConfig::default();
+        config.cache_dir = "data".to_string();
+        let cache = CacheService::new(config).unwrap();
+
+        // Test regular packages
+        let path = Path::new("data/packages/lodash/lodash-4.17.21.tgz");
+        assert_eq!(
+            cache.extract_package_name_from_path(path),
+            Some("lodash".to_string())
+        );
+
+        // Test scoped packages
+        let path = Path::new("data/packages/@angular/animations/animations-17.3.12.tgz");
+        assert_eq!(
+            cache.extract_package_name_from_path(path),
+            Some("@angular/animations".to_string())
+        );
+
+        let path = Path::new("data/packages/@types/node/node-20.5.0.tgz");
+        assert_eq!(
+            cache.extract_package_name_from_path(path),
+            Some("@types/node".to_string())
+        );
+
+        // Test invalid paths
+        let path = Path::new("invalid/path.tgz");
+        assert_eq!(cache.extract_package_name_from_path(path), None);
+
+        let path = Path::new("data/packages/file.tgz");
+        assert_eq!(cache.extract_package_name_from_path(path), None);
     }
 }

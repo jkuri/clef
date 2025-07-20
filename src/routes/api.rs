@@ -184,6 +184,15 @@ pub async fn get_cache_analytics(
         db_size_bytes, cache_stats.total_size_bytes
     );
 
+    // Get metadata cache stats
+    let metadata_stats = state.database.get_metadata_cache_stats().unwrap_or(
+        crate::models::metadata_cache::MetadataCacheStats {
+            total_entries: 0,
+            total_size_bytes: 0,
+            total_size_mb: 0.0,
+        },
+    );
+
     let analytics = CacheAnalytics {
         total_packages: total_packages as i64,
         total_size_bytes: db_size_bytes,
@@ -191,6 +200,9 @@ pub async fn get_cache_analytics(
         most_popular_packages: popular_packages,
         recent_packages,
         cache_hit_rate,
+        metadata_cache_entries: metadata_stats.total_entries,
+        metadata_cache_size_bytes: metadata_stats.total_size_bytes,
+        metadata_cache_size_mb: metadata_stats.total_size_mb,
     };
 
     info!("Analytics response prepared successfully");
@@ -265,6 +277,24 @@ pub async fn cache_health(state: &State<AppState>) -> Result<Json<serde_json::Va
         "status": health_status,
         "enabled": state.config.cache_enabled,
         "total_size_mb": stats.total_size_bytes as f64 / 1024.0 / 1024.0
+    })))
+}
+
+#[post("/api/v1/cache/reprocess")]
+pub async fn reprocess_cache(state: &State<AppState>) -> Result<Json<serde_json::Value>, ApiError> {
+    if !state.config.cache_enabled {
+        return Err(ApiError::ParseError("Cache is disabled".to_string()));
+    }
+
+    let processed_count = state
+        .cache
+        .reprocess_cached_files(&state.database)
+        .await
+        .map_err(|e| ApiError::ParseError(format!("Failed to reprocess cache: {e}")))?;
+
+    Ok(Json(serde_json::json!({
+        "message": "Cache reprocessing completed",
+        "processed_files": processed_count
     })))
 }
 
