@@ -23,7 +23,7 @@ mod tests {
         });
 
         let response = client
-            .post("/register")
+            .post("/api/v1/register")
             .json(&register_data)
             .send()
             .unwrap();
@@ -57,7 +57,7 @@ mod tests {
         });
 
         let register_response = client
-            .post("/register")
+            .post("/api/v1/register")
             .json(&register_data)
             .send()
             .unwrap();
@@ -75,7 +75,11 @@ mod tests {
             "password": "loginpassword123"
         });
 
-        let login_response = client.post("/login").json(&login_data).send().unwrap();
+        let login_response = client
+            .post("/api/v1/login")
+            .json(&login_data)
+            .send()
+            .unwrap();
 
         // The login endpoint should succeed
         assert!(
@@ -194,7 +198,11 @@ mod tests {
             "password": "wrongpassword"
         });
 
-        let response = client.post("/login").json(&login_data).send().unwrap();
+        let response = client
+            .post("/api/v1/login")
+            .json(&login_data)
+            .send()
+            .unwrap();
 
         assert!(!response.status().is_success());
     }
@@ -347,7 +355,7 @@ mod tests {
         });
 
         let first_response = client
-            .post("/register")
+            .post("/api/v1/register")
             .json(&register_data)
             .send()
             .unwrap();
@@ -361,7 +369,7 @@ mod tests {
 
         // Try to register the same user again
         let second_response = client
-            .post("/register")
+            .post("/api/v1/register")
             .json(&register_data)
             .send()
             .unwrap();

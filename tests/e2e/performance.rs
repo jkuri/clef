@@ -22,7 +22,7 @@ mod tests {
         println!("Server should be ready at: {}", server.base_url);
 
         // Clear cache first to start fresh and wait for it to complete
-        match client.delete("/cache").send() {
+        match client.delete("/api/v1/cache").send() {
             Ok(response) => {
                 println!("Cache clear returned: {}", response.status());
                 if !response.status().is_success() {
@@ -44,13 +44,13 @@ mod tests {
         println!("Testing server health...");
 
         // Test root endpoint
-        match client.get("/").send() {
-            Ok(response) => println!("Root endpoint: {}", response.status()),
-            Err(e) => println!("Root endpoint error: {e}"),
+        match client.get("/api/v1/health").send() {
+            Ok(response) => println!("Health endpoint: {}", response.status()),
+            Err(e) => println!("Health endpoint error: {e}"),
         }
 
         // Test cache stats (we know this works)
-        match client.get("/cache/stats").send() {
+        match client.get("/api/v1/cache/stats").send() {
             Ok(response) => println!("Cache stats: {}", response.status()),
             Err(e) => println!("Cache stats error: {e}"),
         }
@@ -258,7 +258,7 @@ mod tests {
         let client = ApiClient::new(server.base_url.clone());
 
         // Clear cache first
-        let _ = client.delete("/cache").send();
+        let _ = client.delete("/api/v1/cache").send();
         thread::sleep(Duration::from_millis(100));
 
         let package_url = "/registry/lodash/-/lodash-4.17.21.tgz";
@@ -314,7 +314,7 @@ mod tests {
         }
 
         // Check that server is still responsive
-        let response = client.get("/").send().unwrap();
+        let response = client.get("/api/v1/health").send().unwrap();
         assert!(response.status().is_success());
     }
 
@@ -328,7 +328,7 @@ mod tests {
         let client = ApiClient::new(server.base_url.clone());
 
         // Clear cache first
-        let _ = client.delete("/cache").send();
+        let _ = client.delete("/api/v1/cache").send();
         thread::sleep(Duration::from_millis(100));
 
         // Use package requests that actually trigger cache operations
@@ -361,7 +361,7 @@ mod tests {
         }
 
         // Check cache stats
-        let stats_response = client.get("/cache/stats").send().unwrap();
+        let stats_response = client.get("/api/v1/cache/stats").send().unwrap();
         assert!(stats_response.status().is_success());
 
         let stats: serde_json::Value = stats_response.json().unwrap();
@@ -452,10 +452,10 @@ mod tests {
 
         // Test analytics endpoints performance
         let endpoints = [
-            "/packages",
-            "/packages/popular?limit=10",
-            "/analytics",
-            "/cache/stats",
+            "/api/v1/packages",
+            "/api/v1/packages/popular?limit=10",
+            "/api/v1/analytics",
+            "/api/v1/cache/stats",
         ];
 
         for endpoint in &endpoints {
@@ -490,7 +490,12 @@ mod tests {
         let mut error_count = 0;
 
         // Make rapid requests to lightweight endpoints for faster testing
-        let endpoints = ["/cache/stats", "/analytics", "/packages", "/cache/health"];
+        let endpoints = [
+            "/api/v1/cache/stats",
+            "/api/v1/analytics",
+            "/api/v1/packages",
+            "/api/v1/cache/health",
+        ];
         let total_requests = 20; // Reduced from 100 for faster testing
 
         for i in 0..total_requests {
@@ -615,8 +620,8 @@ mod tests {
                 move || {
                     let client = ApiClient::new(base_url);
                     for _ in 0..3 {
-                        let _ = client.get("/cache/stats").send();
-                        let _ = client.get("/packages").send();
+                        let _ = client.get("/api/v1/cache/stats").send();
+                        let _ = client.get("/api/v1/packages").send();
                         thread::sleep(Duration::from_millis(30));
                     }
                 }
@@ -627,7 +632,7 @@ mod tests {
                 move || {
                     let client = ApiClient::new(base_url);
                     thread::sleep(Duration::from_millis(100));
-                    let _ = client.get("/cache/health").send();
+                    let _ = client.get("/api/v1/cache/health").send();
                 }
             }),
         ];
@@ -639,7 +644,7 @@ mod tests {
 
         // Verify server is still responsive
         let client = ApiClient::new(server.base_url.clone());
-        let response = client.get("/").send().unwrap();
+        let response = client.get("/api/v1/health").send().unwrap();
         assert!(response.status().is_success());
     }
 }

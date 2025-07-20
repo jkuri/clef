@@ -22,7 +22,7 @@ mod tests {
         thread::sleep(Duration::from_millis(200));
 
         // Test packages list endpoint
-        match client.get("/packages").send() {
+        match client.get("/api/v1/packages").send() {
             Ok(response) => {
                 // The packages endpoint should succeed
                 assert!(
@@ -85,7 +85,7 @@ mod tests {
         thread::sleep(Duration::from_millis(500)); // Wait for data to be stored
 
         // Test package versions endpoint
-        let response = client.get("/packages/lodash").send().unwrap();
+        let response = client.get("/api/v1/packages/lodash").send().unwrap();
 
         // The package versions endpoint should now succeed since we fixed the LEFT JOIN issue
         assert!(
@@ -116,7 +116,7 @@ mod tests {
         thread::sleep(Duration::from_millis(300));
 
         // Test popular packages endpoint with default limit
-        match client.get("/packages/popular").send() {
+        match client.get("/api/v1/packages/popular").send() {
             Ok(response) => {
                 // The popular packages endpoint should succeed
                 assert!(
@@ -174,7 +174,10 @@ mod tests {
         thread::sleep(Duration::from_millis(300));
 
         // Test popular packages endpoint with custom limit
-        let response = client.get("/packages/popular?limit=3").send().unwrap();
+        let response = client
+            .get("/api/v1/packages/popular?limit=3")
+            .send()
+            .unwrap();
 
         // The popular packages endpoint with limit should succeed
         assert!(
@@ -208,7 +211,7 @@ mod tests {
         thread::sleep(Duration::from_millis(300));
 
         // Test comprehensive analytics endpoint
-        match client.get("/analytics").send() {
+        match client.get("/api/v1/analytics").send() {
             Ok(response) => {
                 // The analytics endpoint should succeed
                 assert!(
@@ -294,7 +297,7 @@ mod tests {
 
         // Check if download count is tracked (only if we had successful downloads)
         if successful_downloads > 0 {
-            match client.get("/packages/lodash").send() {
+            match client.get("/api/v1/packages/lodash").send() {
                 Ok(response) if response.status().is_success() => {
                     match response.json::<serde_json::Value>() {
                         Ok(package_data) => {
@@ -350,7 +353,7 @@ mod tests {
         thread::sleep(Duration::from_millis(200));
 
         // Check if package metadata is stored
-        let response = client.get("/packages").send().unwrap();
+        let response = client.get("/api/v1/packages").send().unwrap();
 
         // The packages endpoint should succeed
         assert!(
@@ -401,7 +404,7 @@ mod tests {
         thread::sleep(Duration::from_millis(200));
 
         // Check analytics
-        match client.get("/analytics").send() {
+        match client.get("/api/v1/analytics").send() {
             Ok(response) => {
                 // The analytics endpoint should succeed
                 assert!(
@@ -454,7 +457,7 @@ mod tests {
         thread::sleep(Duration::from_millis(200));
 
         // Check analytics includes cache hit rate
-        let response = client.get("/analytics").send().unwrap();
+        let response = client.get("/api/v1/analytics").send().unwrap();
 
         // The analytics endpoint should succeed
         assert!(
@@ -481,7 +484,7 @@ mod tests {
 
         // Test analytics for non-existent package
         let response = client
-            .get("/packages/nonexistent-package-12345")
+            .get("/api/v1/packages/nonexistent-package-12345")
             .send()
             .unwrap();
 
@@ -511,7 +514,7 @@ mod tests {
         thread::sleep(Duration::from_millis(200));
 
         // Check that timestamps are properly recorded
-        let response = client.get("/packages").send().unwrap();
+        let response = client.get("/api/v1/packages").send().unwrap();
 
         // The packages endpoint should succeed
         assert!(

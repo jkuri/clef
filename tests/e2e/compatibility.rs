@@ -69,7 +69,7 @@ mod tests {
                 thread::sleep(Duration::from_millis(100));
 
                 // Check cache stats
-                let stats_response = client.get("/cache/stats").send().unwrap();
+                let stats_response = client.get("/api/v1/cache/stats").send().unwrap();
                 if stats_response.status().is_success() {
                     let stats: serde_json::Value = stats_response.json().unwrap();
                     let hit_count = stats["hit_count"].as_u64().unwrap_or(0);
@@ -386,7 +386,7 @@ mod tests {
                 thread::sleep(Duration::from_millis(100));
 
                 // Check cache efficiency
-                let stats_response = client.get("/cache/stats").send().unwrap();
+                let stats_response = client.get("/api/v1/cache/stats").send().unwrap();
                 if stats_response.status().is_success() {
                     let stats: serde_json::Value = stats_response.json().unwrap();
                     let hit_count = stats["hit_count"].as_u64().unwrap_or(0);

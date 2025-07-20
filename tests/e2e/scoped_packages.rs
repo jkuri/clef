@@ -385,7 +385,7 @@ mod tests {
         std::thread::sleep(std::time::Duration::from_millis(100));
 
         // Check analytics endpoint
-        match client.get("/packages").send() {
+        match client.get("/api/v1/packages").send() {
             Ok(response) if response.status().is_success() => {
                 match response.json::<serde_json::Value>() {
                     Ok(packages) => {
@@ -442,7 +442,7 @@ mod tests {
             assert!(response2.status().is_success());
 
             // Check cache stats
-            let stats_response = client.get("/cache/stats").send().unwrap();
+            let stats_response = client.get("/api/v1/cache/stats").send().unwrap();
             if stats_response.status().is_success() {
                 let stats: serde_json::Value = stats_response.json().unwrap();
                 assert!(stats["hit_count"].as_u64().unwrap_or(0) > 0);

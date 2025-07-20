@@ -1,14 +1,13 @@
 use crate::error::ApiError;
 use crate::models::{
-    AuthenticatedUser, LoginRequest, LoginResponse, LogoutResponse, NewPackageOwner,
-    NpmPublishRequest, NpmPublishResponse, NpmUserDocument, NpmUserResponse, RegisterRequest,
-    WhoamiResponse,
+    AuthenticatedUser, LoginRequest, LogoutResponse, NewPackageOwner, NpmPublishRequest,
+    NpmPublishResponse, NpmUserDocument, NpmUserResponse, RegisterRequest, WhoamiResponse,
 };
 use crate::services::AuthService;
 use crate::state::AppState;
 use log::{debug, warn};
 use rocket::serde::Serialize;
-use rocket::{State, post, put, serde::json::Json};
+use rocket::{State, put, serde::json::Json};
 
 #[derive(Serialize, Debug)]
 pub struct NpmErrorResponse {
@@ -108,55 +107,8 @@ pub async fn npm_logout(
     Ok(Json(LogoutResponse { ok: true }))
 }
 
-// Simple login endpoint for testing
-#[post("/login", data = "<login_request>")]
-pub async fn login(
-    login_request: Json<LoginRequest>,
-    state: &State<AppState>,
-) -> Result<Json<LoginResponse>, ApiError> {
-    let (_user, token) =
-        AuthService::authenticate_user(&state.database, login_request.into_inner())?;
-
-    Ok(Json(LoginResponse { ok: true, token }))
-}
-
-// Simple register endpoint for testing
-#[post("/register", data = "<register_request>")]
-pub async fn register(
-    register_request: Json<RegisterRequest>,
-    state: &State<AppState>,
-) -> Result<Json<LoginResponse>, ApiError> {
-    let user = AuthService::register_user(&state.database, register_request.into_inner())?;
-
-    // Auto-login after registration
-    let _login_request = LoginRequest {
-        name: user.username,
-        password: "".to_string(), // We can't get the original password back
-    };
-
-    // Create a token directly instead of re-authenticating
-    let new_token = crate::models::NewUserToken::new_auth_token(user.id);
-    let token_value = new_token.token.clone();
-
-    // Insert token into database
-    use crate::schema::user_tokens;
-    use diesel::prelude::*;
-
-    let mut conn = state
-        .database
-        .get_connection()
-        .map_err(|e| ApiError::InternalServerError(format!("Database connection error: {e}")))?;
-
-    diesel::insert_into(user_tokens::table)
-        .values(&new_token)
-        .execute(&mut conn)
-        .map_err(|e| ApiError::InternalServerError(format!("Failed to create token: {e}")))?;
-
-    Ok(Json(LoginResponse {
-        ok: true,
-        token: token_value,
-    }))
-}
+// Simple login and register endpoints have been moved to src/routes/api.rs with /api/v1/ prefix
+// This file now only contains npm-specific authentication routes
 
 // npm publish endpoint - PUT /registry/:package
 #[put("/registry/<package>", data = "<publish_request>")]

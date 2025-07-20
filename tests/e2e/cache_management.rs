@@ -17,7 +17,7 @@ mod tests {
         let client = ApiClient::new(server.base_url.clone());
 
         // Test cache stats endpoint
-        let response = client.get("/cache/stats").send().unwrap();
+        let response = client.get("/api/v1/cache/stats").send().unwrap();
         assert!(response.status().is_success());
 
         let stats: serde_json::Value = response.json().unwrap();
@@ -42,7 +42,7 @@ mod tests {
         let client = ApiClient::new(server.base_url.clone());
 
         // Test cache health endpoint
-        let response = client.get("/cache/health").send().unwrap();
+        let response = client.get("/api/v1/cache/health").send().unwrap();
         assert!(response.status().is_success());
 
         let health: serde_json::Value = response.json().unwrap();
@@ -68,14 +68,14 @@ mod tests {
         thread::sleep(Duration::from_millis(100));
 
         // Test cache clear endpoint
-        let response = client.delete("/cache").send().unwrap();
+        let response = client.delete("/api/v1/cache").send().unwrap();
         assert!(response.status().is_success());
 
         let result: serde_json::Value = response.json().unwrap();
         assert!(result["message"].as_str().unwrap().contains("cleared"));
 
         // Verify cache is cleared by checking stats
-        let stats_response = client.get("/cache/stats").send().unwrap();
+        let stats_response = client.get("/api/v1/cache/stats").send().unwrap();
 
         // The cache stats endpoint should succeed
         assert!(
@@ -100,11 +100,11 @@ mod tests {
         let client = ApiClient::new(server.base_url.clone());
 
         // Clear cache first
-        let _ = client.delete("/cache").send();
+        let _ = client.delete("/api/v1/cache").send();
         thread::sleep(Duration::from_millis(100));
 
         // Get initial stats
-        let initial_stats_response = client.get("/cache/stats").send().unwrap();
+        let initial_stats_response = client.get("/api/v1/cache/stats").send().unwrap();
         let initial_stats: serde_json::Value = initial_stats_response.json().unwrap();
         let initial_miss_count = initial_stats["miss_count"].as_u64().unwrap_or(0);
 
@@ -114,7 +114,7 @@ mod tests {
                 thread::sleep(Duration::from_millis(100));
 
                 // Check stats after first request
-                if let Ok(stats_response1) = client.get("/cache/stats").send() {
+                if let Ok(stats_response1) = client.get("/api/v1/cache/stats").send() {
                     if let Ok(stats1) = stats_response1.json::<serde_json::Value>() {
                         let miss_count1 = stats1["miss_count"].as_u64().unwrap_or(0);
 
@@ -127,7 +127,9 @@ mod tests {
                                 thread::sleep(Duration::from_millis(100));
 
                                 // Check stats after second request
-                                if let Ok(stats_response2) = client.get("/cache/stats").send() {
+                                if let Ok(stats_response2) =
+                                    client.get("/api/v1/cache/stats").send()
+                                {
                                     if let Ok(stats2) = stats_response2.json::<serde_json::Value>()
                                     {
                                         let hit_count2 = stats2["hit_count"].as_u64().unwrap_or(0);
@@ -160,7 +162,7 @@ mod tests {
         let client = ApiClient::new(server.base_url.clone());
 
         // Clear cache first
-        let _ = client.delete("/cache").send();
+        let _ = client.delete("/api/v1/cache").send();
         thread::sleep(Duration::from_millis(100));
 
         // Simulate different package manager requests by making different HTTP requests
@@ -201,7 +203,7 @@ mod tests {
         }
 
         // Check cache stats after requests
-        if let Ok(stats_response) = client.get("/cache/stats").send() {
+        if let Ok(stats_response) = client.get("/api/v1/cache/stats").send() {
             if stats_response.status().is_success() {
                 if let Ok(stats) = stats_response.json::<serde_json::Value>() {
                     let hit_count = stats["hit_count"].as_u64().unwrap_or(0);
@@ -229,11 +231,11 @@ mod tests {
         let client = ApiClient::new(server.base_url.clone());
 
         // Clear cache first
-        let _ = client.delete("/cache").send();
+        let _ = client.delete("/api/v1/cache").send();
         thread::sleep(Duration::from_millis(100));
 
         // Get initial size
-        let initial_stats_response = client.get("/cache/stats").send().unwrap();
+        let initial_stats_response = client.get("/api/v1/cache/stats").send().unwrap();
         let initial_stats: serde_json::Value = initial_stats_response.json().unwrap();
         let initial_size = initial_stats["total_size_bytes"].as_u64().unwrap_or(0);
 
@@ -255,7 +257,7 @@ mod tests {
         thread::sleep(Duration::from_millis(100));
 
         // Check size after download
-        let stats_response = client.get("/cache/stats").send().unwrap();
+        let stats_response = client.get("/api/v1/cache/stats").send().unwrap();
         assert!(stats_response.status().is_success());
 
         let stats: serde_json::Value = stats_response.json().unwrap();
@@ -288,7 +290,7 @@ mod tests {
         let client = ApiClient::new(server.base_url.clone());
 
         // Clear cache first
-        let _ = client.delete("/cache").send();
+        let _ = client.delete("/api/v1/cache").send();
         thread::sleep(Duration::from_millis(100));
 
         // Make multiple requests to the same resource (with error handling)
@@ -317,7 +319,7 @@ mod tests {
 
         // Check hit rate calculation (only if we had successful requests)
         if successful_requests > 0 {
-            if let Ok(stats_response) = client.get("/cache/stats").send() {
+            if let Ok(stats_response) = client.get("/api/v1/cache/stats").send() {
                 if stats_response.status().is_success() {
                     if let Ok(stats) = stats_response.json::<serde_json::Value>() {
                         let hit_count = stats["hit_count"].as_u64().unwrap_or(0);
@@ -351,7 +353,7 @@ mod tests {
         let client = ApiClient::new(server.base_url.clone());
 
         // Test initial health status (should be healthy)
-        let response = client.get("/cache/health").send().unwrap();
+        let response = client.get("/api/v1/cache/health").send().unwrap();
         assert!(response.status().is_success());
 
         let health: serde_json::Value = response.json().unwrap();
@@ -377,7 +379,7 @@ mod tests {
         let client = ApiClient::new(server.base_url.clone());
 
         // Clear cache first
-        let _ = client.delete("/cache").send();
+        let _ = client.delete("/api/v1/cache").send();
         thread::sleep(Duration::from_millis(100));
 
         // Make a HEAD request
@@ -402,7 +404,7 @@ mod tests {
         thread::sleep(Duration::from_millis(100));
 
         // HEAD requests should not populate cache with content
-        let stats_response = client.get("/cache/stats").send().unwrap();
+        let stats_response = client.get("/api/v1/cache/stats").send().unwrap();
         assert!(stats_response.status().is_success());
 
         let stats: serde_json::Value = stats_response.json().unwrap();
@@ -426,7 +428,7 @@ mod tests {
         let client = ApiClient::new(server.base_url.clone());
 
         // Clear cache first
-        let _ = client.delete("/cache").send();
+        let _ = client.delete("/api/v1/cache").send();
         thread::sleep(Duration::from_millis(100));
 
         // Simulate concurrent access (with error handling)
@@ -463,7 +465,7 @@ mod tests {
         thread::sleep(Duration::from_millis(200));
 
         // Check that cache handled concurrent access properly
-        if let Ok(stats_response) = client.get("/cache/stats").send() {
+        if let Ok(stats_response) = client.get("/api/v1/cache/stats").send() {
             if stats_response.status().is_success() {
                 if let Ok(stats) = stats_response.json::<serde_json::Value>() {
                     let total_requests = stats["hit_count"].as_u64().unwrap_or(0)

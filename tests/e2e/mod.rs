@@ -58,7 +58,7 @@ impl TestServer {
 
         Self {
             port,
-            base_url: format!("http://localhost:{port}"),
+            base_url: format!("http://127.0.0.1:{port}"),
             _temp_dir: temp_dir,
             cache_dir,
             db_path,
@@ -102,12 +102,12 @@ impl TestServer {
                 }
             }
 
-            // Try to connect to server
+            // Try to connect to server using the health endpoint
             match reqwest::blocking::Client::builder()
                 .timeout(Duration::from_millis(500))
                 .build()
                 .unwrap()
-                .get(format!("{base_url}/"))
+                .get(format!("{base_url}/api/v1/health"))
                 .send()
             {
                 Ok(response) if response.status().is_success() => {

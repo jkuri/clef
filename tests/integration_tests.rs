@@ -87,13 +87,12 @@ fn create_test_rocket() -> TestRocket {
 fn test_health_check() {
     let test_rocket = create_test_rocket();
     let client = Client::tracked(test_rocket.rocket).expect("valid rocket instance");
-    let response = client.get("/").dispatch();
+    let response = client.get("/api/v1/health").dispatch();
 
     assert_eq!(response.status(), Status::Ok);
-    assert_eq!(
-        response.into_string(),
-        Some("CLEF - Private NPM Registry Server is running!".into())
-    );
+    let body = response.into_string().expect("Response body");
+    let json: serde_json::Value = serde_json::from_str(&body).expect("Valid JSON");
+    assert_eq!(json["status"], "ok");
 }
 
 #[test]
@@ -238,7 +237,7 @@ mod config_tests {
 fn test_cache_stats() {
     let test_rocket = create_test_rocket();
     let client = Client::tracked(test_rocket.rocket).expect("valid rocket instance");
-    let response = client.get("/cache/stats").dispatch();
+    let response = client.get("/api/v1/cache/stats").dispatch();
 
     assert_eq!(response.status(), Status::Ok);
 
@@ -252,7 +251,7 @@ fn test_cache_stats() {
 fn test_cache_health() {
     let test_rocket = create_test_rocket();
     let client = Client::tracked(test_rocket.rocket).expect("valid rocket instance");
-    let response = client.get("/cache/health").dispatch();
+    let response = client.get("/api/v1/cache/health").dispatch();
 
     assert_eq!(response.status(), Status::Ok);
 

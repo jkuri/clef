@@ -18,7 +18,7 @@ pub struct LoginResponse {
     pub token: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct RegisterRequest {
     pub name: String,
     pub email: String,
