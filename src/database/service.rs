@@ -66,6 +66,18 @@ impl DatabaseService {
         ops.get_recent_packages(limit)
     }
 
+    pub fn get_packages_paginated(
+        &self,
+        limit: i64,
+        offset: i64,
+        search_query: Option<&str>,
+        sort_column: Option<&str>,
+        sort_order: Option<&str>,
+    ) -> Result<(Vec<PackageWithVersions>, i64), diesel::result::Error> {
+        let ops = PackageOperations::new(&self.pool);
+        ops.get_packages_paginated(limit, offset, search_query, sort_column, sort_order)
+    }
+
     // Package version operations
     pub fn create_or_get_package_version(
         &self,

@@ -177,9 +177,19 @@ pub struct PopularPackage {
 #[derive(Serialize, Debug)]
 pub struct PackageListResponse {
     pub packages: Vec<PackageWithVersions>,
-    pub total_count: usize,
+    pub total_count: i64,
     pub total_size_bytes: i64,
     pub total_size_mb: f64,
+    pub pagination: PaginationMetadata,
+}
+
+#[derive(Serialize, Debug)]
+pub struct PaginationMetadata {
+    pub page: i64,
+    pub limit: i64,
+    pub total_pages: i64,
+    pub has_next: bool,
+    pub has_prev: bool,
 }
 
 #[derive(Serialize, Debug)]

@@ -525,19 +525,352 @@ mod tests {
 
         let packages: serde_json::Value = response.json().unwrap();
 
-        if let Some(packages_array) = packages.as_array() {
-            for package in packages_array {
-                let created_at = package["created_at"].as_str().unwrap();
-                let updated_at = package["updated_at"].as_str().unwrap();
+        // Check if response has the new pagination structure
+        if let Some(packages_obj) = packages.as_object() {
+            if let Some(packages_array) = packages_obj["packages"].as_array() {
+                for package_with_versions in packages_array {
+                    let package = &package_with_versions["package"];
+                    let created_at = package["created_at"].as_str().unwrap();
+                    let updated_at = package["updated_at"].as_str().unwrap();
 
-                // Should be valid ISO timestamps
-                assert!(created_at.contains("T"));
-                assert!(updated_at.contains("T"));
+                    // Should be valid ISO timestamps
+                    assert!(created_at.contains("T"));
+                    assert!(updated_at.contains("T"));
 
-                // Parse timestamps to verify they're valid
-                assert!(chrono::DateTime::parse_from_rfc3339(created_at).is_ok());
-                assert!(chrono::DateTime::parse_from_rfc3339(updated_at).is_ok());
+                    // Parse timestamps to verify they're valid
+                    assert!(chrono::DateTime::parse_from_rfc3339(created_at).is_ok());
+                    assert!(chrono::DateTime::parse_from_rfc3339(updated_at).is_ok());
+                }
             }
         }
+    }
+
+    #[test]
+    #[serial]
+    fn test_packages_pagination() {
+        init_test_env();
+        let server = TestServer::new();
+        let _handle = server.start();
+
+        let client = ApiClient::new(server.base_url.clone());
+
+        // Make requests to populate the database with multiple packages
+        let packages = ["lodash", "express", "react", "vue", "angular"];
+        for package in &packages {
+            let _ = client.get(&format!("/registry/{package}")).send();
+        }
+        thread::sleep(Duration::from_millis(500));
+
+        // Test default pagination (page 1, limit 20)
+        let response = client.get("/api/v1/packages").send().unwrap();
+        assert!(response.status().is_success());
+
+        let packages_response: serde_json::Value = response.json().unwrap();
+
+        // Verify pagination structure
+        assert!(packages_response["packages"].is_array());
+        assert!(packages_response["total_count"].is_number());
+        assert!(packages_response["pagination"].is_object());
+
+        let pagination = &packages_response["pagination"];
+        assert_eq!(pagination["page"], 1);
+        assert_eq!(pagination["limit"], 20);
+        assert!(pagination["total_pages"].is_number());
+        assert!(pagination["has_next"].is_boolean());
+        assert!(pagination["has_prev"].is_boolean());
+        assert_eq!(pagination["has_prev"], false); // First page should not have previous
+
+        // Test custom pagination
+        let response = client
+            .get("/api/v1/packages?limit=2&page=1")
+            .send()
+            .unwrap();
+        assert!(response.status().is_success());
+
+        let packages_response: serde_json::Value = response.json().unwrap();
+        let pagination = &packages_response["pagination"];
+        assert_eq!(pagination["page"], 1);
+        assert_eq!(pagination["limit"], 2);
+
+        if let Some(packages_array) = packages_response["packages"].as_array() {
+            assert!(packages_array.len() <= 2);
+        }
+
+        // Test page 2 if there are enough packages
+        let total_count = packages_response["total_count"].as_i64().unwrap_or(0);
+        if total_count > 2 {
+            let response = client
+                .get("/api/v1/packages?limit=2&page=2")
+                .send()
+                .unwrap();
+            assert!(response.status().is_success());
+
+            let packages_response: serde_json::Value = response.json().unwrap();
+            let pagination = &packages_response["pagination"];
+            assert_eq!(pagination["page"], 2);
+            assert_eq!(pagination["has_prev"], true); // Second page should have previous
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn test_packages_search() {
+        init_test_env();
+        let server = TestServer::new();
+        let _handle = server.start();
+
+        let client = ApiClient::new(server.base_url.clone());
+
+        // Make requests to populate the database
+        let packages = ["react", "react-dom", "lodash", "express"];
+        for package in &packages {
+            let _ = client.get(&format!("/registry/{package}")).send();
+        }
+        thread::sleep(Duration::from_millis(500));
+
+        // Test search functionality
+        let response = client.get("/api/v1/packages?search=react").send().unwrap();
+        assert!(response.status().is_success());
+
+        let packages_response: serde_json::Value = response.json().unwrap();
+
+        if let Some(packages_array) = packages_response["packages"].as_array() {
+            // All returned packages should contain "react" in name or description
+            for package_with_versions in packages_array {
+                let package = &package_with_versions["package"];
+                let name = package["name"].as_str().unwrap_or("");
+                let description = package["description"].as_str().unwrap_or("");
+
+                assert!(
+                    name.to_lowercase().contains("react")
+                        || description.to_lowercase().contains("react"),
+                    "Package {} does not contain 'react' in name or description",
+                    name
+                );
+            }
+        }
+
+        // Test search with pagination
+        let response = client
+            .get("/api/v1/packages?search=react&limit=1")
+            .send()
+            .unwrap();
+        assert!(response.status().is_success());
+
+        let packages_response: serde_json::Value = response.json().unwrap();
+        let pagination = &packages_response["pagination"];
+        assert_eq!(pagination["limit"], 1);
+
+        if let Some(packages_array) = packages_response["packages"].as_array() {
+            assert!(packages_array.len() <= 1);
+        }
+
+        // Test search with no results
+        let response = client
+            .get("/api/v1/packages?search=nonexistent-package-xyz")
+            .send()
+            .unwrap();
+        assert!(response.status().is_success());
+
+        let packages_response: serde_json::Value = response.json().unwrap();
+        assert_eq!(packages_response["total_count"], 0);
+
+        if let Some(packages_array) = packages_response["packages"].as_array() {
+            assert!(packages_array.is_empty());
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn test_packages_sorting() {
+        init_test_env();
+        let server = TestServer::new();
+        let _handle = server.start();
+
+        let client = ApiClient::new(server.base_url.clone());
+
+        // Make requests to populate the database
+        let packages = ["zebra-package", "alpha-package", "beta-package"];
+        for package in &packages {
+            let _ = client.get(&format!("/registry/{package}")).send();
+            thread::sleep(Duration::from_millis(100)); // Small delay to ensure different timestamps
+        }
+        thread::sleep(Duration::from_millis(300));
+
+        // Test sorting by name ascending
+        let response = client
+            .get("/api/v1/packages?sort=name&order=asc&limit=10")
+            .send()
+            .unwrap();
+        assert!(response.status().is_success());
+
+        let packages_response: serde_json::Value = response.json().unwrap();
+
+        if let Some(packages_array) = packages_response["packages"].as_array() {
+            let mut prev_name = "";
+            for package_with_versions in packages_array {
+                let package = &package_with_versions["package"];
+                let name = package["name"].as_str().unwrap_or("");
+
+                if !prev_name.is_empty() {
+                    assert!(
+                        name >= prev_name,
+                        "Packages not sorted by name ascending: {} should be >= {}",
+                        name,
+                        prev_name
+                    );
+                }
+                prev_name = name;
+            }
+        }
+
+        // Test sorting by name descending
+        let response = client
+            .get("/api/v1/packages?sort=name&order=desc&limit=10")
+            .send()
+            .unwrap();
+        assert!(response.status().is_success());
+
+        let packages_response: serde_json::Value = response.json().unwrap();
+
+        if let Some(packages_array) = packages_response["packages"].as_array() {
+            let mut prev_name = "zzzzz"; // Start with high value for descending
+            for package_with_versions in packages_array {
+                let package = &package_with_versions["package"];
+                let name = package["name"].as_str().unwrap_or("");
+
+                assert!(
+                    name <= prev_name,
+                    "Packages not sorted by name descending: {} should be <= {}",
+                    name,
+                    prev_name
+                );
+                prev_name = name;
+            }
+        }
+
+        // Test sorting by created_at descending (default)
+        let response = client
+            .get("/api/v1/packages?sort=created_at&order=desc&limit=10")
+            .send()
+            .unwrap();
+        assert!(response.status().is_success());
+
+        let packages_response: serde_json::Value = response.json().unwrap();
+
+        if let Some(packages_array) = packages_response["packages"].as_array() {
+            let mut prev_created_at = "9999-12-31T23:59:59Z"; // Start with future date for descending
+            for package_with_versions in packages_array {
+                let package = &package_with_versions["package"];
+                let created_at = package["created_at"].as_str().unwrap_or("");
+
+                assert!(
+                    created_at <= prev_created_at,
+                    "Packages not sorted by created_at descending: {} should be <= {}",
+                    created_at,
+                    prev_created_at
+                );
+                prev_created_at = created_at;
+            }
+        }
+
+        // Test invalid sort parameters (should default to created_at desc)
+        let response = client
+            .get("/api/v1/packages?sort=invalid&order=invalid&limit=5")
+            .send()
+            .unwrap();
+        assert!(response.status().is_success());
+
+        let packages_response: serde_json::Value = response.json().unwrap();
+        // Should still return valid response with default sorting
+        assert!(packages_response["packages"].is_array());
+        assert!(packages_response["pagination"].is_object());
+    }
+
+    #[test]
+    #[serial]
+    fn test_packages_combined_features() {
+        init_test_env();
+        let server = TestServer::new();
+        let _handle = server.start();
+
+        let client = ApiClient::new(server.base_url.clone());
+
+        // Make requests to populate the database
+        let packages = ["react", "react-dom", "react-router", "lodash", "express"];
+        for package in &packages {
+            let _ = client.get(&format!("/registry/{package}")).send();
+            thread::sleep(Duration::from_millis(50));
+        }
+        thread::sleep(Duration::from_millis(300));
+
+        // Test combining search, pagination, and sorting
+        let response = client
+            .get("/api/v1/packages?search=react&sort=name&order=asc&limit=2&page=1")
+            .send()
+            .unwrap();
+        assert!(response.status().is_success());
+
+        let packages_response: serde_json::Value = response.json().unwrap();
+
+        // Verify pagination metadata
+        let pagination = &packages_response["pagination"];
+        assert_eq!(pagination["page"], 1);
+        assert_eq!(pagination["limit"], 2);
+
+        // Verify search results are sorted
+        if let Some(packages_array) = packages_response["packages"].as_array() {
+            assert!(packages_array.len() <= 2);
+
+            let mut prev_name = "";
+            for package_with_versions in packages_array {
+                let package = &package_with_versions["package"];
+                let name = package["name"].as_str().unwrap_or("");
+                let description = package["description"].as_str().unwrap_or("");
+
+                // Should contain "react" in name or description
+                assert!(
+                    name.to_lowercase().contains("react")
+                        || description.to_lowercase().contains("react"),
+                    "Package {} does not contain 'react'",
+                    name
+                );
+
+                // Should be sorted by name ascending
+                if !prev_name.is_empty() {
+                    assert!(
+                        name >= prev_name,
+                        "Search results not sorted by name ascending: {} should be >= {}",
+                        name,
+                        prev_name
+                    );
+                }
+                prev_name = name;
+            }
+        }
+
+        // Test parameter validation - limit should be clamped
+        let response = client.get("/api/v1/packages?limit=1000").send().unwrap();
+        assert!(response.status().is_success());
+
+        let packages_response: serde_json::Value = response.json().unwrap();
+        let pagination = &packages_response["pagination"];
+        assert_eq!(pagination["limit"], 100); // Should be clamped to max 100
+
+        // Test minimum limit
+        let response = client.get("/api/v1/packages?limit=0").send().unwrap();
+        assert!(response.status().is_success());
+
+        let packages_response: serde_json::Value = response.json().unwrap();
+        let pagination = &packages_response["pagination"];
+        assert_eq!(pagination["limit"], 1); // Should be clamped to min 1
+
+        // Test minimum page
+        let response = client.get("/api/v1/packages?page=0").send().unwrap();
+        assert!(response.status().is_success());
+
+        let packages_response: serde_json::Value = response.json().unwrap();
+        let pagination = &packages_response["pagination"];
+        assert_eq!(pagination["page"], 1); // Should be clamped to min 1
     }
 }

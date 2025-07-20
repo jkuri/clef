@@ -22,14 +22,43 @@ pub async fn health_check() -> Json<serde_json::Value> {
 }
 
 // Analytics endpoints
-#[get("/api/v1/packages")]
-pub async fn list_packages(state: &State<AppState>) -> Result<Json<PackageListResponse>, ApiError> {
-    let packages = state
-        .database
-        .get_all_packages_with_versions()
-        .map_err(|e| ApiError::ParseError(format!("Failed to list packages: {e}")))?;
+#[get("/api/v1/packages?<limit>&<page>&<search>&<sort>&<order>")]
+pub async fn list_packages(
+    limit: Option<i64>,
+    page: Option<i64>,
+    search: Option<String>,
+    sort: Option<String>,
+    order: Option<String>,
+    state: &State<AppState>,
+) -> Result<Json<PackageListResponse>, ApiError> {
+    let limit = limit.unwrap_or(20).clamp(1, 100); // Default 20, max 100
+    let page = page.unwrap_or(1).max(1); // Default page 1, minimum 1
+    let offset = (page - 1) * limit;
 
-    let total_count = packages.len();
+    let search_query = search.as_deref();
+    let sort_column = sort.as_deref();
+    let sort_order = order.as_deref();
+
+    // Validate sort parameters
+    let valid_columns = ["name", "created_at", "updated_at", "id"];
+    let valid_orders = ["asc", "desc"];
+
+    let sort_column = match sort_column {
+        Some(col) if valid_columns.contains(&col) => Some(col),
+        Some(_) => Some("created_at"), // Default to created_at for invalid columns
+        None => None,
+    };
+
+    let sort_order = match sort_order {
+        Some(ord) if valid_orders.contains(&ord) => Some(ord),
+        Some(_) => Some("desc"), // Default to desc for invalid orders
+        None => None,
+    };
+
+    let (packages, total_count) = state
+        .database
+        .get_packages_paginated(limit, offset, search_query, sort_column, sort_order)
+        .map_err(|e| ApiError::ParseError(format!("Failed to list packages: {e}")))?;
 
     // Calculate total size from all files across all versions
     let total_size_bytes = packages
@@ -41,11 +70,25 @@ pub async fn list_packages(state: &State<AppState>) -> Result<Json<PackageListRe
 
     let total_size_mb = total_size_bytes as f64 / 1024.0 / 1024.0;
 
+    // Calculate pagination metadata
+    let total_pages = (total_count + limit - 1) / limit; // Ceiling division
+    let has_next = page < total_pages;
+    let has_prev = page > 1;
+
+    let pagination = crate::models::package::PaginationMetadata {
+        page,
+        limit,
+        total_pages,
+        has_next,
+        has_prev,
+    };
+
     Ok(Json(PackageListResponse {
         packages,
         total_count,
         total_size_bytes,
         total_size_mb,
+        pagination,
     }))
 }
 
