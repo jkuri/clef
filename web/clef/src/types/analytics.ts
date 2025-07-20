@@ -37,6 +37,45 @@ export interface PackageVersion {
 
 export interface PackageFile {
   id: number;
+  version_id: number;
+  filename: string;
+  size_bytes: number;
+  created_at: string;
+}
+
+export interface PackageWithVersions {
+  id: number;
+  name: string;
+  description: string;
+  author_id: number | null;
+  homepage: string | null;
+  repository_url: string | null;
+  license: string | null;
+  keywords: string | null;
+  is_private: boolean;
+  created_at: string;
+  updated_at: string;
+  versions: Array<PackageVersion & { files: PackageFile[] }>;
+}
+
+export interface PaginationMetadata {
+  page: number;
+  limit: number;
+  total_pages: number;
+  has_next: boolean;
+  has_prev: boolean;
+}
+
+export interface PackageListResponse {
+  packages: PackageWithVersions[];
+  total_count: number;
+  total_size_bytes: number;
+  total_size_mb: number;
+  pagination: PaginationMetadata;
+}
+
+export interface PackageFile {
+  id: number;
   package_version_id: number;
   filename: string;
   size_bytes: number;

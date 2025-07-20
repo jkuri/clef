@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router";
 import { composeProviders } from "./lib/compose-providers";
 import { Dashboard } from "./pages/dashboard/dasboard";
 import { Layout } from "./pages/layout/layout";
+import { Packages } from "./pages/packages/packages";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -28,6 +29,7 @@ function AppRoutes() {
       <Route path="/" element={<Layout />}>
         <Route index element={<Navigate to={"/dashboard"} />} />
         <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/packages" element={<Packages />} />
       </Route>
     </Routes>
   );

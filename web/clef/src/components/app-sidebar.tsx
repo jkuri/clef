@@ -1,14 +1,4 @@
-import {
-  AudioWaveform,
-  BookOpen,
-  Frame,
-  GalleryVerticalEnd,
-  Map as MapIcon,
-  Package2,
-  PieChart,
-  Settings2,
-  SquareTerminal,
-} from "lucide-react";
+import { AudioWaveform, GalleryVerticalEnd, Map as MapIcon, Package2, SquareTerminal } from "lucide-react";
 import type * as React from "react";
 
 import { NavMain } from "@/components/nav-main";
@@ -48,11 +38,11 @@ const data = {
         },
         {
           title: "Analytics",
-          url: "/dashboard/analytics",
+          url: "#",
         },
         {
           title: "Reports",
-          url: "/dashboard/reports",
+          url: "#",
         },
       ],
     },
@@ -60,6 +50,7 @@ const data = {
       title: "Packages",
       url: "/packages",
       icon: Package2,
+      isActive: true,
       items: [
         {
           title: "All",
@@ -67,68 +58,12 @@ const data = {
         },
         {
           title: "Popular",
-          url: "/packages/popular",
-        },
-      ],
-    },
-    {
-      title: "Documentation",
-      url: "/docs",
-      icon: BookOpen,
-      items: [
-        {
-          title: "Getting Started",
-          url: "/docs/getting-started",
-        },
-        {
-          title: "API Reference",
-          url: "/docs/api",
-        },
-        {
-          title: "Examples",
-          url: "/docs/examples",
-        },
-        {
-          title: "Changelog",
-          url: "/docs/changelog",
-        },
-      ],
-    },
-    {
-      title: "Settings",
-      url: "/settings",
-      icon: Settings2,
-      items: [
-        {
-          title: "Profile",
-          url: "/settings/profile",
-        },
-        {
-          title: "Account",
-          url: "/settings/account",
-        },
-        {
-          title: "Preferences",
-          url: "/settings/preferences",
-        },
-        {
-          title: "Billing",
-          url: "/settings/billing",
+          url: "#",
         },
       ],
     },
   ],
   projects: [
-    {
-      name: "Web Application",
-      url: "#",
-      icon: Frame,
-    },
-    {
-      name: "Mobile App",
-      url: "#",
-      icon: PieChart,
-    },
     {
       name: "API Service",
       url: "#",
