@@ -2,6 +2,8 @@
 
 > Unlock private NPM registry, sealed in Rust.
 
+[![API](https://github.com/jkuri/clef/actions/workflows/clef.yml/badge.svg)](https://github.com/jkuri/clef/actions/workflows/clef.yml)
+
 A high-performance private npm registry built with Rust and Rocket. Clef provides secure package hosting with intelligent upstream proxying, authentication, and caching—delivering the reliability and speed your development workflow demands.
 
 ## Features
