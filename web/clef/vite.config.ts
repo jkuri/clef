@@ -5,7 +5,7 @@ import { defineConfig } from "vite";
 import checker from "vite-plugin-checker";
 
 export default defineConfig({
-  plugins: [react(), tailwindcss(), checker({ typescript: true, biome: { command: "check" } })],
+  plugins: [react(), tailwindcss(), checker({ typescript: true })],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
