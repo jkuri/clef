@@ -139,40 +139,68 @@ pub async fn npm_publish(
 
         debug!("Decoded tarball size: {} bytes", tarball_data.len());
 
-        // Create cache directory if it doesn't exist
+        // Create packages directory structure
+        // Scoped packages like @jkuri/test-scoped-package are stored as @jkuri/test-scoped-package/
         let cache_dir = Path::new(&state.config.cache_dir);
-        if !cache_dir.exists() {
-            fs::create_dir_all(cache_dir).map_err(|e| {
-                ApiError::InternalServerError(format!("Failed to create cache directory: {e}"))
-            })?;
-        }
+        let packages_dir = cache_dir.join("packages");
+        let package_dir = packages_dir.join(package);
 
-        // Create package-specific directory
-        let package_dir = cache_dir.join(package);
-        if !package_dir.exists() {
-            fs::create_dir_all(&package_dir).map_err(|e| {
-                ApiError::InternalServerError(format!("Failed to create package directory: {e}"))
-            })?;
-        }
+        debug!("Package name: {package}");
+        debug!("Package directory: {package_dir:?}");
+        debug!("Creating directory: {package_dir:?}");
+        fs::create_dir_all(&package_dir).map_err(|e| {
+            debug!("Failed to create directory {package_dir:?}: {e}");
+            ApiError::InternalServerError(format!("Failed to create package directory: {e}"))
+        })?;
 
-        // Write the tarball to the cache
-        let tarball_path = package_dir.join(filename);
-        fs::write(&tarball_path, &tarball_data)
-            .map_err(|e| ApiError::InternalServerError(format!("Failed to write tarball: {e}")))?;
+        // Save the tarball
+        // For scoped packages like @jkuri/test-scoped-package, the tarball filename should be test-scoped-package-1.0.0.tgz
+        let tarball_filename = if package.starts_with('@') {
+            // Extract the package name without the scope for the filename
+            let package_name = package.split('/').next_back().unwrap_or(package);
+            format!("{package_name}-{version}.tgz")
+        } else {
+            format!("{package}-{version}.tgz")
+        };
+        let tarball_path = package_dir.join(&tarball_filename);
+        debug!("Writing tarball to: {tarball_path:?}");
+        fs::write(&tarball_path, &tarball_data).map_err(|e| {
+            debug!("Failed to write tarball to {tarball_path:?}: {e}");
+            ApiError::InternalServerError(format!("Failed to write tarball: {e}"))
+        })?;
+
+        // Store package.json to filesystem instead of database
+        let package_json = serde_json::to_string(&version_data).map_err(|e| {
+            ApiError::InternalServerError(format!("Failed to serialize package.json: {e}"))
+        })?;
+
+        // Save package.json alongside the tarball
+        let package_json_path = package_dir.join(format!(
+            "{}-{}.json",
+            if package.starts_with('@') {
+                package.split('/').next_back().unwrap_or(package)
+            } else {
+                package
+            },
+            version
+        ));
+        fs::write(&package_json_path, &package_json).map_err(|e| {
+            ApiError::InternalServerError(format!("Failed to write package.json: {e}"))
+        })?;
 
         debug!("Wrote tarball to: {}", tarball_path.display());
 
         // Store file information in database
         let upstream_url = format!(
             "{}/{}/-/{}",
-            state.config.upstream_registry, package, filename
+            state.config.upstream_registry, package, tarball_filename
         );
 
         state
             .database
             .create_or_update_package_file(
                 pkg_version.id,
-                filename,
+                &tarball_filename,
                 tarball_data.len() as i64,
                 &upstream_url,
                 &tarball_path.to_string_lossy(),

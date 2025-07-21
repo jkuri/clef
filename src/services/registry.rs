@@ -758,7 +758,7 @@ impl RegistryService {
         // Create the complete package metadata
         let mut metadata = json!({
             "name": package_name,
-            "description": package_description.unwrap_or_else(|| "".to_string()),
+            "description": package_description.unwrap_or_default(),
             "dist-tags": dist_tags,
             "versions": versions,
             "_id": package_name,
