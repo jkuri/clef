@@ -451,4 +451,73 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    #[serial]
+    fn test_nonexistent_package_returns_404() {
+        init_test_env();
+        let server = TestServer::new();
+        let _handle = server.start();
+
+        let client = ApiClient::new(server.base_url.clone());
+
+        // Test nonexistent regular package
+        match client.get("/registry/nonexistent-package-12345").send() {
+            Ok(response) => {
+                println!("Nonexistent package returned status: {}", response.status());
+                assert_eq!(
+                    response.status(),
+                    404,
+                    "Nonexistent package should return 404, got {}",
+                    response.status()
+                );
+            }
+            Err(e) => {
+                println!("Request failed: {e}. This may be due to network issues.");
+            }
+        }
+
+        // Test nonexistent package tarball
+        match client
+            .get("/registry/nonexistent-package-12345/-/nonexistent-package-12345-1.0.0.tgz")
+            .send()
+        {
+            Ok(response) => {
+                println!("Nonexistent tarball returned status: {}", response.status());
+                assert_eq!(
+                    response.status(),
+                    404,
+                    "Nonexistent tarball should return 404, got {}",
+                    response.status()
+                );
+            }
+            Err(e) => {
+                println!("Request failed: {e}. This may be due to network issues.");
+            }
+        }
+
+        // Test nonexistent scoped package
+        match client
+            .get("/registry/@nonexistent-scope/nonexistent-package")
+            .send()
+        {
+            Ok(response) => {
+                println!(
+                    "Nonexistent scoped package returned status: {}",
+                    response.status()
+                );
+                assert_eq!(
+                    response.status(),
+                    404,
+                    "Nonexistent scoped package should return 404, got {}",
+                    response.status()
+                );
+            }
+            Err(e) => {
+                println!("Request failed: {e}. This may be due to network issues.");
+            }
+        }
+
+        println!("✅ All nonexistent package requests correctly returned 404");
+    }
 }

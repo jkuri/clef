@@ -6,6 +6,33 @@ use diesel::prelude::*;
 use log::{debug, error, info, warn};
 use rocket::serde::json::Value;
 
+/// Clean repository URL to make it browser-accessible
+/// Removes git+ prefix and .git suffix, converts SSH URLs to HTTPS
+fn clean_repository_url(url: &str) -> String {
+    let mut cleaned = url.to_string();
+
+    // Remove git+ prefix
+    if cleaned.starts_with("git+") {
+        cleaned = cleaned[4..].to_string();
+    }
+
+    // Remove .git suffix
+    if cleaned.ends_with(".git") {
+        cleaned = cleaned[..cleaned.len() - 4].to_string();
+    }
+
+    // Convert SSH URLs to HTTPS for browser accessibility
+    if cleaned.starts_with("git@github.com:") {
+        cleaned = cleaned.replace("git@github.com:", "https://github.com/");
+    } else if cleaned.starts_with("git@gitlab.com:") {
+        cleaned = cleaned.replace("git@gitlab.com:", "https://gitlab.com/");
+    } else if cleaned.starts_with("git@bitbucket.org:") {
+        cleaned = cleaned.replace("git@bitbucket.org:", "https://bitbucket.org/");
+    }
+
+    cleaned
+}
+
 pub struct RegistryService;
 
 impl RegistryService {
@@ -64,15 +91,68 @@ impl RegistryService {
             .create_or_get_package(package, description, None)
             .map_err(|e| ApiError::InternalServerError(format!("Database error: {e}")))?;
 
+        // Extract package-level metadata from the npm registry response
+        let homepage = json["homepage"].as_str().map(|s| s.to_string());
+
+        // Handle repository field which can be a string or object
+        let repository_url = match &json["repository"] {
+            Value::String(url) => Some(clean_repository_url(url)),
+            Value::Object(repo_obj) => repo_obj
+                .get("url")
+                .and_then(|u| u.as_str())
+                .map(clean_repository_url),
+            _ => None,
+        };
+
+        let license = json["license"].as_str().map(|s| s.to_string());
+
+        // Handle keywords array
+        let keywords = json["keywords"].as_array().map(|arr| {
+            let keywords_vec: Vec<String> = arr
+                .iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect();
+            serde_json::to_string(&keywords_vec).unwrap_or_default()
+        });
+
+        // Update package metadata if any of the fields are present
+        if homepage.is_some() || repository_url.is_some() || license.is_some() || keywords.is_some()
+        {
+            if let Err(e) = state.database.update_package_metadata(
+                pkg.id,
+                homepage,
+                repository_url,
+                license,
+                keywords,
+            ) {
+                warn!("Failed to update package metadata for {package}: {e}");
+            } else {
+                debug!("Updated package metadata for {package}");
+            }
+        }
+
         // Extract and store version information from the npm registry response
         if let Some(versions) = json["versions"].as_object() {
+            // Extract time information for versions
+            let time_info = json["time"].as_object();
+
             for (version_str, version_data) in versions {
+                // Create a mutable copy of version_data to add timestamp information
+                let mut version_data_with_time = version_data.clone();
+
+                // Add the publication time from the time field if available
+                if let Some(time_obj) = time_info {
+                    if let Some(version_time) = time_obj.get(version_str) {
+                        version_data_with_time["_published_time"] = version_time.clone();
+                    }
+                }
+
                 // Store version with full metadata from npm registry
                 // The create_or_get_package_version_with_metadata method will handle existing versions
                 if let Err(e) = state.database.create_or_get_package_version_with_metadata(
                     pkg.id,
                     version_str,
-                    version_data,
+                    &version_data_with_time,
                 ) {
                     warn!("Failed to store version metadata for {package}/{version_str}: {e}");
                 } else {
@@ -98,6 +178,46 @@ impl RegistryService {
             .database
             .create_or_get_package(package, description, None)
             .map_err(|e| ApiError::InternalServerError(format!("Database error: {e}")))?;
+
+        // Extract package-level metadata from the version response (if available)
+        let homepage = json["homepage"].as_str().map(|s| s.to_string());
+
+        // Handle repository field which can be a string or object
+        let repository_url = match &json["repository"] {
+            Value::String(url) => Some(clean_repository_url(url)),
+            Value::Object(repo_obj) => repo_obj
+                .get("url")
+                .and_then(|u| u.as_str())
+                .map(clean_repository_url),
+            _ => None,
+        };
+
+        let license = json["license"].as_str().map(|s| s.to_string());
+
+        // Handle keywords array
+        let keywords = json["keywords"].as_array().map(|arr| {
+            let keywords_vec: Vec<String> = arr
+                .iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect();
+            serde_json::to_string(&keywords_vec).unwrap_or_default()
+        });
+
+        // Update package metadata if any of the fields are present
+        if homepage.is_some() || repository_url.is_some() || license.is_some() || keywords.is_some()
+        {
+            if let Err(e) = state.database.update_package_metadata(
+                pkg.id,
+                homepage,
+                repository_url,
+                license,
+                keywords,
+            ) {
+                warn!("Failed to update package metadata for {package}: {e}");
+            } else {
+                debug!("Updated package metadata for {package}");
+            }
+        }
 
         // Store the specific version with metadata
         if let Err(e) = state
@@ -273,6 +393,9 @@ impl RegistryService {
                         )));
                     }
                 }
+            } else if response.status() == 404 {
+                info!("Package not found upstream: {package}");
+                return Err(ApiError::NotFound(format!("Package '{package}' not found")));
             } else {
                 error!(
                     "Upstream returned error {} for package: {package}",
@@ -343,6 +466,11 @@ impl RegistryService {
                     )))
                 }
             }
+        } else if response.status() == 404 {
+            info!("Package version not found upstream: {package}@{version}");
+            Err(ApiError::NotFound(format!(
+                "Package '{package}' version '{version}' not found"
+            )))
         } else {
             error!(
                 "Upstream returned error {} for package: {} version: {}",
@@ -428,6 +556,11 @@ impl RegistryService {
                     )))
                 }
             }
+        } else if response.status() == 404 {
+            info!("Package tarball not found upstream: {package} filename: {filename}");
+            Err(ApiError::NotFound(format!(
+                "Package '{package}' tarball '{filename}' not found"
+            )))
         } else {
             error!(
                 "Upstream returned error {} for package: {package} filename: {filename}",
@@ -469,6 +602,11 @@ impl RegistryService {
         if response.status().is_success() {
             info!("Successfully checked tarball for package: {package} filename: {filename}");
             Ok(())
+        } else if response.status() == 404 {
+            info!("Package tarball not found upstream (HEAD): {package} filename: {filename}");
+            Err(ApiError::NotFound(format!(
+                "Package '{package}' tarball '{filename}' not found"
+            )))
         } else {
             error!(
                 "Upstream returned error {} for HEAD package: {package} filename: {filename}",
@@ -606,5 +744,55 @@ impl RegistryService {
         });
 
         Ok(metadata)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_clean_repository_url() {
+        // Test git+ prefix removal
+        assert_eq!(
+            clean_repository_url("git+https://github.com/facebook/react.git"),
+            "https://github.com/facebook/react"
+        );
+
+        // Test .git suffix removal
+        assert_eq!(
+            clean_repository_url("https://github.com/facebook/react.git"),
+            "https://github.com/facebook/react"
+        );
+
+        // Test SSH to HTTPS conversion for GitHub
+        assert_eq!(
+            clean_repository_url("git@github.com:facebook/react.git"),
+            "https://github.com/facebook/react"
+        );
+
+        // Test SSH to HTTPS conversion for GitLab
+        assert_eq!(
+            clean_repository_url("git@gitlab.com:user/project.git"),
+            "https://gitlab.com/user/project"
+        );
+
+        // Test SSH to HTTPS conversion for Bitbucket
+        assert_eq!(
+            clean_repository_url("git@bitbucket.org:user/project.git"),
+            "https://bitbucket.org/user/project"
+        );
+
+        // Test combined git+ prefix and .git suffix removal
+        assert_eq!(
+            clean_repository_url("git+ssh://git@github.com/user/repo.git"),
+            "ssh://git@github.com/user/repo"
+        );
+
+        // Test URL that doesn't need cleaning
+        assert_eq!(
+            clean_repository_url("https://github.com/facebook/react"),
+            "https://github.com/facebook/react"
+        );
     }
 }

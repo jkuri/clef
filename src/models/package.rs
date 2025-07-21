@@ -14,6 +14,7 @@ pub struct PackageVersionMetadata {
     pub peer_dependencies: Option<String>,
     pub engines: Option<String>,
     pub shasum: Option<String>,
+    pub created_at: Option<NaiveDateTime>,
 }
 
 // Package model - stores package-level metadata
@@ -264,6 +265,7 @@ impl NewPackageVersion {
         metadata: PackageVersionMetadata,
     ) -> Self {
         let now = chrono::Utc::now().naive_utc();
+        let created_at = metadata.created_at.unwrap_or(now);
         Self {
             package_id,
             version,
@@ -275,7 +277,7 @@ impl NewPackageVersion {
             peer_dependencies: metadata.peer_dependencies,
             engines: metadata.engines,
             shasum: metadata.shasum,
-            created_at: now,
+            created_at,
             updated_at: now,
         }
     }

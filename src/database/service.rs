@@ -80,6 +80,18 @@ impl DatabaseService {
         ops.get_packages_paginated(limit, offset, search_query, sort_column, sort_order)
     }
 
+    pub fn update_package_metadata(
+        &self,
+        package_id: i32,
+        homepage: Option<String>,
+        repository_url: Option<String>,
+        license: Option<String>,
+        keywords: Option<String>,
+    ) -> Result<Package, diesel::result::Error> {
+        let ops = PackageOperations::new(&self.pool);
+        ops.update_package_metadata(package_id, homepage, repository_url, license, keywords)
+    }
+
     // Package version operations
     pub fn create_or_get_package_version(
         &self,

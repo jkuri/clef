@@ -113,6 +113,16 @@ impl<'a> VersionOperations<'a> {
             .and_then(|shasum| shasum.as_str())
             .map(|s| s.to_string());
 
+        // Extract publication time if available
+        let created_at = package_json
+            .get("_published_time")
+            .and_then(|time| time.as_str())
+            .and_then(|time_str| {
+                chrono::DateTime::parse_from_rfc3339(time_str)
+                    .map(|dt| dt.naive_utc())
+                    .ok()
+            });
+
         // Create new version with metadata
         let metadata = PackageVersionMetadata {
             description,
@@ -123,6 +133,7 @@ impl<'a> VersionOperations<'a> {
             peer_dependencies,
             engines,
             shasum,
+            created_at,
         };
         let new_version =
             NewPackageVersion::with_metadata(package_id, version.to_string(), metadata);

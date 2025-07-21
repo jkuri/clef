@@ -116,10 +116,10 @@ fn test_package_metadata_not_found() {
     let client = Client::tracked(test_rocket.rocket).expect("valid rocket instance");
     let response = client.get("/registry/nonexistent-package-12345").dispatch();
 
-    assert_eq!(response.status(), Status::BadGateway);
+    assert_eq!(response.status(), Status::NotFound);
 
     let body = response.into_string().expect("valid response body");
-    assert!(body.contains("Upstream error: 404"));
+    assert!(body.contains("not found"));
 }
 
 #[test]
@@ -143,10 +143,10 @@ fn test_package_version_metadata_not_found() {
     let client = Client::tracked(test_rocket.rocket).expect("valid rocket instance");
     let response = client.get("/registry/lodash/999.999.999").dispatch();
 
-    assert_eq!(response.status(), Status::BadGateway);
+    assert_eq!(response.status(), Status::NotFound);
 
     let body = response.into_string().expect("valid response body");
-    assert!(body.contains("Upstream error: 404"));
+    assert!(body.contains("not found"));
 }
 
 #[test]
@@ -170,7 +170,7 @@ fn test_tarball_head_not_found() {
         .head("/registry/nonexistent/-/nonexistent-1.0.0.tgz")
         .dispatch();
 
-    assert_eq!(response.status(), Status::BadGateway);
+    assert_eq!(response.status(), Status::NotFound);
 }
 
 #[test]
@@ -200,10 +200,10 @@ fn test_tarball_download_not_found() {
         .get("/registry/nonexistent/-/nonexistent-1.0.0.tgz")
         .dispatch();
 
-    assert_eq!(response.status(), Status::BadGateway);
+    assert_eq!(response.status(), Status::NotFound);
 
     let body = response.into_string().expect("valid response body");
-    assert!(body.contains("Upstream error: 404"));
+    assert!(body.contains("not found"));
 }
 
 #[cfg(test)]

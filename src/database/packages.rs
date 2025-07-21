@@ -66,6 +66,38 @@ impl<'a> PackageOperations<'a> {
             .optional()
     }
 
+    /// Updates package metadata (homepage, repository_url, license, keywords)
+    pub fn update_package_metadata(
+        &self,
+        package_id: i32,
+        homepage: Option<String>,
+        repository_url: Option<String>,
+        license: Option<String>,
+        keywords: Option<String>,
+    ) -> Result<Package, diesel::result::Error> {
+        let mut conn = get_connection_with_retry(self.pool).map_err(|e| {
+            diesel::result::Error::DatabaseError(
+                diesel::result::DatabaseErrorKind::UnableToSendCommand,
+                Box::new(e.to_string()),
+            )
+        })?;
+
+        let update_package = UpdatePackage {
+            description: None, // Don't update description here
+            homepage,
+            repository_url,
+            license,
+            keywords,
+            updated_at: Some(chrono::Utc::now().naive_utc()),
+        };
+
+        diesel::update(packages::table.find(package_id))
+            .set(&update_package)
+            .execute(&mut conn)?;
+
+        packages::table.find(package_id).first::<Package>(&mut conn)
+    }
+
     /// Gets a package with all its versions and files
     pub fn get_package_with_versions(
         &self,

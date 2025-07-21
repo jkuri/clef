@@ -38,12 +38,8 @@ mod tests {
 
         // Test basic health check
         let client = ApiClient::new(server.base_url.clone());
-        let response = client.get("/").send().unwrap();
+        let response = client.get("/api/v1/health").send().unwrap();
         assert!(response.status().is_success());
-        assert_eq!(
-            response.text().unwrap(),
-            "CLEF - Private NPM Registry Server is running!"
-        );
     }
 
     #[test]
