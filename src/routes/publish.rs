@@ -88,6 +88,22 @@ pub async fn npm_publish(
         )
         .map_err(|e| ApiError::InternalServerError(format!("Database error: {e}")))?;
 
+    // Update package metadata (license, etc.) from version data
+    if version_data.license.is_some() {
+        state
+            .database
+            .update_package_metadata(
+                pkg.id,
+                None, // homepage
+                None, // repository_url
+                version_data.license.clone(),
+                None, // keywords
+            )
+            .map_err(|e| {
+                ApiError::InternalServerError(format!("Failed to update package metadata: {e}"))
+            })?;
+    }
+
     // Update package privacy if specified in the publish request
     if let Some(is_private) = publish_request.private {
         state

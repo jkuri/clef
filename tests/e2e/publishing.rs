@@ -100,6 +100,125 @@ mod tests {
             let result: serde_json::Value = response.json().unwrap();
             assert_eq!(result["ok"], true);
             assert_eq!(result["id"], "test-package");
+
+            // Now fetch the package metadata to verify license is stored
+            let metadata_response = client.get("/registry/test-package").send().unwrap();
+
+            assert!(
+                metadata_response.status().is_success(),
+                "Package metadata fetch failed with status: {}",
+                metadata_response.status()
+            );
+
+            let metadata: serde_json::Value = metadata_response.json().unwrap();
+            assert_eq!(metadata["name"], "test-package");
+            assert_eq!(metadata["license"], "MIT");
+            println!(
+                "✓ License field properly stored and returned: {}",
+                metadata["license"]
+            );
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn test_package_publish_with_license_variations() {
+        init_test_env();
+        let server = TestServer::new();
+        let _handle = server.start();
+
+        let mut client = ApiClient::new(server.base_url.clone());
+
+        // Setup authenticated user
+        if let Some(token) = setup_authenticated_user(&client) {
+            client.set_auth_token(token);
+
+            // Test 1: Package with Apache-2.0 license
+            let tarball_data = create_test_tarball();
+            let encoded_tarball = BASE64_STANDARD.encode(&tarball_data);
+
+            let publish_request = json!({
+                "name": "test-package-apache",
+                "description": "A test package with Apache license",
+                "versions": {
+                    "1.0.0": {
+                        "name": "test-package-apache",
+                        "version": "1.0.0",
+                        "description": "A test package with Apache license",
+                        "main": "index.js",
+                        "author": "test",
+                        "license": "Apache-2.0",
+                        "dist": {
+                            "tarball": format!("{}/test-package-apache/-/test-package-apache-1.0.0.tgz", server.base_url),
+                            "shasum": "dummy-shasum"
+                        }
+                    }
+                },
+                "_attachments": {
+                    "test-package-apache-1.0.0.tgz": {
+                        "content_type": "application/octet-stream",
+                        "data": encoded_tarball.clone(),
+                        "length": tarball_data.len()
+                    }
+                }
+            });
+
+            let response = client
+                .put("/registry/test-package-apache")
+                .json(&publish_request)
+                .send()
+                .unwrap();
+
+            assert!(response.status().is_success());
+
+            // Verify Apache license is stored
+            let metadata_response = client.get("/registry/test-package-apache").send().unwrap();
+            let metadata: serde_json::Value = metadata_response.json().unwrap();
+            assert_eq!(metadata["license"], "Apache-2.0");
+
+            // Test 2: Package without license
+            let publish_request_no_license = json!({
+                "name": "test-package-no-license",
+                "description": "A test package without license",
+                "versions": {
+                    "1.0.0": {
+                        "name": "test-package-no-license",
+                        "version": "1.0.0",
+                        "description": "A test package without license",
+                        "main": "index.js",
+                        "author": "test",
+                        "dist": {
+                            "tarball": format!("{}/test-package-no-license/-/test-package-no-license-1.0.0.tgz", server.base_url),
+                            "shasum": "dummy-shasum"
+                        }
+                    }
+                },
+                "_attachments": {
+                    "test-package-no-license-1.0.0.tgz": {
+                        "content_type": "application/octet-stream",
+                        "data": encoded_tarball,
+                        "length": tarball_data.len()
+                    }
+                }
+            });
+
+            let response = client
+                .put("/registry/test-package-no-license")
+                .json(&publish_request_no_license)
+                .send()
+                .unwrap();
+
+            assert!(response.status().is_success());
+
+            // Verify no license field is present when not provided
+            let metadata_response = client
+                .get("/registry/test-package-no-license")
+                .send()
+                .unwrap();
+            let metadata: serde_json::Value = metadata_response.json().unwrap();
+            assert!(metadata.get("license").is_none() || metadata["license"].is_null());
+
+            println!("✓ License variations test passed");
         }
     }
 

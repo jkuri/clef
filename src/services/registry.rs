@@ -670,10 +670,32 @@ impl RegistryService {
         let mut versions = HashMap::new();
         let mut dist_tags = HashMap::new();
         let mut latest_version = "0.0.0".to_string();
-        let mut package_description = None;
+        let mut package_description: Option<String> = None;
+        let mut package_license: Option<String> = None;
+        let mut package_homepage: Option<String> = None;
+        let mut package_repository: Option<Value> = None;
+        let mut package_keywords: Option<Vec<String>> = None;
 
         // Get package with versions for each published package
         for pkg in published_packages {
+            // Extract package-level metadata from the first package
+            if package_license.is_none() {
+                package_license = pkg.license.clone();
+            }
+            if package_homepage.is_none() {
+                package_homepage = pkg.homepage.clone();
+            }
+            if package_repository.is_none() && pkg.repository_url.is_some() {
+                package_repository = Some(json!({"url": pkg.repository_url.as_ref().unwrap()}));
+            }
+            if package_keywords.is_none() && pkg.keywords.is_some() {
+                if let Ok(keywords_vec) =
+                    serde_json::from_str::<Vec<String>>(pkg.keywords.as_ref().unwrap())
+                {
+                    package_keywords = Some(keywords_vec);
+                }
+            }
+
             if let Some(pkg_with_versions) = state
                 .database
                 .get_package_with_versions(&pkg.name)
@@ -734,7 +756,7 @@ impl RegistryService {
         dist_tags.insert("latest".to_string(), latest_version);
 
         // Create the complete package metadata
-        let metadata = json!({
+        let mut metadata = json!({
             "name": package_name,
             "description": package_description.unwrap_or_else(|| "".to_string()),
             "dist-tags": dist_tags,
@@ -742,6 +764,20 @@ impl RegistryService {
             "_id": package_name,
             "_rev": "1-0"
         });
+
+        // Add package-level metadata if available
+        if let Some(license) = package_license {
+            metadata["license"] = json!(license);
+        }
+        if let Some(homepage) = package_homepage {
+            metadata["homepage"] = json!(homepage);
+        }
+        if let Some(repository) = package_repository {
+            metadata["repository"] = repository;
+        }
+        if let Some(keywords) = package_keywords {
+            metadata["keywords"] = json!(keywords);
+        }
 
         Ok(metadata)
     }
