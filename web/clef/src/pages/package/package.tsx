@@ -223,7 +223,7 @@ export function Package() {
               </span>
             )}
           </div>
-          <p className="text-muted-foreground">{pkg.description}</p>
+          <p className="text-muted-foreground text-sm">{pkg.description}</p>
         </div>
         <Button asChild variant="outline">
           <Link to="/packages">← Back to Packages</Link>
@@ -261,7 +261,7 @@ export function Package() {
                 </p>
               ) : (
                 <div className="space-y-2">
-                  {filteredVersions.slice(0, 10).map((versionData) => (
+                  {filteredVersions.slice(0, 5).map((versionData) => (
                     <div
                       key={versionData.version.id}
                       className={`flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-muted/50 ${
@@ -409,22 +409,22 @@ export function Package() {
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground text-sm">Latest Stable</span>
-                  <span className="font-medium">{latestStableVersion?.version.version || "N/A"}</span>
+                  <span className="font-medium text-sm">{latestStableVersion?.version.version || "N/A"}</span>
                 </div>
                 {sortedVersions[0] && sortedVersions[0] !== latestStableVersion && (
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground text-sm">Latest (All)</span>
-                    <span className="font-medium">{sortedVersions[0].version.version}</span>
+                    <span className="font-medium text-sm">{sortedVersions[0].version.version}</span>
                   </div>
                 )}
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground text-sm">Total Versions</span>
-                  <span className="font-medium">{sortedVersions.length}</span>
+                  <span className="font-medium text-sm">{sortedVersions.length}</span>
                 </div>
                 {data.total_size_bytes && (
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground text-sm">Total Size</span>
-                    <span className="font-medium">{formatBytes(data.total_size_bytes)}</span>
+                    <span className="font-medium text-sm">{formatBytes(data.total_size_bytes)}</span>
                   </div>
                 )}
                 <div className="flex items-center justify-between">
@@ -443,16 +443,20 @@ export function Package() {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground text-sm">Created</span>
-                  <span className="font-medium">{format(new Date(pkg.created_at), "MMM d, yyyy 'at' h:mm a")}</span>
+                  <span className="font-medium text-sm">
+                    {format(new Date(pkg.created_at), "MMM d, yyyy 'at' h:mm a")}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground text-sm">Updated</span>
-                  <span className="font-medium">{format(new Date(pkg.updated_at), "MMM d, yyyy 'at' h:mm a")}</span>
+                  <span className="font-medium text-sm">
+                    {format(new Date(pkg.updated_at), "MMM d, yyyy 'at' h:mm a")}
+                  </span>
                 </div>
                 {pkg.license && (
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground text-sm">License</span>
-                    <span className="font-medium">{pkg.license}</span>
+                    <span className="font-medium text-sm">{pkg.license}</span>
                   </div>
                 )}
               </div>
