@@ -14,6 +14,8 @@ mod cache_management;
 mod compatibility;
 #[path = "e2e/package_management.rs"]
 mod package_management;
+#[path = "e2e/package_ownership.rs"]
+mod package_ownership;
 #[path = "e2e/performance.rs"]
 mod performance;
 #[path = "e2e/proxied_metadata.rs"]

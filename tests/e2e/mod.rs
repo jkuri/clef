@@ -365,6 +365,75 @@ impl TestProject {
         )
         .expect("Failed to write index.js");
     }
+
+    #[allow(dead_code)]
+    pub fn set_auth_token(&self, username: &str, password: &str, server_port: u16) {
+        // Register/login user via API to get the proper auth token
+        let client = reqwest::blocking::Client::new();
+        let registry_url = self.get_registry_url();
+
+        let npm_user_doc = serde_json::json!({
+            "_id": format!("org.couchdb.user:{}", username),
+            "name": username,
+            "password": password,
+            "email": format!("{}@example.com", username),
+            "type": "user",
+            "roles": [],
+            "date": "2025-07-18T00:00:00.000Z"
+        });
+
+        let response = client
+            .put(&format!(
+                "{}/registry/-/user/org.couchdb.user:{}",
+                registry_url, username
+            ))
+            .json(&npm_user_doc)
+            .send()
+            .expect("Failed to register/login user");
+
+        if response.status().is_success() {
+            let result: serde_json::Value = response.json().expect("Failed to parse response");
+            if let Some(token) = result["token"].as_str() {
+                // Update .npmrc with auth token
+                let npmrc_content = format!(
+                    "registry={}/registry\n//127.0.0.1:{}/registry/:_authToken={}\n",
+                    registry_url, server_port, token
+                );
+
+                fs::write(&self.npmrc_path, npmrc_content)
+                    .expect("Failed to write .npmrc with auth token");
+            } else {
+                panic!("No token received from API response");
+            }
+        } else {
+            panic!("Failed to register/login user: {}", response.status());
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn update_package_version(&self, version: &str) {
+        let mut package_json: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&self.package_json_path).unwrap()).unwrap();
+
+        package_json["version"] = serde_json::Value::String(version.to_string());
+
+        fs::write(
+            &self.package_json_path,
+            serde_json::to_string_pretty(&package_json).unwrap(),
+        )
+        .expect("Failed to update package.json version");
+    }
+
+    fn get_registry_url(&self) -> String {
+        // Extract registry URL from .npmrc
+        let npmrc_content = fs::read_to_string(&self.npmrc_path).unwrap();
+        for line in npmrc_content.lines() {
+            if line.starts_with("registry=") {
+                return line.replace("registry=", "").replace("/registry", "");
+            }
+        }
+        "http://127.0.0.1:3000".to_string() // fallback
+    }
 }
 
 /// Utility functions

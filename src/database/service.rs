@@ -3,6 +3,7 @@ use super::cache_stats::CacheStatsOperations;
 use super::connection::{DbConnection, DbPool, create_pool, get_connection_with_retry};
 use super::files::{CompletePackageParams, FileOperations, PackageFileParams};
 use super::metadata_cache::MetadataCacheOperations;
+use super::package_owners::PackageOwnerOperations;
 use super::packages::PackageOperations;
 use super::versions::VersionOperations;
 use crate::models::metadata_cache::{MetadataCacheRecord, MetadataCacheStats};
@@ -270,5 +271,81 @@ impl DatabaseService {
     pub fn clear_metadata_cache(&self) -> Result<usize, diesel::result::Error> {
         let ops = MetadataCacheOperations::new(&self.pool);
         ops.clear_metadata_cache()
+    }
+
+    // Package ownership operations
+    pub fn has_write_permission(
+        &self,
+        package_name: &str,
+        user_id: i32,
+    ) -> Result<bool, diesel::result::Error> {
+        let ops = PackageOwnerOperations::new(&self.pool);
+        ops.has_write_permission(package_name, user_id)
+    }
+
+    pub fn package_exists(&self, package_name: &str) -> Result<bool, diesel::result::Error> {
+        let ops = PackageOwnerOperations::new(&self.pool);
+        ops.package_exists(package_name)
+    }
+
+    pub fn package_published(&self, package_name: &str) -> Result<bool, diesel::result::Error> {
+        let ops = PackageOwnerOperations::new(&self.pool);
+        ops.package_published(package_name)
+    }
+
+    pub fn create_package_owner(
+        &self,
+        package_name: &str,
+        user_id: i32,
+        permission_level: &str,
+    ) -> Result<PackageOwner, diesel::result::Error> {
+        let ops = PackageOwnerOperations::new(&self.pool);
+        ops.create_package_owner(package_name, user_id, permission_level)
+    }
+
+    pub fn get_package_owners(
+        &self,
+        package_name: &str,
+    ) -> Result<Vec<PackageOwner>, diesel::result::Error> {
+        let ops = PackageOwnerOperations::new(&self.pool);
+        ops.get_package_owners(package_name)
+    }
+
+    pub fn add_package_owner(
+        &self,
+        package_name: &str,
+        user_id: i32,
+        permission_level: &str,
+    ) -> Result<PackageOwner, diesel::result::Error> {
+        let ops = PackageOwnerOperations::new(&self.pool);
+        ops.add_package_owner(package_name, user_id, permission_level)
+    }
+
+    pub fn remove_package_owner(
+        &self,
+        package_name: &str,
+        user_id: i32,
+    ) -> Result<usize, diesel::result::Error> {
+        let ops = PackageOwnerOperations::new(&self.pool);
+        ops.remove_package_owner(package_name, user_id)
+    }
+
+    pub fn update_permission_level(
+        &self,
+        package_name: &str,
+        user_id: i32,
+        new_permission_level: &str,
+    ) -> Result<PackageOwner, diesel::result::Error> {
+        let ops = PackageOwnerOperations::new(&self.pool);
+        ops.update_permission_level(package_name, user_id, new_permission_level)
+    }
+
+    pub fn can_publish_package(
+        &self,
+        package_name: &str,
+        user_id: i32,
+    ) -> Result<bool, diesel::result::Error> {
+        let ops = PackageOwnerOperations::new(&self.pool);
+        ops.can_publish_package(package_name, user_id)
     }
 }

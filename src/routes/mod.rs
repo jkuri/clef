@@ -1,6 +1,7 @@
 pub mod api;
 pub mod auth;
 pub mod packages;
+pub mod publish;
 pub mod security;
 pub mod static_files;
 
@@ -42,7 +43,8 @@ pub fn get_routes() -> Vec<rocket::Route> {
         auth::npm_login,
         auth::npm_whoami,
         auth::npm_logout,
-        auth::npm_publish,
+        // NPM publish route
+        publish::npm_publish,
     ];
 
     // Add static file routes (lowest priority)
