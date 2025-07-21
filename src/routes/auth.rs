@@ -241,13 +241,14 @@ pub async fn npm_publish(
     fs::write(&package_json_path, &package_json)
         .map_err(|e| ApiError::InternalServerError(format!("Failed to write package.json: {e}")))?;
 
-    // Create or get the package first
+    // Create or get the package first, forcing description update for existing packages
     let pkg = state
         .database
-        .create_or_get_package(
+        .create_or_get_package_with_update(
             package,
             version_data.description.clone(),
             Some(user.user_id),
+            true, // force update description when publishing
         )
         .map_err(|e| ApiError::InternalServerError(format!("Failed to create package: {e}")))?;
 
@@ -256,9 +257,15 @@ pub async fn npm_publish(
         ApiError::InternalServerError(format!("Failed to serialize version data: {e}"))
     })?;
 
+    // Force update metadata when publishing new versions over existing ones
     let package_version = state
         .database
-        .create_or_get_package_version_with_metadata(pkg.id, version, &version_json)
+        .create_or_get_package_version_with_metadata_and_update(
+            pkg.id,
+            version,
+            &version_json,
+            true,
+        )
         .map_err(|e| {
             ApiError::InternalServerError(format!("Failed to create package version: {e}"))
         })?;

@@ -37,6 +37,17 @@ impl DatabaseService {
         ops.create_or_get_package(name, description, author_id)
     }
 
+    pub fn create_or_get_package_with_update(
+        &self,
+        name: &str,
+        description: Option<String>,
+        author_id: Option<i32>,
+        update_description: bool,
+    ) -> Result<Package, diesel::result::Error> {
+        let ops = PackageOperations::new(&self.pool);
+        ops.create_or_get_package_with_update(name, description, author_id, update_description)
+    }
+
     pub fn get_package_by_name(
         &self,
         name: &str,
@@ -110,6 +121,22 @@ impl DatabaseService {
     ) -> Result<PackageVersion, diesel::result::Error> {
         let ops = VersionOperations::new(&self.pool);
         ops.create_or_get_package_version_with_metadata(package_id, version, package_json)
+    }
+
+    pub fn create_or_get_package_version_with_metadata_and_update(
+        &self,
+        package_id: i32,
+        version: &str,
+        package_json: &serde_json::Value,
+        force_update: bool,
+    ) -> Result<PackageVersion, diesel::result::Error> {
+        let ops = VersionOperations::new(&self.pool);
+        ops.create_or_get_package_version_with_metadata_and_update(
+            package_id,
+            version,
+            package_json,
+            force_update,
+        )
     }
 
     pub fn get_package_versions(

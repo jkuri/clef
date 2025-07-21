@@ -56,12 +56,30 @@ impl<'a> VersionOperations<'a> {
         version: &str,
         package_json: &serde_json::Value,
     ) -> Result<PackageVersion, diesel::result::Error> {
+        self.create_or_get_package_version_with_metadata_and_update(
+            package_id,
+            version,
+            package_json,
+            false,
+        )
+    }
+
+    /// Creates a new package version with metadata or updates existing one, with option to force update
+    pub fn create_or_get_package_version_with_metadata_and_update(
+        &self,
+        package_id: i32,
+        version: &str,
+        package_json: &serde_json::Value,
+        force_update: bool,
+    ) -> Result<PackageVersion, diesel::result::Error> {
         let mut conn = get_connection_with_retry(self.pool).map_err(|e| {
             diesel::result::Error::DatabaseError(
                 diesel::result::DatabaseErrorKind::UnableToSendCommand,
                 Box::new(e.to_string()),
             )
         })?;
+
+        let mut existing_version_id = None;
 
         // Try to get existing version first
         if let Some(existing_version) = package_versions::table
@@ -70,15 +88,21 @@ impl<'a> VersionOperations<'a> {
             .first::<PackageVersion>(&mut conn)
             .optional()?
         {
-            // If version exists but has no metadata, update it with metadata
-            if existing_version.description.is_none()
-                && existing_version.scripts.is_none()
-                && existing_version.dependencies.is_none()
-                && existing_version.dev_dependencies.is_none()
-            {
-                // Continue to extract and update metadata
+            if force_update {
+                // Store the existing version ID for updating
+                existing_version_id = Some(existing_version.id);
             } else {
-                return Ok(existing_version);
+                // If version exists but has no metadata, update it with metadata
+                if existing_version.description.is_none()
+                    && existing_version.scripts.is_none()
+                    && existing_version.dependencies.is_none()
+                    && existing_version.dev_dependencies.is_none()
+                {
+                    // Store the existing version ID for updating
+                    existing_version_id = Some(existing_version.id);
+                } else {
+                    return Ok(existing_version);
+                }
             }
         }
 
@@ -139,13 +163,7 @@ impl<'a> VersionOperations<'a> {
             NewPackageVersion::with_metadata(package_id, version.to_string(), metadata);
 
         // Check if we need to update existing version or insert new one
-        let existing_count: i64 = package_versions::table
-            .filter(package_versions::package_id.eq(package_id))
-            .filter(package_versions::version.eq(version))
-            .count()
-            .get_result(&mut conn)?;
-
-        if existing_count > 0 {
+        if let Some(_version_id) = existing_version_id {
             // Update existing version
             diesel::update(
                 package_versions::table

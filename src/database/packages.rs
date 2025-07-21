@@ -20,6 +20,17 @@ impl<'a> PackageOperations<'a> {
         description: Option<String>,
         author_id: Option<i32>,
     ) -> Result<Package, diesel::result::Error> {
+        self.create_or_get_package_with_update(name, description, author_id, false)
+    }
+
+    /// Creates a new package or returns existing one, with option to update description
+    pub fn create_or_get_package_with_update(
+        &self,
+        name: &str,
+        description: Option<String>,
+        author_id: Option<i32>,
+        update_description: bool,
+    ) -> Result<Package, diesel::result::Error> {
         let mut conn = get_connection_with_retry(self.pool).map_err(|e| {
             diesel::result::Error::DatabaseError(
                 diesel::result::DatabaseErrorKind::UnableToSendCommand,
@@ -33,6 +44,30 @@ impl<'a> PackageOperations<'a> {
             .first::<Package>(&mut conn)
             .optional()?
         {
+            // If we should update description and it's provided, update the existing package
+            if update_description
+                && description.is_some()
+                && description != existing_package.description
+            {
+                let update_package = UpdatePackage {
+                    description: description.clone(),
+                    homepage: None,
+                    repository_url: None,
+                    license: None,
+                    keywords: None,
+                    updated_at: Some(chrono::Utc::now().naive_utc()),
+                };
+
+                diesel::update(packages::table.find(existing_package.id))
+                    .set(&update_package)
+                    .execute(&mut conn)?;
+
+                // Return the updated package
+                return packages::table
+                    .find(existing_package.id)
+                    .first::<Package>(&mut conn);
+            }
+
             return Ok(existing_package);
         }
 

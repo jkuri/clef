@@ -1219,6 +1219,164 @@ mod tests {
 
     #[test]
     #[serial]
+    fn test_package_metadata_revalidation() {
+        init_test_env();
+        let server = TestServer::new();
+        let _handle = server.start();
+
+        let mut client = ApiClient::new(server.base_url.clone());
+
+        // Setup authenticated user
+        if let Some(token) = setup_authenticated_user(&client) {
+            client.set_auth_token(token);
+
+            // First, publish version 1.0.0 with initial metadata
+            let tarball_data_v1 = create_test_tarball();
+            let encoded_tarball_v1 = BASE64_STANDARD.encode(&tarball_data_v1);
+
+            let publish_request_v1 = json!({
+                "name": "metadata-revalidation-test",
+                "description": "Initial description",
+                "versions": {
+                    "1.0.0": {
+                        "name": "metadata-revalidation-test",
+                        "version": "1.0.0",
+                        "description": "Initial description",
+                        "main": "index.js",
+                        "scripts": {
+                            "test": "echo \"Initial test script\""
+                        },
+                        "license": "MIT",
+                        "dist": {
+                            "tarball": format!("{}/metadata-revalidation-test/-/metadata-revalidation-test-1.0.0.tgz", server.base_url),
+                            "shasum": "dummy-shasum-v1"
+                        }
+                    }
+                },
+                "_attachments": {
+                    "metadata-revalidation-test-1.0.0.tgz": {
+                        "content_type": "application/octet-stream",
+                        "data": encoded_tarball_v1,
+                        "length": tarball_data_v1.len()
+                    }
+                }
+            });
+
+            let response_v1 = client
+                .put("/registry/metadata-revalidation-test")
+                .json(&publish_request_v1)
+                .send()
+                .unwrap();
+
+            assert!(
+                response_v1.status().is_success(),
+                "First publish should succeed"
+            );
+
+            // Fetch the package metadata to verify initial state
+            let package_response_v1 = client
+                .get("/registry/metadata-revalidation-test")
+                .send()
+                .unwrap();
+
+            assert!(package_response_v1.status().is_success());
+            let package_data_v1: serde_json::Value = package_response_v1.json().unwrap();
+            assert_eq!(package_data_v1["description"], "Initial description");
+            assert_eq!(
+                package_data_v1["versions"]["1.0.0"]["description"],
+                "Initial description"
+            );
+            assert_eq!(
+                package_data_v1["versions"]["1.0.0"]["scripts"]["test"],
+                "echo \"Initial test script\""
+            );
+
+            // Now publish version 1.0.1 with updated metadata
+            let tarball_data_v2 = create_test_tarball();
+            let encoded_tarball_v2 = BASE64_STANDARD.encode(&tarball_data_v2);
+
+            let publish_request_v2 = json!({
+                "name": "metadata-revalidation-test",
+                "description": "Updated description",
+                "versions": {
+                    "1.0.1": {
+                        "name": "metadata-revalidation-test",
+                        "version": "1.0.1",
+                        "description": "Updated description",
+                        "main": "lib/index.js",
+                        "scripts": {
+                            "test": "echo \"Updated test script\"",
+                            "build": "echo \"New build script\""
+                        },
+                        "license": "Apache-2.0",
+                        "dist": {
+                            "tarball": format!("{}/metadata-revalidation-test/-/metadata-revalidation-test-1.0.1.tgz", server.base_url),
+                            "shasum": "dummy-shasum-v2"
+                        }
+                    }
+                },
+                "_attachments": {
+                    "metadata-revalidation-test-1.0.1.tgz": {
+                        "content_type": "application/octet-stream",
+                        "data": encoded_tarball_v2,
+                        "length": tarball_data_v2.len()
+                    }
+                }
+            });
+
+            let response_v2 = client
+                .put("/registry/metadata-revalidation-test")
+                .json(&publish_request_v2)
+                .send()
+                .unwrap();
+
+            assert!(
+                response_v2.status().is_success(),
+                "Second publish should succeed"
+            );
+
+            // Fetch the package metadata again to verify it was updated
+            let package_response_v2 = client
+                .get("/registry/metadata-revalidation-test")
+                .send()
+                .unwrap();
+
+            assert!(package_response_v2.status().is_success());
+            let package_data_v2: serde_json::Value = package_response_v2.json().unwrap();
+
+            // Verify package-level metadata was updated
+            assert_eq!(
+                package_data_v2["description"], "Updated description",
+                "Package description should be updated when publishing new version"
+            );
+
+            // Verify version-specific metadata was updated
+            assert_eq!(
+                package_data_v2["versions"]["1.0.1"]["description"],
+                "Updated description"
+            );
+            assert_eq!(package_data_v2["versions"]["1.0.1"]["main"], "lib/index.js");
+            assert_eq!(
+                package_data_v2["versions"]["1.0.1"]["scripts"]["test"],
+                "echo \"Updated test script\""
+            );
+            assert_eq!(
+                package_data_v2["versions"]["1.0.1"]["scripts"]["build"],
+                "echo \"New build script\""
+            );
+            assert_eq!(
+                package_data_v2["versions"]["1.0.1"]["license"],
+                "Apache-2.0"
+            );
+
+            // Verify both versions exist
+            assert!(package_data_v2["versions"]["1.0.0"].is_object());
+            assert!(package_data_v2["versions"]["1.0.1"].is_object());
+        }
+    }
+
+    #[test]
+    #[serial]
     fn test_npm_publish_with_tag() {
         init_test_env();
         let server = TestServer::new();
