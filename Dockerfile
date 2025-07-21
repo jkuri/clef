@@ -35,8 +35,8 @@ RUN cargo build --release
 # Runtime stage
 FROM alpine:latest
 
-# Install CA certificates for HTTPS requests
-RUN apk add --no-cache sqlite ca-certificates
+# Install CA certificates for HTTPS requests and curl for health check
+RUN apk add --no-cache curl ca-certificates
 
 WORKDIR /app
 
