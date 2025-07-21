@@ -125,6 +125,14 @@ RUST_LOG=debug cargo run
 diesel migration run
 ```
 
+## Preview
+
+![Screenshot](https://github-production-user-asset-6210df.s3.amazonaws.com/1796022/468427688-b60eccdd-bdc8-4779-be0d-c30638d94263.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAVCODYLSA53PQK4ZA%2F20250721%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20250721T000955Z&X-Amz-Expires=300&X-Amz-Signature=cf2f5f3f33d60a2426b82650b6df0233cd26cf23e67f5b924575c5d24c321be8&X-Amz-SignedHeaders=host)
+
+![Screenshot](https://github-production-user-asset-6210df.s3.amazonaws.com/1796022/468427722-82a59819-b845-457f-bd4f-90852703ff23.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAVCODYLSA53PQK4ZA%2F20250721%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20250721T001011Z&X-Amz-Expires=300&X-Amz-Signature=75af8a48a3309a986ad13e126d39875c1c6e58ba04207d13ebdb3056b1c12aa6&X-Amz-SignedHeaders=host)
+
+![Screenshot](https://github-production-user-asset-6210df.s3.amazonaws.com/1796022/468427735-a5dc275f-3f3c-4666-9a9c-7eec04f7ed55.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAVCODYLSA53PQK4ZA%2F20250721%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20250721T001022Z&X-Amz-Expires=300&X-Amz-Signature=fefbcbda462ea4d32a9165a651081582d120781465d2f501c290ad91d17ddf3e&X-Amz-SignedHeaders=host)
+
 ## License
 
 MIT License - see [LICENSE](LICENSE) for details.
