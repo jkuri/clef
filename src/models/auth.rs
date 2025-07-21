@@ -118,3 +118,44 @@ impl<'r> FromRequest<'r> for AuthenticatedUser {
         }
     }
 }
+
+// Optional authentication guard - succeeds even when no auth is provided
+#[derive(Debug, Clone)]
+pub struct OptionalAuthenticatedUser(pub Option<AuthenticatedUser>);
+
+#[rocket::async_trait]
+impl<'r> FromRequest<'r> for OptionalAuthenticatedUser {
+    type Error = ();
+
+    async fn from_request(request: &'r Request<'_>) -> Outcome<Self, Self::Error> {
+        use crate::services::AuthService;
+        use crate::state::AppState;
+
+        let state = match request.guard::<&State<AppState>>().await {
+            Outcome::Success(state) => state,
+            _ => return Outcome::Success(OptionalAuthenticatedUser(None)),
+        };
+
+        // Get Authorization header
+        let auth_header = request.headers().get_one("Authorization");
+
+        if let Some(auth_value) = auth_header {
+            // npm sends "Bearer <token>" format
+            if let Some(token) = auth_value.strip_prefix("Bearer ") {
+                match AuthService::validate_token(&state.database, token) {
+                    Ok(user) => {
+                        Outcome::Success(OptionalAuthenticatedUser(Some(AuthenticatedUser {
+                            username: user.username,
+                            user_id: user.id,
+                        })))
+                    }
+                    Err(_) => Outcome::Success(OptionalAuthenticatedUser(None)), // Invalid token = no auth
+                }
+            } else {
+                Outcome::Success(OptionalAuthenticatedUser(None)) // Invalid format = no auth
+            }
+        } else {
+            Outcome::Success(OptionalAuthenticatedUser(None)) // No header = no auth
+        }
+    }
+}

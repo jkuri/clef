@@ -1,4 +1,5 @@
 use crate::error::ApiError;
+use crate::models::OptionalAuthenticatedUser;
 use crate::services::RegistryService;
 use crate::state::AppState;
 use log;
@@ -168,10 +169,25 @@ pub async fn handle_scoped_package_metadata(
     scope: ScopedPackageName,
     package: &str,
     request_info: RequestInfo,
+    user: OptionalAuthenticatedUser,
     state: &State<AppState>,
 ) -> Result<PackageResponse, ApiError> {
     let full_package_name = format!("{}/{}", scope.0, package);
     log::info!("Scoped package metadata request: {full_package_name}");
+
+    // Check if user has read permission for this package
+    let user_id = user.0.as_ref().map(|u| u.user_id);
+    let has_access = state
+        .database
+        .has_read_permission(&full_package_name, user_id)
+        .map_err(|e| ApiError::InternalServerError(format!("Database query error: {e}")))?;
+
+    if !has_access {
+        return Err(ApiError::NotFound(format!(
+            "Package '{full_package_name}' not found"
+        )));
+    }
+
     let result = RegistryService::get_package_metadata(
         &full_package_name,
         state,
@@ -204,10 +220,25 @@ pub async fn handle_scoped_package_version(
     scope: ScopedPackageName,
     package: &str,
     version: &str,
+    user: OptionalAuthenticatedUser,
     state: &State<AppState>,
 ) -> Result<PackageResponse, ApiError> {
     let full_package_name = format!("{}/{}", scope.0, package);
     log::info!("Scoped package version request: {full_package_name} version {version}");
+
+    // Check if user has read permission for this package
+    let user_id = user.0.as_ref().map(|u| u.user_id);
+    let has_access = state
+        .database
+        .has_read_permission(&full_package_name, user_id)
+        .map_err(|e| ApiError::InternalServerError(format!("Database query error: {e}")))?;
+
+    if !has_access {
+        return Err(ApiError::NotFound(format!(
+            "Package '{full_package_name}' not found"
+        )));
+    }
+
     let result =
         RegistryService::get_package_version_metadata(&full_package_name, version, state).await?;
     Ok(PackageResponse::Json(result))
@@ -219,10 +250,25 @@ pub async fn handle_scoped_package_tarball(
     scope: ScopedPackageName,
     package: &str,
     filename: &str,
+    user: OptionalAuthenticatedUser,
     state: &State<AppState>,
 ) -> Result<PackageResponse, ApiError> {
     let full_package_name = format!("{}/{}", scope.0, package);
     log::info!("Scoped package tarball request: {full_package_name} file {filename}");
+
+    // Check if user has read permission for this package
+    let user_id = user.0.as_ref().map(|u| u.user_id);
+    let has_access = state
+        .database
+        .has_read_permission(&full_package_name, user_id)
+        .map_err(|e| ApiError::InternalServerError(format!("Database query error: {e}")))?;
+
+    if !has_access {
+        return Err(ApiError::NotFound(format!(
+            "Package '{full_package_name}' not found"
+        )));
+    }
+
     let result = RegistryService::get_package_tarball(&full_package_name, filename, state).await?;
     Ok(PackageResponse::Binary(result))
 }
@@ -233,10 +279,25 @@ pub async fn handle_scoped_package_tarball_head(
     scope: ScopedPackageName,
     package: &str,
     filename: &str,
+    user: OptionalAuthenticatedUser,
     state: &State<AppState>,
 ) -> Result<PackageResponse, ApiError> {
     let full_package_name = format!("{}/{}", scope.0, package);
     log::info!("Scoped package tarball HEAD request: {full_package_name} file {filename}");
+
+    // Check if user has read permission for this package
+    let user_id = user.0.as_ref().map(|u| u.user_id);
+    let has_access = state
+        .database
+        .has_read_permission(&full_package_name, user_id)
+        .map_err(|e| ApiError::InternalServerError(format!("Database query error: {e}")))?;
+
+    if !has_access {
+        return Err(ApiError::NotFound(format!(
+            "Package '{full_package_name}' not found"
+        )));
+    }
+
     RegistryService::head_package_tarball(&full_package_name, filename, state).await?;
     Ok(PackageResponse::Empty)
 }
@@ -247,6 +308,7 @@ pub async fn handle_scoped_package_tarball_head(
 pub async fn handle_regular_package_metadata(
     package: &str,
     request_info: RequestInfo,
+    user: OptionalAuthenticatedUser,
     state: &State<AppState>,
 ) -> Result<PackageResponse, ApiError> {
     log::info!("Regular package metadata handler received: '{package}'");
@@ -255,6 +317,18 @@ pub async fn handle_regular_package_metadata(
     // This happens when npm sends @types%2fnode-forge and Rocket decodes it to @types/node-forge
     if package.starts_with('@') && package.contains('/') {
         log::info!("Decoded scoped package metadata request: {package}");
+
+        // Check if user has read permission for this scoped package
+        let user_id = user.0.as_ref().map(|u| u.user_id);
+        let has_access = state
+            .database
+            .has_read_permission(package, user_id)
+            .map_err(|e| ApiError::InternalServerError(format!("Database query error: {e}")))?;
+
+        if !has_access {
+            return Err(ApiError::NotFound(format!("Package '{package}' not found")));
+        }
+
         let result = RegistryService::get_package_metadata(
             package,
             state,
@@ -272,6 +346,18 @@ pub async fn handle_regular_package_metadata(
         ));
     }
     log::info!("Regular package metadata request: {package}");
+
+    // Check if user has read permission for this package
+    let user_id = user.0.as_ref().map(|u| u.user_id);
+    let has_access = state
+        .database
+        .has_read_permission(package, user_id)
+        .map_err(|e| ApiError::InternalServerError(format!("Database query error: {e}")))?;
+
+    if !has_access {
+        return Err(ApiError::NotFound(format!("Package '{package}' not found")));
+    }
+
     let result = RegistryService::get_package_metadata(
         package,
         state,
@@ -287,6 +373,7 @@ pub async fn handle_regular_package_metadata(
 pub async fn handle_regular_package_version(
     package: &str,
     version: &str,
+    user: OptionalAuthenticatedUser,
     state: &State<AppState>,
 ) -> Result<PackageResponse, ApiError> {
     // Skip if this looks like a scoped package (starts with @)
@@ -294,6 +381,18 @@ pub async fn handle_regular_package_version(
         return Err(ApiError::BadRequest("Use scoped package route".to_string()));
     }
     log::info!("Regular package version request: {package} version {version}");
+
+    // Check if user has read permission for this package
+    let user_id = user.0.as_ref().map(|u| u.user_id);
+    let has_access = state
+        .database
+        .has_read_permission(package, user_id)
+        .map_err(|e| ApiError::InternalServerError(format!("Database query error: {e}")))?;
+
+    if !has_access {
+        return Err(ApiError::NotFound(format!("Package '{package}' not found")));
+    }
+
     let result = RegistryService::get_package_version_metadata(package, version, state).await?;
     Ok(PackageResponse::Json(result))
 }
@@ -303,6 +402,7 @@ pub async fn handle_regular_package_version(
 pub async fn handle_regular_package_tarball(
     package: &str,
     filename: &str,
+    user: OptionalAuthenticatedUser,
     state: &State<AppState>,
 ) -> Result<PackageResponse, ApiError> {
     // Skip if this looks like a scoped package (starts with @)
@@ -310,6 +410,18 @@ pub async fn handle_regular_package_tarball(
         return Err(ApiError::BadRequest("Use scoped package route".to_string()));
     }
     log::info!("Regular package tarball request: {package} file {filename}");
+
+    // Check if user has read permission for this package
+    let user_id = user.0.as_ref().map(|u| u.user_id);
+    let has_access = state
+        .database
+        .has_read_permission(package, user_id)
+        .map_err(|e| ApiError::InternalServerError(format!("Database query error: {e}")))?;
+
+    if !has_access {
+        return Err(ApiError::NotFound(format!("Package '{package}' not found")));
+    }
+
     let result = RegistryService::get_package_tarball(package, filename, state).await?;
     Ok(PackageResponse::Binary(result))
 }
@@ -319,6 +431,7 @@ pub async fn handle_regular_package_tarball(
 pub async fn handle_regular_package_tarball_head(
     package: &str,
     filename: &str,
+    user: OptionalAuthenticatedUser,
     state: &State<AppState>,
 ) -> Result<PackageResponse, ApiError> {
     // Skip if this looks like a scoped package (starts with @)
@@ -326,6 +439,18 @@ pub async fn handle_regular_package_tarball_head(
         return Err(ApiError::BadRequest("Use scoped package route".to_string()));
     }
     log::info!("Regular package tarball HEAD request: {package} file {filename}");
+
+    // Check if user has read permission for this package
+    let user_id = user.0.as_ref().map(|u| u.user_id);
+    let has_access = state
+        .database
+        .has_read_permission(package, user_id)
+        .map_err(|e| ApiError::InternalServerError(format!("Database query error: {e}")))?;
+
+    if !has_access {
+        return Err(ApiError::NotFound(format!("Package '{package}' not found")));
+    }
+
     RegistryService::head_package_tarball(package, filename, state).await?;
     Ok(PackageResponse::Empty)
 }
@@ -336,6 +461,7 @@ pub async fn handle_package_request(
     path: std::path::PathBuf,
     uri_path: UriPath,
     request_info: RequestInfo,
+    user: OptionalAuthenticatedUser,
     state: &State<AppState>,
 ) -> Result<PackageResponse, ApiError> {
     log::info!(
@@ -346,6 +472,20 @@ pub async fn handle_package_request(
 
     if let Some((package_name, request_type)) = parse_package_path(&uri_path.0) {
         log::info!("Parsed package: {package_name} with request type: {request_type:?}");
+
+        // Check if user has read permission for this package
+        let user_id = user.0.as_ref().map(|u| u.user_id);
+        let has_access = state
+            .database
+            .has_read_permission(&package_name, user_id)
+            .map_err(|e| ApiError::InternalServerError(format!("Database query error: {e}")))?;
+
+        if !has_access {
+            return Err(ApiError::NotFound(format!(
+                "Package '{package_name}' not found"
+            )));
+        }
+
         match request_type {
             PackageRequestType::Metadata => {
                 let result = RegistryService::get_package_metadata(
@@ -380,9 +520,23 @@ pub async fn handle_package_request(
 pub async fn handle_package_head_request(
     _path: std::path::PathBuf,
     uri_path: UriPath,
+    user: OptionalAuthenticatedUser,
     state: &State<AppState>,
 ) -> Result<PackageResponse, ApiError> {
     if let Some((package_name, request_type)) = parse_package_path(&uri_path.0) {
+        // Check if user has read permission for this package
+        let user_id = user.0.as_ref().map(|u| u.user_id);
+        let has_access = state
+            .database
+            .has_read_permission(&package_name, user_id)
+            .map_err(|e| ApiError::InternalServerError(format!("Database query error: {e}")))?;
+
+        if !has_access {
+            return Err(ApiError::NotFound(format!(
+                "Package '{package_name}' not found"
+            )));
+        }
+
         match request_type {
             PackageRequestType::Tarball(filename) => {
                 RegistryService::head_package_tarball(&package_name, &filename, state).await?;

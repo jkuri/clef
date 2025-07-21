@@ -13,6 +13,54 @@ impl<'a> PackageOwnerOperations<'a> {
         Self { pool }
     }
 
+    /// Checks if a user has read permission for a package
+    /// Returns true if:
+    /// - Package is public (not private)
+    /// - Package is private and user has any permission level (read, write, admin)
+    /// - User is None and package is public
+    pub fn has_read_permission(
+        &self,
+        package_name: &str,
+        user_id: Option<i32>,
+    ) -> Result<bool, diesel::result::Error> {
+        let mut conn = get_connection_with_retry(self.pool).map_err(|e| {
+            diesel::result::Error::DatabaseError(
+                diesel::result::DatabaseErrorKind::UnableToSendCommand,
+                Box::new(e.to_string()),
+            )
+        })?;
+
+        // First check if the package exists and if it's private
+        use crate::schema::packages;
+        let package = packages::table
+            .filter(packages::name.eq(package_name))
+            .first::<crate::models::package::Package>(&mut conn)
+            .optional()?;
+
+        match package {
+            Some(pkg) => {
+                if !pkg.is_private {
+                    // Public package - everyone can read
+                    Ok(true)
+                } else {
+                    // Private package - check if user has any permission
+                    match user_id {
+                        Some(uid) => {
+                            let owner = package_owners::table
+                                .filter(package_owners::package_name.eq(package_name))
+                                .filter(package_owners::user_id.eq(uid))
+                                .first::<PackageOwner>(&mut conn)
+                                .optional()?;
+                            Ok(owner.is_some())
+                        }
+                        None => Ok(false), // No user, private package = no access
+                    }
+                }
+            }
+            None => Ok(true), // Package doesn't exist locally = allow access (will proxy to upstream)
+        }
+    }
+
     /// Checks if a user has write permission for a package
     pub fn has_write_permission(
         &self,

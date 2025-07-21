@@ -18,6 +18,8 @@ mod package_management;
 mod package_ownership;
 #[path = "e2e/performance.rs"]
 mod performance;
+#[path = "e2e/private_packages.rs"]
+mod private_packages;
 #[path = "e2e/proxied_metadata.rs"]
 mod proxied_metadata;
 #[path = "e2e/publishing.rs"]

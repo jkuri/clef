@@ -104,6 +104,15 @@ impl DatabaseService {
         ops.update_package_metadata(package_id, homepage, repository_url, license, keywords)
     }
 
+    pub fn update_package_privacy(
+        &self,
+        package_name: &str,
+        is_private: bool,
+    ) -> Result<Package, diesel::result::Error> {
+        let ops = PackageOperations::new(&self.pool);
+        ops.update_package_privacy(package_name, is_private)
+    }
+
     // Package version operations
     pub fn create_or_get_package_version(
         &self,
@@ -274,6 +283,15 @@ impl DatabaseService {
     }
 
     // Package ownership operations
+    pub fn has_read_permission(
+        &self,
+        package_name: &str,
+        user_id: Option<i32>,
+    ) -> Result<bool, diesel::result::Error> {
+        let ops = PackageOwnerOperations::new(&self.pool);
+        ops.has_read_permission(package_name, user_id)
+    }
+
     pub fn has_write_permission(
         &self,
         package_name: &str,
