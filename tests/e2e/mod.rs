@@ -331,6 +331,40 @@ impl TestProject {
         )
         .expect("Failed to write index.js");
     }
+
+    #[allow(dead_code)]
+    pub fn create_scoped_test_package(&self, scope: &str, name: &str, version: &str) {
+        let full_name = format!("{}/{}", scope, name);
+
+        let package_json = serde_json::json!({
+            "name": full_name,
+            "version": version,
+            "description": format!("Scoped test package {} for e2e tests", full_name),
+            "main": "index.js",
+            "scripts": {
+                "test": "echo \"Error: no test specified\" && exit 1"
+            },
+            "keywords": ["test", "scoped"],
+            "author": "test",
+            "license": "MIT"
+        });
+
+        fs::write(
+            &self.package_json_path,
+            serde_json::to_string_pretty(&package_json).unwrap(),
+        )
+        .expect("Failed to write scoped test package.json");
+
+        // Create a simple index.js
+        fs::write(
+            self.path().join("index.js"),
+            format!(
+                "module.exports = 'Hello from scoped package {}';",
+                full_name
+            ),
+        )
+        .expect("Failed to write index.js");
+    }
 }
 
 /// Utility functions

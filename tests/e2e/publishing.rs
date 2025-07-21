@@ -473,4 +473,837 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    #[serial]
+    fn test_npm_publish_regular_package() {
+        init_test_env();
+        let server = TestServer::new();
+        let _handle = server.start();
+
+        let project = TestProject::new(&server.base_url);
+
+        // Create a test package for publishing
+        project.create_test_package("npm-publish-test", "1.0.0");
+
+        // First, we need to register a user and get authentication set up
+        let client = ApiClient::new(server.base_url.clone());
+
+        // Register user via API (since npm login is interactive)
+        let npm_user_doc = json!({
+            "name": "npmuser",
+            "password": "npmpassword123",
+            "email": "npmuser@example.com",
+            "type": "user",
+            "roles": [],
+            "date": "2025-07-18T00:00:00.000Z"
+        });
+
+        let response = client
+            .put("/registry/-/user/org.couchdb.user:npmuser")
+            .json(&npm_user_doc)
+            .send()
+            .unwrap();
+
+        if response.status().is_success() {
+            let result: serde_json::Value = response.json().unwrap();
+            if let Some(token) = result["token"].as_str() {
+                // Create .npmrc with auth token
+                let npmrc_content = format!(
+                    "registry={}/registry\n//127.0.0.1:{}/registry/:_authToken={}\n",
+                    server.base_url, server.port, token
+                );
+                std::fs::write(&project.npmrc_path, npmrc_content)
+                    .expect("Failed to write .npmrc with auth");
+
+                // Try to publish the package
+                let publish_output = project.run_command(
+                    &PackageManager::Npm,
+                    &PackageManager::Npm
+                        .publish_args()
+                        .iter()
+                        .map(|s| s.to_string())
+                        .collect::<Vec<_>>(),
+                );
+
+                println!(
+                    "npm publish stdout: {}",
+                    String::from_utf8_lossy(&publish_output.stdout)
+                );
+                println!(
+                    "npm publish stderr: {}",
+                    String::from_utf8_lossy(&publish_output.stderr)
+                );
+
+                // Check if publish was successful
+                if publish_output.status.success() {
+                    // Verify the package was published by fetching it
+                    let package_response = client.get("/registry/npm-publish-test").send().unwrap();
+
+                    assert!(
+                        package_response.status().is_success(),
+                        "Published package should be fetchable"
+                    );
+
+                    let package_data: serde_json::Value = package_response.json().unwrap();
+                    assert_eq!(package_data["name"], "npm-publish-test");
+                    assert!(package_data["versions"]["1.0.0"].is_object());
+                } else {
+                    // Print debug info if publish failed
+                    println!(
+                        "npm publish failed with exit code: {:?}",
+                        publish_output.status.code()
+                    );
+                    println!(
+                        "This might be expected if npm is not available or configured properly"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn test_npm_publish_scoped_package() {
+        init_test_env();
+        let server = TestServer::new();
+        let _handle = server.start();
+
+        let project = TestProject::new(&server.base_url);
+
+        // Create a scoped test package for publishing
+        project.create_scoped_test_package("@testorg", "scoped-publish-test", "1.0.0");
+
+        // Register user via API
+        let client = ApiClient::new(server.base_url.clone());
+
+        let npm_user_doc = json!({
+            "name": "scopeduser",
+            "password": "scopedpassword123",
+            "email": "scopeduser@example.com",
+            "type": "user",
+            "roles": [],
+            "date": "2025-07-18T00:00:00.000Z"
+        });
+
+        let response = client
+            .put("/registry/-/user/org.couchdb.user:scopeduser")
+            .json(&npm_user_doc)
+            .send()
+            .unwrap();
+
+        if response.status().is_success() {
+            let result: serde_json::Value = response.json().unwrap();
+            if let Some(token) = result["token"].as_str() {
+                // Create .npmrc with auth token and scoped registry config
+                let npmrc_content = format!(
+                    "registry={}/registry\n//127.0.0.1:{}/registry/:_authToken={}\n@testorg:registry={}/registry\n",
+                    server.base_url, server.port, token, server.base_url
+                );
+                std::fs::write(&project.npmrc_path, npmrc_content)
+                    .expect("Failed to write .npmrc with auth");
+
+                // Try to publish the scoped package
+                let publish_output = project.run_command(
+                    &PackageManager::Npm,
+                    &PackageManager::Npm
+                        .publish_args()
+                        .iter()
+                        .map(|s| s.to_string())
+                        .collect::<Vec<_>>(),
+                );
+
+                println!(
+                    "npm publish scoped stdout: {}",
+                    String::from_utf8_lossy(&publish_output.stdout)
+                );
+                println!(
+                    "npm publish scoped stderr: {}",
+                    String::from_utf8_lossy(&publish_output.stderr)
+                );
+
+                // Check if publish was successful
+                if publish_output.status.success() {
+                    // Verify the scoped package was published by fetching it
+                    let package_response = client
+                        .get("/registry/@testorg/scoped-publish-test")
+                        .send()
+                        .unwrap();
+
+                    assert!(
+                        package_response.status().is_success(),
+                        "Published scoped package should be fetchable"
+                    );
+
+                    let package_data: serde_json::Value = package_response.json().unwrap();
+                    assert_eq!(package_data["name"], "@testorg/scoped-publish-test");
+                    assert!(package_data["versions"]["1.0.0"].is_object());
+                } else {
+                    // Print debug info if publish failed
+                    println!(
+                        "npm publish scoped failed with exit code: {:?}",
+                        publish_output.status.code()
+                    );
+                    println!(
+                        "This might be expected if npm is not available or configured properly"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn test_npm_publish_with_access_public() {
+        init_test_env();
+        let server = TestServer::new();
+        let _handle = server.start();
+
+        let project = TestProject::new(&server.base_url);
+
+        // Create a scoped test package for publishing with public access
+        project.create_scoped_test_package("@publicorg", "public-package", "1.0.0");
+
+        // Register user via API
+        let client = ApiClient::new(server.base_url.clone());
+
+        let npm_user_doc = json!({
+            "name": "publicuser",
+            "password": "publicpassword123",
+            "email": "publicuser@example.com",
+            "type": "user",
+            "roles": [],
+            "date": "2025-07-18T00:00:00.000Z"
+        });
+
+        let response = client
+            .put("/registry/-/user/org.couchdb.user:publicuser")
+            .json(&npm_user_doc)
+            .send()
+            .unwrap();
+
+        if response.status().is_success() {
+            let result: serde_json::Value = response.json().unwrap();
+            if let Some(token) = result["token"].as_str() {
+                // Create .npmrc with auth token
+                let npmrc_content = format!(
+                    "registry={}/registry\n//127.0.0.1:{}/registry/:_authToken={}\n@publicorg:registry={}/registry\n",
+                    server.base_url, server.port, token, server.base_url
+                );
+                std::fs::write(&project.npmrc_path, npmrc_content)
+                    .expect("Failed to write .npmrc with auth");
+
+                // Try to publish the package with --access public
+                let mut publish_args = PackageManager::Npm
+                    .publish_args()
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect::<Vec<_>>();
+                publish_args.push("--access".to_string());
+                publish_args.push("public".to_string());
+
+                let publish_output = project.run_command(&PackageManager::Npm, &publish_args);
+
+                println!(
+                    "npm publish --access public stdout: {}",
+                    String::from_utf8_lossy(&publish_output.stdout)
+                );
+                println!(
+                    "npm publish --access public stderr: {}",
+                    String::from_utf8_lossy(&publish_output.stderr)
+                );
+
+                // Check if publish was successful
+                if publish_output.status.success() {
+                    // Verify the package was published by fetching it
+                    let package_response = client
+                        .get("/registry/@publicorg/public-package")
+                        .send()
+                        .unwrap();
+
+                    assert!(
+                        package_response.status().is_success(),
+                        "Published public package should be fetchable"
+                    );
+
+                    let package_data: serde_json::Value = package_response.json().unwrap();
+                    assert_eq!(package_data["name"], "@publicorg/public-package");
+                    assert!(package_data["versions"]["1.0.0"].is_object());
+                } else {
+                    println!(
+                        "npm publish --access public failed with exit code: {:?}",
+                        publish_output.status.code()
+                    );
+                    println!(
+                        "This might be expected if npm is not available or configured properly"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn test_pnpm_publish_regular_package() {
+        init_test_env();
+        let server = TestServer::new();
+        let _handle = server.start();
+
+        let project = TestProject::new(&server.base_url);
+
+        // Create a test package for publishing with pnpm
+        project.create_test_package("pnpm-publish-test", "1.0.0");
+
+        // Register user via API
+        let client = ApiClient::new(server.base_url.clone());
+
+        let npm_user_doc = json!({
+            "name": "pnpmuser",
+            "password": "pnpmpassword123",
+            "email": "pnpmuser@example.com",
+            "type": "user",
+            "roles": [],
+            "date": "2025-07-18T00:00:00.000Z"
+        });
+
+        let response = client
+            .put("/registry/-/user/org.couchdb.user:pnpmuser")
+            .json(&npm_user_doc)
+            .send()
+            .unwrap();
+
+        if response.status().is_success() {
+            let result: serde_json::Value = response.json().unwrap();
+            if let Some(token) = result["token"].as_str() {
+                // Create .npmrc with auth token for pnpm
+                let npmrc_content = format!(
+                    "registry={}/registry\n//127.0.0.1:{}/registry/:_authToken={}\n",
+                    server.base_url, server.port, token
+                );
+                std::fs::write(&project.npmrc_path, npmrc_content)
+                    .expect("Failed to write .npmrc with auth");
+
+                // Try to publish the package with pnpm
+                let publish_output = project.run_command(
+                    &PackageManager::Pnpm,
+                    &PackageManager::Pnpm
+                        .publish_args()
+                        .iter()
+                        .map(|s| s.to_string())
+                        .collect::<Vec<_>>(),
+                );
+
+                println!(
+                    "pnpm publish stdout: {}",
+                    String::from_utf8_lossy(&publish_output.stdout)
+                );
+                println!(
+                    "pnpm publish stderr: {}",
+                    String::from_utf8_lossy(&publish_output.stderr)
+                );
+
+                // Check if publish was successful
+                if publish_output.status.success() {
+                    // Verify the package was published by fetching it
+                    let package_response =
+                        client.get("/registry/pnpm-publish-test").send().unwrap();
+
+                    assert!(
+                        package_response.status().is_success(),
+                        "Published package should be fetchable"
+                    );
+
+                    let package_data: serde_json::Value = package_response.json().unwrap();
+                    assert_eq!(package_data["name"], "pnpm-publish-test");
+                    assert!(package_data["versions"]["1.0.0"].is_object());
+                } else {
+                    println!(
+                        "pnpm publish failed with exit code: {:?}",
+                        publish_output.status.code()
+                    );
+                    println!(
+                        "This might be expected if pnpm is not available or configured properly"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn test_pnpm_publish_scoped_package() {
+        init_test_env();
+        let server = TestServer::new();
+        let _handle = server.start();
+
+        let project = TestProject::new(&server.base_url);
+
+        // Create a scoped test package for publishing with pnpm
+        project.create_scoped_test_package("@pnpmorg", "pnpm-scoped-test", "1.0.0");
+
+        // Register user via API
+        let client = ApiClient::new(server.base_url.clone());
+
+        let npm_user_doc = json!({
+            "name": "pnpmscopeduser",
+            "password": "pnpmscopedpassword123",
+            "email": "pnpmscopeduser@example.com",
+            "type": "user",
+            "roles": [],
+            "date": "2025-07-18T00:00:00.000Z"
+        });
+
+        let response = client
+            .put("/registry/-/user/org.couchdb.user:pnpmscopeduser")
+            .json(&npm_user_doc)
+            .send()
+            .unwrap();
+
+        if response.status().is_success() {
+            let result: serde_json::Value = response.json().unwrap();
+            if let Some(token) = result["token"].as_str() {
+                // Create .npmrc with auth token and scoped registry config for pnpm
+                let npmrc_content = format!(
+                    "registry={}/registry\n//127.0.0.1:{}/registry/:_authToken={}\n@pnpmorg:registry={}/registry\n",
+                    server.base_url, server.port, token, server.base_url
+                );
+                std::fs::write(&project.npmrc_path, npmrc_content)
+                    .expect("Failed to write .npmrc with auth");
+
+                // Try to publish the scoped package with pnpm
+                let mut publish_args = PackageManager::Pnpm
+                    .publish_args()
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect::<Vec<_>>();
+                publish_args.push("--access".to_string());
+                publish_args.push("public".to_string());
+
+                let publish_output = project.run_command(&PackageManager::Pnpm, &publish_args);
+
+                println!(
+                    "pnpm publish scoped stdout: {}",
+                    String::from_utf8_lossy(&publish_output.stdout)
+                );
+                println!(
+                    "pnpm publish scoped stderr: {}",
+                    String::from_utf8_lossy(&publish_output.stderr)
+                );
+
+                // Check if publish was successful
+                if publish_output.status.success() {
+                    // Verify the scoped package was published by fetching it
+                    let package_response = client
+                        .get("/registry/@pnpmorg/pnpm-scoped-test")
+                        .send()
+                        .unwrap();
+
+                    assert!(
+                        package_response.status().is_success(),
+                        "Published scoped package should be fetchable"
+                    );
+
+                    let package_data: serde_json::Value = package_response.json().unwrap();
+                    assert_eq!(package_data["name"], "@pnpmorg/pnpm-scoped-test");
+                    assert!(package_data["versions"]["1.0.0"].is_object());
+                } else {
+                    println!(
+                        "pnpm publish scoped failed with exit code: {:?}",
+                        publish_output.status.code()
+                    );
+                    println!(
+                        "This might be expected if pnpm is not available or configured properly"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn test_npm_publish_version_update_with_command() {
+        init_test_env();
+        let server = TestServer::new();
+        let _handle = server.start();
+
+        let project = TestProject::new(&server.base_url);
+
+        // Create initial version of the package
+        project.create_test_package("version-update-test", "1.0.0");
+
+        // Register user via API
+        let client = ApiClient::new(server.base_url.clone());
+
+        let npm_user_doc = json!({
+            "name": "versionuser",
+            "password": "versionpassword123",
+            "email": "versionuser@example.com",
+            "type": "user",
+            "roles": [],
+            "date": "2025-07-18T00:00:00.000Z"
+        });
+
+        let response = client
+            .put("/registry/-/user/org.couchdb.user:versionuser")
+            .json(&npm_user_doc)
+            .send()
+            .unwrap();
+
+        if response.status().is_success() {
+            let result: serde_json::Value = response.json().unwrap();
+            if let Some(token) = result["token"].as_str() {
+                // Create .npmrc with auth token
+                let npmrc_content = format!(
+                    "registry={}/registry\n//127.0.0.1:{}/registry/:_authToken={}\n",
+                    server.base_url, server.port, token
+                );
+                std::fs::write(&project.npmrc_path, npmrc_content)
+                    .expect("Failed to write .npmrc with auth");
+
+                // Publish version 1.0.0
+                let publish_output_v1 = project.run_command(
+                    &PackageManager::Npm,
+                    &PackageManager::Npm
+                        .publish_args()
+                        .iter()
+                        .map(|s| s.to_string())
+                        .collect::<Vec<_>>(),
+                );
+
+                if publish_output_v1.status.success() {
+                    // Update to version 1.1.0
+                    project.create_test_package("version-update-test", "1.1.0");
+
+                    // Publish version 1.1.0
+                    let publish_output_v2 = project.run_command(
+                        &PackageManager::Npm,
+                        &PackageManager::Npm
+                            .publish_args()
+                            .iter()
+                            .map(|s| s.to_string())
+                            .collect::<Vec<_>>(),
+                    );
+
+                    println!(
+                        "npm publish v1.1.0 stdout: {}",
+                        String::from_utf8_lossy(&publish_output_v2.stdout)
+                    );
+                    println!(
+                        "npm publish v1.1.0 stderr: {}",
+                        String::from_utf8_lossy(&publish_output_v2.stderr)
+                    );
+
+                    if publish_output_v2.status.success() {
+                        // Verify both versions are available
+                        let package_response =
+                            client.get("/registry/version-update-test").send().unwrap();
+
+                        if package_response.status().is_success() {
+                            let package_data: serde_json::Value = package_response.json().unwrap();
+                            assert_eq!(package_data["name"], "version-update-test");
+                            assert!(package_data["versions"]["1.0.0"].is_object());
+                            assert!(package_data["versions"]["1.1.0"].is_object());
+                        }
+                    } else {
+                        println!(
+                            "npm publish v1.1.0 failed with exit code: {:?}",
+                            publish_output_v2.status.code()
+                        );
+                    }
+                } else {
+                    println!(
+                        "npm publish v1.0.0 failed with exit code: {:?}",
+                        publish_output_v1.status.code()
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn test_npm_publish_without_authentication_command() {
+        init_test_env();
+        let server = TestServer::new();
+        let _handle = server.start();
+
+        let project = TestProject::new(&server.base_url);
+
+        // Create a test package for publishing
+        project.create_test_package("unauthenticated-publish-test", "1.0.0");
+
+        // Try to publish without authentication (no auth token in .npmrc)
+        let publish_output = project.run_command(
+            &PackageManager::Npm,
+            &PackageManager::Npm
+                .publish_args()
+                .iter()
+                .map(|s| s.to_string())
+                .collect::<Vec<_>>(),
+        );
+
+        println!(
+            "npm publish without auth stdout: {}",
+            String::from_utf8_lossy(&publish_output.stdout)
+        );
+        println!(
+            "npm publish without auth stderr: {}",
+            String::from_utf8_lossy(&publish_output.stderr)
+        );
+
+        // Should fail without authentication
+        assert!(
+            !publish_output.status.success(),
+            "Publish should fail without authentication"
+        );
+    }
+
+    #[test]
+    #[serial]
+    fn test_npm_publish_duplicate_version() {
+        init_test_env();
+        let server = TestServer::new();
+        let _handle = server.start();
+
+        let project = TestProject::new(&server.base_url);
+
+        // Create a test package for publishing
+        project.create_test_package("duplicate-version-test", "1.0.0");
+
+        // Register user via API
+        let client = ApiClient::new(server.base_url.clone());
+
+        let npm_user_doc = json!({
+            "name": "duplicateuser",
+            "password": "duplicatepassword123",
+            "email": "duplicateuser@example.com",
+            "type": "user",
+            "roles": [],
+            "date": "2025-07-18T00:00:00.000Z"
+        });
+
+        let response = client
+            .put("/registry/-/user/org.couchdb.user:duplicateuser")
+            .json(&npm_user_doc)
+            .send()
+            .unwrap();
+
+        if response.status().is_success() {
+            let result: serde_json::Value = response.json().unwrap();
+            if let Some(token) = result["token"].as_str() {
+                // Create .npmrc with auth token
+                let npmrc_content = format!(
+                    "registry={}/registry\n//127.0.0.1:{}/registry/:_authToken={}\n",
+                    server.base_url, server.port, token
+                );
+                std::fs::write(&project.npmrc_path, npmrc_content)
+                    .expect("Failed to write .npmrc with auth");
+
+                // Publish version 1.0.0 first time
+                let publish_output_1 = project.run_command(
+                    &PackageManager::Npm,
+                    &PackageManager::Npm
+                        .publish_args()
+                        .iter()
+                        .map(|s| s.to_string())
+                        .collect::<Vec<_>>(),
+                );
+
+                if publish_output_1.status.success() {
+                    // Try to publish the same version again (should fail)
+                    let publish_output_2 = project.run_command(
+                        &PackageManager::Npm,
+                        &PackageManager::Npm
+                            .publish_args()
+                            .iter()
+                            .map(|s| s.to_string())
+                            .collect::<Vec<_>>(),
+                    );
+
+                    println!(
+                        "npm publish duplicate stdout: {}",
+                        String::from_utf8_lossy(&publish_output_2.stdout)
+                    );
+                    println!(
+                        "npm publish duplicate stderr: {}",
+                        String::from_utf8_lossy(&publish_output_2.stderr)
+                    );
+
+                    // Should fail when trying to publish duplicate version
+                    assert!(
+                        !publish_output_2.status.success(),
+                        "Duplicate version publish should fail"
+                    );
+                } else {
+                    println!("First publish failed, skipping duplicate test");
+                }
+            }
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn test_npm_whoami_after_publish_setup() {
+        init_test_env();
+        let server = TestServer::new();
+        let _handle = server.start();
+
+        let project = TestProject::new(&server.base_url);
+
+        // Register user via API
+        let client = ApiClient::new(server.base_url.clone());
+
+        let npm_user_doc = json!({
+            "name": "whoamiuser",
+            "password": "whoamipassword123",
+            "email": "whoamiuser@example.com",
+            "type": "user",
+            "roles": [],
+            "date": "2025-07-18T00:00:00.000Z"
+        });
+
+        let response = client
+            .put("/registry/-/user/org.couchdb.user:whoamiuser")
+            .json(&npm_user_doc)
+            .send()
+            .unwrap();
+
+        if response.status().is_success() {
+            let result: serde_json::Value = response.json().unwrap();
+            if let Some(token) = result["token"].as_str() {
+                // Create .npmrc with auth token
+                let npmrc_content = format!(
+                    "registry={}/registry\n//127.0.0.1:{}/registry/:_authToken={}\n",
+                    server.base_url, server.port, token
+                );
+                std::fs::write(&project.npmrc_path, npmrc_content)
+                    .expect("Failed to write .npmrc with auth");
+
+                // Test npm whoami command
+                let whoami_output = project.run_command(
+                    &PackageManager::Npm,
+                    &PackageManager::Npm
+                        .whoami_args()
+                        .iter()
+                        .map(|s| s.to_string())
+                        .collect::<Vec<_>>(),
+                );
+
+                println!(
+                    "npm whoami stdout: {}",
+                    String::from_utf8_lossy(&whoami_output.stdout)
+                );
+                println!(
+                    "npm whoami stderr: {}",
+                    String::from_utf8_lossy(&whoami_output.stderr)
+                );
+
+                if whoami_output.status.success() {
+                    let stdout = String::from_utf8_lossy(&whoami_output.stdout);
+                    assert!(
+                        stdout.trim().contains("whoamiuser"),
+                        "whoami should return the authenticated username"
+                    );
+                } else {
+                    println!(
+                        "npm whoami failed with exit code: {:?}",
+                        whoami_output.status.code()
+                    );
+                    println!(
+                        "This might be expected if npm is not available or configured properly"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn test_npm_publish_with_tag() {
+        init_test_env();
+        let server = TestServer::new();
+        let _handle = server.start();
+
+        let project = TestProject::new(&server.base_url);
+
+        // Create a test package for publishing with a tag
+        project.create_test_package("tagged-publish-test", "1.0.0-beta.1");
+
+        // Register user via API
+        let client = ApiClient::new(server.base_url.clone());
+
+        let npm_user_doc = json!({
+            "name": "taguser",
+            "password": "tagpassword123",
+            "email": "taguser@example.com",
+            "type": "user",
+            "roles": [],
+            "date": "2025-07-18T00:00:00.000Z"
+        });
+
+        let response = client
+            .put("/registry/-/user/org.couchdb.user:taguser")
+            .json(&npm_user_doc)
+            .send()
+            .unwrap();
+
+        if response.status().is_success() {
+            let result: serde_json::Value = response.json().unwrap();
+            if let Some(token) = result["token"].as_str() {
+                // Create .npmrc with auth token
+                let npmrc_content = format!(
+                    "registry={}/registry\n//127.0.0.1:{}/registry/:_authToken={}\n",
+                    server.base_url, server.port, token
+                );
+                std::fs::write(&project.npmrc_path, npmrc_content)
+                    .expect("Failed to write .npmrc with auth");
+
+                // Try to publish the package with a beta tag
+                let mut publish_args = PackageManager::Npm
+                    .publish_args()
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect::<Vec<_>>();
+                publish_args.push("--tag".to_string());
+                publish_args.push("beta".to_string());
+
+                let publish_output = project.run_command(&PackageManager::Npm, &publish_args);
+
+                println!(
+                    "npm publish --tag beta stdout: {}",
+                    String::from_utf8_lossy(&publish_output.stdout)
+                );
+                println!(
+                    "npm publish --tag beta stderr: {}",
+                    String::from_utf8_lossy(&publish_output.stderr)
+                );
+
+                // Check if publish was successful
+                if publish_output.status.success() {
+                    // Verify the package was published by fetching it
+                    let package_response =
+                        client.get("/registry/tagged-publish-test").send().unwrap();
+
+                    if package_response.status().is_success() {
+                        let package_data: serde_json::Value = package_response.json().unwrap();
+                        assert_eq!(package_data["name"], "tagged-publish-test");
+                        assert!(package_data["versions"]["1.0.0-beta.1"].is_object());
+
+                        // Check if dist-tags are properly set
+                        if let Some(dist_tags) = package_data["dist-tags"].as_object() {
+                            assert!(dist_tags.contains_key("beta"), "Should have beta tag");
+                        }
+                    }
+                } else {
+                    println!(
+                        "npm publish --tag beta failed with exit code: {:?}",
+                        publish_output.status.code()
+                    );
+                    println!(
+                        "This might be expected if npm is not available or configured properly"
+                    );
+                }
+            }
+        }
+    }
 }

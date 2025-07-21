@@ -548,7 +548,7 @@ mod tests {
         for invalid_name in &invalid_names {
             // Use a timeout to prevent hanging on problematic names
             match client
-                .get(&format!("/{invalid_name}"))
+                .get(&format!("/registry/{invalid_name}"))
                 .timeout(std::time::Duration::from_secs(5))
                 .send()
             {
@@ -559,8 +559,13 @@ mod tests {
                         response.status()
                     );
                     processed_count += 1;
-                    // Server should handle invalid names gracefully - any response is acceptable
-                    assert!(response.status().as_u16() >= 400 || response.status().as_u16() < 600);
+                    // Server should reject invalid package names with 4xx status codes
+                    assert!(
+                        response.status().is_client_error() || response.status().is_server_error(),
+                        "Invalid package name '{}' should return error status, got: {}",
+                        invalid_name,
+                        response.status()
+                    );
                 }
                 Err(e) => {
                     println!("Request for invalid name '{invalid_name}' failed: {e} (acceptable)");
