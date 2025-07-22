@@ -288,10 +288,7 @@ impl RegistryService {
 
             // Validate that the cached metadata is complete and useful
             if Self::is_metadata_valid(&metadata) {
-                info!(
-                    "Metadata cache hit for package: {} (size: {} bytes)",
-                    package, data_size
-                );
+                info!("Metadata cache hit for package: {package} (size: {data_size} bytes)");
                 return Ok(metadata);
             } else {
                 warn!(
