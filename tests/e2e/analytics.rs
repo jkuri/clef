@@ -22,43 +22,63 @@ mod tests {
         thread::sleep(Duration::from_millis(200));
 
         // Test packages list endpoint
-        match client.get("/api/v1/packages").send() {
-            Ok(response) => {
-                // The packages endpoint should succeed
+        let response = client.get("/api/v1/packages").send().unwrap();
+
+        // The packages endpoint should succeed
+        assert!(
+            response.status().is_success(),
+            "Packages endpoint failed with status: {}",
+            response.status()
+        );
+
+        let packages: serde_json::Value = response.json().unwrap();
+
+        // Should return proper structure (either array or paginated object)
+        if packages.is_array() {
+            // Legacy array format
+            let packages_array = packages.as_array().unwrap();
+            for package in packages_array {
                 assert!(
-                    response.status().is_success(),
-                    "Packages endpoint failed with status: {}",
-                    response.status()
+                    package["name"].is_string(),
+                    "Package should have name field"
                 );
-
-                match response.json::<serde_json::Value>() {
-                    Ok(packages) => {
-                        println!("Packages response: {packages}");
-
-                        // Handle both array and object responses
-                        if packages.is_array() {
-                            if let Some(packages_array) = packages.as_array() {
-                                for package in packages_array {
-                                    // Only check fields that exist
-                                    if package["name"].is_string() {
-                                        println!("Found package: {}", package["name"]);
-                                    }
-                                }
-                            }
-                        } else if packages.is_object() {
-                            println!("Packages endpoint returned object format");
-                        } else {
-                            println!("Packages endpoint returned unexpected format");
-                        }
-                    }
-                    Err(e) => {
-                        println!("Failed to parse packages response: {e}");
-                    }
+                if package["description"].is_string() {
+                    assert!(!package["description"].as_str().unwrap().is_empty());
                 }
             }
-            Err(e) => {
-                println!("Packages endpoint error: {e}");
+        } else if packages.is_object() {
+            // New paginated format
+            assert!(
+                packages["packages"].is_array(),
+                "Should have packages array"
+            );
+            assert!(
+                packages["total_count"].is_number(),
+                "Should have total_count"
+            );
+            assert!(
+                packages["pagination"].is_object(),
+                "Should have pagination object"
+            );
+
+            let packages_array = packages["packages"].as_array().unwrap();
+            for package_with_versions in packages_array {
+                let package = &package_with_versions["package"];
+                assert!(
+                    package["name"].is_string(),
+                    "Package should have name field"
+                );
+                assert!(
+                    package["created_at"].is_string(),
+                    "Package should have created_at"
+                );
+                assert!(
+                    package["updated_at"].is_string(),
+                    "Package should have updated_at"
+                );
             }
+        } else {
+            panic!("Packages endpoint returned unexpected format");
         }
     }
 
@@ -73,7 +93,6 @@ mod tests {
 
         // Make a request to populate package data
         let populate_response = client.get("/registry/lodash").send().unwrap();
-        println!("Populate request status: {}", populate_response.status());
 
         // The populate request should succeed
         assert!(
@@ -87,7 +106,7 @@ mod tests {
         // Test package versions endpoint
         let response = client.get("/api/v1/packages/lodash").send().unwrap();
 
-        // The package versions endpoint should now succeed since we fixed the LEFT JOIN issue
+        // The package versions endpoint should succeed
         assert!(
             response.status().is_success(),
             "Package versions endpoint failed with status: {}",
@@ -95,9 +114,64 @@ mod tests {
         );
 
         let package_versions: serde_json::Value = response.json().unwrap();
-        assert!(package_versions["package"]["name"].is_string());
+
+        // Verify response structure
+        assert!(
+            package_versions["package"].is_object(),
+            "Should have package object"
+        );
+        assert!(
+            package_versions["package"]["name"].is_string(),
+            "Package should have name"
+        );
         assert_eq!(package_versions["package"]["name"], "lodash");
-        assert!(package_versions["versions"].is_array());
+        assert!(
+            package_versions["versions"].is_array(),
+            "Should have versions array"
+        );
+
+        // Verify package metadata (Package structure)
+        let package = &package_versions["package"];
+        assert!(package["name"].is_string(), "Package should have name");
+        assert!(
+            package["created_at"].is_string(),
+            "Package should have created_at"
+        );
+        assert!(
+            package["updated_at"].is_string(),
+            "Package should have updated_at"
+        );
+
+        // Optional fields that might exist
+        if package["description"].is_string() {
+            assert!(!package["description"].as_str().unwrap().is_empty());
+        }
+
+        // Verify versions structure (VersionWithFiles structure)
+        let versions = package_versions["versions"].as_array().unwrap();
+        if !versions.is_empty() {
+            let first_version = &versions[0];
+            assert!(
+                first_version["version"].is_object(),
+                "Version should be an object containing version info"
+            );
+
+            let version_info = &first_version["version"];
+            assert!(
+                version_info["version"].is_string(),
+                "Version info should have version field"
+            );
+            assert!(
+                version_info["created_at"].is_string(),
+                "Version info should have created_at"
+            );
+
+            // Files array should exist
+            assert!(
+                first_version["files"].is_array(),
+                "Version should have files array"
+            );
+        }
     }
 
     #[test]
@@ -116,43 +190,55 @@ mod tests {
         thread::sleep(Duration::from_millis(300));
 
         // Test popular packages endpoint with default limit
-        match client.get("/api/v1/packages/popular").send() {
-            Ok(response) => {
-                // The popular packages endpoint should succeed
+        let response = client.get("/api/v1/packages/popular").send().unwrap();
+
+        // The popular packages endpoint should succeed
+        assert!(
+            response.status().is_success(),
+            "Popular packages endpoint failed with status: {}",
+            response.status()
+        );
+
+        let popular_packages: serde_json::Value = response.json().unwrap();
+
+        // Should return an array
+        assert!(
+            popular_packages.is_array(),
+            "Popular packages should return an array"
+        );
+
+        let packages = popular_packages.as_array().unwrap();
+        assert!(packages.len() <= 10, "Should respect default limit of 10"); // Default limit
+
+        // Verify each package has required fields (PopularPackage structure)
+        for package in packages {
+            assert!(
+                package["name"].is_string(),
+                "Package should have name field"
+            );
+            assert!(
+                package["total_downloads"].is_number(),
+                "Package should have total_downloads"
+            );
+            assert!(
+                package["unique_versions"].is_number(),
+                "Package should have unique_versions"
+            );
+            assert!(
+                package["total_size_bytes"].is_number(),
+                "Package should have total_size_bytes"
+            );
+        }
+
+        // Verify packages are sorted by total downloads (descending)
+        if packages.len() > 1 {
+            for i in 1..packages.len() {
+                let prev_count = packages[i - 1]["total_downloads"].as_i64().unwrap_or(0);
+                let curr_count = packages[i]["total_downloads"].as_i64().unwrap_or(0);
                 assert!(
-                    response.status().is_success(),
-                    "Popular packages endpoint failed with status: {}",
-                    response.status()
+                    prev_count >= curr_count,
+                    "Popular packages should be sorted by total downloads descending"
                 );
-
-                match response.json::<serde_json::Value>() {
-                    Ok(popular_packages) => {
-                        println!("Popular packages response: {popular_packages}");
-
-                        if popular_packages.is_array() {
-                            if let Some(packages) = popular_packages.as_array() {
-                                println!("Found {} popular packages", packages.len());
-                                assert!(packages.len() <= 10); // Default limit
-
-                                for (i, package) in packages.iter().enumerate() {
-                                    println!("Package {}: {}", i + 1, package);
-                                    // Only check fields that exist
-                                    if package["name"].is_string() {
-                                        println!("  Name: {}", package["name"]);
-                                    }
-                                }
-                            }
-                        } else {
-                            println!("Popular packages returned non-array format");
-                        }
-                    }
-                    Err(e) => {
-                        println!("Failed to parse popular packages response: {e}");
-                    }
-                }
-            }
-            Err(e) => {
-                println!("Popular packages endpoint error: {e}");
             }
         }
     }
@@ -211,53 +297,88 @@ mod tests {
         thread::sleep(Duration::from_millis(300));
 
         // Test comprehensive analytics endpoint
-        match client.get("/api/v1/analytics").send() {
-            Ok(response) => {
-                // The analytics endpoint should succeed
+        let response = client.get("/api/v1/analytics").send().unwrap();
+
+        // The analytics endpoint should succeed
+        assert!(
+            response.status().is_success(),
+            "Analytics endpoint failed with status: {}",
+            response.status()
+        );
+
+        let analytics: serde_json::Value = response.json().unwrap();
+
+        // Verify required analytics fields
+        assert!(
+            analytics["total_packages"].is_number(),
+            "Should have total_packages"
+        );
+        assert!(
+            analytics["total_size_bytes"].is_number(),
+            "Should have total_size_bytes"
+        );
+        assert!(
+            analytics["cache_hit_rate"].is_number(),
+            "Should have cache_hit_rate"
+        );
+
+        // Verify numeric ranges
+        let total_packages = analytics["total_packages"].as_i64().unwrap();
+        let total_size_bytes = analytics["total_size_bytes"].as_i64().unwrap();
+        let cache_hit_rate = analytics["cache_hit_rate"].as_f64().unwrap();
+
+        assert!(total_packages >= 0, "Total packages should be non-negative");
+        assert!(total_size_bytes >= 0, "Total size should be non-negative");
+        assert!(
+            (0.0..=100.0).contains(&cache_hit_rate),
+            "Cache hit rate should be 0-100%"
+        );
+
+        // Check popular packages if they exist (PopularPackage structure)
+        if let Some(popular) = analytics["most_popular_packages"].as_array() {
+            assert!(popular.len() <= 10, "Should limit popular packages");
+            for package in popular {
                 assert!(
-                    response.status().is_success(),
-                    "Analytics endpoint failed with status: {}",
-                    response.status()
+                    package["name"].is_string(),
+                    "Popular package should have name"
+                );
+                assert!(
+                    package["total_downloads"].is_number(),
+                    "Popular package should have total_downloads"
+                );
+                assert!(
+                    package["unique_versions"].is_number(),
+                    "Popular package should have unique_versions"
+                );
+                assert!(
+                    package["total_size_bytes"].is_number(),
+                    "Popular package should have total_size_bytes"
+                );
+            }
+        }
+
+        // Check recent packages if they exist (RecentPackage structure)
+        if let Some(recent) = analytics["recent_packages"].as_array() {
+            assert!(recent.len() <= 10, "Should limit recent packages");
+            for recent_package in recent {
+                assert!(
+                    recent_package["package"].is_object(),
+                    "Recent package should have package object"
+                );
+                assert!(
+                    recent_package["versions"].is_array(),
+                    "Recent package should have versions array"
                 );
 
-                match response.json::<serde_json::Value>() {
-                    Ok(analytics) => {
-                        println!("Analytics response: {analytics}");
-
-                        // Check fields that exist
-                        if analytics["total_packages"].is_number() {
-                            println!("Total packages: {}", analytics["total_packages"]);
-                        }
-                        if analytics["total_size_bytes"].is_number() {
-                            println!("Total size bytes: {}", analytics["total_size_bytes"]);
-                        }
-                        if analytics["cache_hit_rate"].is_number() {
-                            println!("Cache hit rate: {}", analytics["cache_hit_rate"]);
-                        }
-
-                        // Check popular packages if they exist
-                        if let Some(popular) = analytics["most_popular_packages"].as_array() {
-                            println!("Found {} popular packages", popular.len());
-                            for (i, package) in popular.iter().enumerate() {
-                                println!("Popular package {}: {}", i + 1, package);
-                            }
-                        }
-
-                        // Check recent packages if they exist
-                        if let Some(recent) = analytics["recent_packages"].as_array() {
-                            println!("Found {} recent packages", recent.len());
-                            for (i, package) in recent.iter().enumerate() {
-                                println!("Recent package {}: {}", i + 1, package);
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        println!("Failed to parse analytics response: {e}");
-                    }
-                }
-            }
-            Err(e) => {
-                println!("Analytics endpoint error: {e}");
+                let package = &recent_package["package"];
+                assert!(
+                    package["name"].is_string(),
+                    "Recent package should have name"
+                );
+                assert!(
+                    package["created_at"].is_string(),
+                    "Recent package should have created_at"
+                );
             }
         }
     }
@@ -273,21 +394,10 @@ mod tests {
 
         // Make multiple downloads of the same package
         let mut successful_downloads = 0;
-        for i in 0..3 {
-            match client.get("/registry/lodash/-/lodash-4.17.21.tgz").send() {
-                Ok(response) if response.status().is_success() => {
+        for _i in 0..3 {
+            if let Ok(response) = client.get("/registry/lodash/-/lodash-4.17.21.tgz").send() {
+                if response.status().is_success() {
                     successful_downloads += 1;
-                    println!("Download {} successful", i + 1);
-                }
-                Ok(response) => {
-                    println!(
-                        "Download {} failed with status: {}",
-                        i + 1,
-                        response.status()
-                    );
-                }
-                Err(e) => {
-                    println!("Download {} error: {}", i + 1, e);
                 }
             }
             thread::sleep(Duration::from_millis(50));
@@ -297,45 +407,64 @@ mod tests {
 
         // Check if download count is tracked (only if we had successful downloads)
         if successful_downloads > 0 {
-            match client.get("/api/v1/packages/lodash").send() {
-                Ok(response) if response.status().is_success() => {
-                    match response.json::<serde_json::Value>() {
-                        Ok(package_data) => {
-                            println!("Package data response: {package_data}");
+            let response = client.get("/api/v1/packages/lodash").send().unwrap();
+            assert!(
+                response.status().is_success(),
+                "Package data request should succeed"
+            );
 
-                            if let Some(versions) = package_data["versions"].as_array() {
-                                println!("Found {} versions", versions.len());
-                                // Find version 4.17.21
-                                for version in versions {
-                                    if version["version"] == "4.17.21" {
-                                        let download_count =
-                                            version["download_count"].as_u64().unwrap_or(0);
-                                        println!("Download count for 4.17.21: {download_count}");
-                                        // Just log the count - don't assert specific values
-                                        break;
-                                    }
-                                }
-                            } else {
-                                println!("No versions array found in package data");
-                            }
-                        }
-                        Err(e) => {
-                            println!("Failed to parse package data: {e}");
-                        }
-                    }
-                }
-                Ok(response) => {
-                    println!(
-                        "Package data request failed with status: {}",
-                        response.status()
+            let package_data: serde_json::Value = response.json().unwrap();
+            assert!(
+                package_data["versions"].is_array(),
+                "Should have versions array"
+            );
+
+            let versions = package_data["versions"].as_array().unwrap();
+            assert!(!versions.is_empty(), "Should have at least one version");
+
+            // Verify the structure matches VersionWithFiles
+            let mut found_version = false;
+            for version_with_files in versions {
+                assert!(
+                    version_with_files["version"].is_object(),
+                    "Should have version object"
+                );
+                assert!(
+                    version_with_files["files"].is_array(),
+                    "Should have files array"
+                );
+
+                let version_info = &version_with_files["version"];
+                if version_info["version"] == "4.17.21" {
+                    found_version = true;
+                    assert!(
+                        version_info["version"].is_string(),
+                        "Version info should have version field"
                     );
-                }
-                Err(e) => {
-                    println!("Package data request error: {e}");
+                    assert!(
+                        version_info["created_at"].is_string(),
+                        "Version info should have created_at"
+                    );
+                    break;
                 }
             }
+
+            // If we can't find the specific version, at least verify the structure
+            if !found_version && !versions.is_empty() {
+                let first_version = &versions[0];
+                let version_info = &first_version["version"];
+                assert!(
+                    version_info["version"].is_string(),
+                    "All versions should have version field"
+                );
+                assert!(
+                    version_info["created_at"].is_string(),
+                    "All versions should have created_at field"
+                );
+            }
         } else {
-            println!("No successful downloads - skipping download count test");
+            // If no successful downloads, we can't test download counting
+            // This is acceptable as it may be due to network issues
         }
     }
 
@@ -404,38 +533,45 @@ mod tests {
         thread::sleep(Duration::from_millis(200));
 
         // Check analytics
-        match client.get("/api/v1/analytics").send() {
-            Ok(response) => {
-                // The analytics endpoint should succeed
-                assert!(
-                    response.status().is_success(),
-                    "Analytics endpoint failed with status: {}",
-                    response.status()
-                );
+        let response = client.get("/api/v1/analytics").send().unwrap();
 
-                match response.json::<serde_json::Value>() {
-                    Ok(analytics) => {
-                        let total_packages = analytics["total_packages"].as_i64().unwrap_or(0);
-                        println!("Total packages tracked: {total_packages}");
+        // The analytics endpoint should succeed
+        assert!(
+            response.status().is_success(),
+            "Analytics endpoint failed with status: {}",
+            response.status()
+        );
 
-                        // Should have tracked some packages (allow for network failures)
-                        if total_packages == 0 {
-                            println!("No packages tracked - may be due to network issues");
-                        } else {
-                            println!(
-                                "Successfully tracked {total_packages} packages from different managers"
-                            );
-                        }
-                    }
-                    Err(e) => {
-                        println!("Failed to parse analytics response: {e}");
-                    }
-                }
-            }
-            Err(e) => {
-                println!("Analytics request error: {e}");
-            }
-        }
+        let analytics: serde_json::Value = response.json().unwrap();
+
+        // Verify analytics structure
+        assert!(
+            analytics["total_packages"].is_number(),
+            "Should have total_packages"
+        );
+        assert!(
+            analytics["total_size_bytes"].is_number(),
+            "Should have total_size_bytes"
+        );
+        assert!(
+            analytics["cache_hit_rate"].is_number(),
+            "Should have cache_hit_rate"
+        );
+
+        let total_packages = analytics["total_packages"].as_i64().unwrap_or(0);
+        let total_size_bytes = analytics["total_size_bytes"].as_i64().unwrap_or(0);
+        let cache_hit_rate = analytics["cache_hit_rate"].as_f64().unwrap_or(0.0);
+
+        // Basic validation of values
+        assert!(total_packages >= 0, "Total packages should be non-negative");
+        assert!(total_size_bytes >= 0, "Total size should be non-negative");
+        assert!(
+            (0.0..=100.0).contains(&cache_hit_rate),
+            "Cache hit rate should be 0-100%"
+        );
+
+        // Note: We don't assert specific package counts as they may vary due to network conditions
+        // The important thing is that the analytics endpoint works and returns valid data
     }
 
     #[test]
