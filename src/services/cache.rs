@@ -136,6 +136,19 @@ impl CacheService {
         package_dir.join("metadata.etag")
     }
 
+    pub fn get_version_metadata_cache_path(&self, package: &str, version: &str) -> PathBuf {
+        // Version-specific metadata cache files are stored as {package}/version-{version}.json
+        let packages_dir = Path::new(&self.config.cache_dir).join("packages");
+        let package_dir = packages_dir.join(package);
+        package_dir.join(format!("version-{version}.json"))
+    }
+
+    pub fn get_version_metadata_etag_path(&self, package: &str, version: &str) -> PathBuf {
+        let packages_dir = Path::new(&self.config.cache_dir).join("packages");
+        let package_dir = packages_dir.join(package);
+        package_dir.join(format!("version-{version}.etag"))
+    }
+
     fn has_published_versions(&self, metadata: &serde_json::Value) -> bool {
         // Check if metadata contains published versions by looking for versions with our server's tarball URLs
         if let Some(versions) = metadata.get("versions").and_then(|v| v.as_object()) {
@@ -247,6 +260,125 @@ impl CacheService {
 
     pub async fn get_metadata(&self, package: &str) -> Option<CacheEntry> {
         self.get_metadata_with_database(package, None).await
+    }
+
+    pub async fn get_version_metadata_with_database(
+        &self,
+        package: &str,
+        version: &str,
+        database: Option<&DatabaseService>,
+    ) -> Option<CacheEntry> {
+        if !self.config.cache_enabled {
+            return None;
+        }
+
+        let cache_key = format!("{package}@{version}.metadata");
+        let cache_path = self.get_version_metadata_cache_path(package, version);
+
+        debug!("Checking version metadata cache for key: {cache_key}");
+
+        if !cache_path.exists() {
+            self.miss_count
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            debug!("Version metadata cache miss for key: {cache_key} - file not found");
+
+            // Persist miss count to database if available
+            if let Some(database) = database {
+                let _ = database.increment_cache_miss_count();
+            }
+
+            return None;
+        }
+
+        // Check TTL for upstream packages
+        if let Ok(metadata) = cache_path.metadata() {
+            if let Ok(created) = metadata.created() {
+                let age = SystemTime::now()
+                    .duration_since(created)
+                    .unwrap_or_default();
+                let ttl_seconds = self.config.cache_ttl_hours * 3600;
+
+                // Only apply TTL to upstream packages (check if this is a published package by looking for author_id in cached metadata)
+                if age.as_secs() > ttl_seconds {
+                    if let Ok(data) = fs::read_to_string(&cache_path) {
+                        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&data) {
+                            // For version-specific metadata, check if it's from our server by looking at dist.tarball
+                            let is_published = if let Some(dist) = json.get("dist") {
+                                if let Some(tarball) = dist.get("tarball").and_then(|t| t.as_str())
+                                {
+                                    tarball.contains(&format!(
+                                        "{}:{}",
+                                        self.config.host, self.config.port
+                                    ))
+                                } else {
+                                    false
+                                }
+                            } else {
+                                false
+                            };
+
+                            if !is_published {
+                                debug!(
+                                    "Version metadata cache expired for upstream package: {cache_key}"
+                                );
+                                self.miss_count
+                                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+
+                                // Persist miss count to database if available
+                                if let Some(database) = database {
+                                    let _ = database.increment_cache_miss_count();
+                                }
+
+                                return None;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        match fs::read(&cache_path) {
+            Ok(data) => {
+                let size = data.len() as u64;
+                let created_at = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs();
+
+                self.hit_count
+                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                debug!("Version metadata cache hit for key: {cache_key} (size: {size} bytes)");
+
+                // Persist hit count and update access info in database if available
+                if let Some(database) = database {
+                    let _ = database.increment_cache_hit_count();
+                    // Note: We don't have version-specific access tracking in the database yet
+                }
+
+                // Try to read ETag from metadata file
+                let etag_path = self.get_version_metadata_etag_path(package, version);
+                let etag = fs::read_to_string(&etag_path).ok();
+
+                Some(CacheEntry {
+                    data,
+                    created_at,
+                    size,
+                    etag,
+                })
+            }
+            Err(e) => {
+                warn!("Failed to read version metadata cache entry {cache_key}: {e}");
+                self.miss_count
+                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+
+                // Persist miss count to database if available
+                if let Some(database) = database {
+                    let _ = database.increment_cache_miss_count();
+                }
+
+                None
+            }
+        }
     }
 
     pub async fn get_metadata_with_database(
@@ -440,6 +572,63 @@ impl CacheService {
     ) -> Result<(), std::io::Error> {
         self.put_metadata_with_etag_and_database(package, metadata_json, etag, None)
             .await
+    }
+
+    pub async fn put_version_metadata_with_etag_and_database(
+        &self,
+        package: &str,
+        version: &str,
+        metadata_json: &str,
+        etag: Option<&str>,
+        database: Option<&DatabaseService>,
+    ) -> Result<(), std::io::Error> {
+        if !self.config.cache_enabled {
+            return Ok(());
+        }
+
+        let cache_key = format!("{package}@{version}.metadata");
+        let cache_path = self.get_version_metadata_cache_path(package, version);
+        let etag_path = self.get_version_metadata_etag_path(package, version);
+
+        debug!(
+            "Storing version metadata in cache key: {} (size: {} bytes)",
+            cache_key,
+            metadata_json.len()
+        );
+
+        // Create package directory if it doesn't exist
+        if let Some(parent) = cache_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+
+        // Write metadata to cache
+        fs::write(&cache_path, metadata_json)?;
+
+        // Write ETag if available
+        if let Some(etag_value) = etag {
+            fs::write(&etag_path, etag_value)?;
+        }
+
+        // Store metadata in database if available
+        if let Some(db) = database {
+            let file_path = cache_path.to_string_lossy().to_string();
+            if let Err(e) = db.upsert_metadata_cache_entry(
+                &format!("{package}@{version}"),
+                metadata_json.len() as i64,
+                &file_path,
+                etag,
+            ) {
+                warn!("Failed to store version metadata cache entry in database: {e}");
+            } else {
+                debug!("Stored version metadata cache entry in database for {package}@{version}");
+            }
+        }
+
+        info!(
+            "Cached version metadata for {package}@{version} (size: {} bytes)",
+            metadata_json.len()
+        );
+        Ok(())
     }
 
     pub async fn put_metadata_with_etag_and_database(

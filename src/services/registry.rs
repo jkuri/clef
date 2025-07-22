@@ -232,6 +232,38 @@ impl RegistryService {
         Ok(())
     }
 
+    /// Validates that package metadata contains valid version information
+    fn is_metadata_valid(metadata: &Value) -> bool {
+        // Check if metadata has versions object and it's not empty
+        if let Some(versions) = metadata.get("versions").and_then(|v| v.as_object()) {
+            if versions.is_empty() {
+                return false;
+            }
+        } else {
+            return false;
+        }
+
+        // Check if dist-tags exists and has at least a latest tag
+        if let Some(dist_tags) = metadata.get("dist-tags").and_then(|dt| dt.as_object()) {
+            if dist_tags.is_empty() {
+                return false;
+            }
+
+            // Check if latest tag points to a valid version
+            if let Some(latest) = dist_tags.get("latest").and_then(|l| l.as_str()) {
+                if latest == "0.0.0" || latest.is_empty() {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        } else {
+            return false;
+        }
+
+        true
+    }
+
     pub async fn get_package_metadata(
         package: &str,
         state: &AppState,
@@ -246,18 +278,31 @@ impl RegistryService {
             .get_metadata_with_database(package, Some(&*state.database))
             .await
         {
-            info!(
-                "Metadata cache hit for package: {} (size: {} bytes)",
-                package,
-                cache_entry.data.len()
-            );
+            let data_size = cache_entry.data.len();
             let metadata_str = String::from_utf8(cache_entry.data).map_err(|e| {
                 ApiError::InternalServerError(format!("Invalid UTF-8 in cached metadata: {e}"))
             })?;
             let metadata: Value = serde_json::from_str(&metadata_str).map_err(|e| {
                 ApiError::InternalServerError(format!("Invalid JSON in cached metadata: {e}"))
             })?;
-            return Ok(metadata);
+
+            // Validate that the cached metadata is complete and useful
+            if Self::is_metadata_valid(&metadata) {
+                info!(
+                    "Metadata cache hit for package: {} (size: {} bytes)",
+                    package, data_size
+                );
+                return Ok(metadata);
+            } else {
+                warn!(
+                    "Cached metadata for package {package} is invalid/incomplete, revalidating from upstream"
+                );
+
+                // Invalidate the corrupted cache
+                if let Err(e) = state.cache.invalidate_metadata(package).await {
+                    warn!("Failed to invalidate corrupted metadata cache for {package}: {e}");
+                }
+            }
         }
 
         info!("Metadata cache miss for package: {package}, generating fresh metadata");
@@ -295,16 +340,87 @@ impl RegistryService {
                     request_scheme,
                 )?
             } else {
-                // Package exists in database but not published locally
-                // For now, still generate metadata from database to prioritize local data
-                info!("Found cached package in database: {package}, using database data");
-                Self::generate_metadata_from_published_packages(
-                    package,
-                    &database_packages,
-                    state,
-                    request_host,
-                    request_scheme,
-                )?
+                // Package exists in database but not published locally - fetch from upstream
+                info!(
+                    "Found cached package in database: {package}, but no published versions - fetching from upstream"
+                );
+
+                // Note: Cache will be overwritten with correct data from upstream
+
+                // Fetch from upstream
+                let url = format!("{}/{package}", state.config.upstream_registry);
+                let response = state.client.get(&url).send().await?;
+
+                if response.status().is_success() {
+                    // Extract ETag from response headers
+                    let etag = response
+                        .headers()
+                        .get("etag")
+                        .and_then(|v| v.to_str().ok())
+                        .map(|s| s.to_string());
+
+                    match response.json::<Value>().await {
+                        Ok(mut json) => {
+                            // Rewrite tarball URLs to point to our proxy server
+                            Self::rewrite_tarball_urls(
+                                &mut json,
+                                &state.config,
+                                request_scheme,
+                                request_host,
+                            )?;
+
+                            info!("Successfully proxied metadata for package: {package}");
+
+                            // Store basic package information in database for analytics
+                            if let Err(e) =
+                                Self::store_package_metadata_in_database(package, &json, state)
+                                    .await
+                            {
+                                warn!("Failed to store package metadata in database: {e:?}");
+                            }
+
+                            // Cache with ETag if available
+                            let metadata_str = serde_json::to_string(&json).map_err(|e| {
+                                ApiError::InternalServerError(format!(
+                                    "Failed to serialize metadata for caching: {e}"
+                                ))
+                            })?;
+
+                            if let Err(e) = state
+                                .cache
+                                .put_metadata_with_etag_and_database(
+                                    package,
+                                    &metadata_str,
+                                    etag.as_deref(),
+                                    Some(&*state.database),
+                                )
+                                .await
+                            {
+                                warn!("Failed to cache metadata for package {package}: {e}");
+                            }
+
+                            json
+                        }
+                        Err(e) => {
+                            error!("Failed to parse JSON response for package {package}: {e}");
+                            return Err(ApiError::ParseError(format!(
+                                "Failed to parse upstream response: {e}"
+                            )));
+                        }
+                    }
+                } else if response.status() == 404 {
+                    info!("Package not found upstream: {package}");
+                    return Err(ApiError::NotFound(format!("Package '{package}' not found")));
+                } else {
+                    error!(
+                        "Upstream returned error {} for package: {package}",
+                        response.status()
+                    );
+                    return Err(ApiError::UpstreamError(format!(
+                        "Upstream error: {}",
+                        response.status()
+                    )));
+                }
             }
         } else {
             // No published versions found, proxy to upstream
@@ -454,11 +570,55 @@ impl RegistryService {
     ) -> Result<Value, ApiError> {
         info!("Fetching metadata for package: {package} version: {version}");
 
+        // Check cache first
+        if let Some(cache_entry) = state
+            .cache
+            .get_version_metadata_with_database(package, version, Some(&*state.database))
+            .await
+        {
+            info!(
+                "Cache hit for version metadata: {package}@{version} (size: {} bytes)",
+                cache_entry.data.len()
+            );
+
+            let metadata: Value = serde_json::from_slice(&cache_entry.data).map_err(|e| {
+                ApiError::InternalServerError(format!("Failed to parse cached metadata: {e}"))
+            })?;
+
+            return Ok(metadata);
+        }
+
+        info!(
+            "Version metadata cache miss for package: {package}@{version}, fetching from upstream"
+        );
+
         let url = format!("{}/{package}/{version}", state.config.upstream_registry);
 
-        let response = state.client.get(&url).send().await?;
+        // Check if we have cached metadata with ETag for conditional request
+        let mut request = state.client.get(&url);
+
+        // Add If-None-Match header if we have cached ETag
+        if let Some(cache_entry) = state
+            .cache
+            .get_version_metadata_with_database(package, version, Some(&*state.database))
+            .await
+        {
+            if let Some(etag) = &cache_entry.etag {
+                debug!("Adding If-None-Match header for upstream version request: {etag}");
+                request = request.header("If-None-Match", etag);
+            }
+        }
+
+        let response = request.send().await?;
 
         if response.status().is_success() {
+            // Extract ETag from response headers
+            let etag = response
+                .headers()
+                .get("etag")
+                .and_then(|v| v.to_str().ok())
+                .map(|s| s.to_string());
+
             match response.json::<Value>().await {
                 Ok(json) => {
                     info!(
@@ -473,6 +633,29 @@ impl RegistryService {
                         warn!("Failed to store version metadata in database: {e:?}");
                     }
 
+                    // Cache the version metadata
+                    let metadata_str = serde_json::to_string(&json).map_err(|e| {
+                        ApiError::InternalServerError(format!(
+                            "Failed to serialize version metadata for caching: {e}"
+                        ))
+                    })?;
+
+                    if let Err(e) = state
+                        .cache
+                        .put_version_metadata_with_etag_and_database(
+                            package,
+                            version,
+                            &metadata_str,
+                            etag.as_deref(),
+                            Some(&*state.database),
+                        )
+                        .await
+                    {
+                        warn!(
+                            "Failed to cache version metadata for package {package}@{version}: {e}"
+                        );
+                    }
+
                     Ok(json)
                 }
                 Err(e) => {
@@ -483,6 +666,29 @@ impl RegistryService {
                         "Failed to parse upstream response: {e}"
                     )))
                 }
+            }
+        } else if response.status() == 304 {
+            // Not Modified - use cached version
+            info!(
+                "Upstream returned 304 Not Modified for {package}@{version}, using cached version"
+            );
+
+            if let Some(cache_entry) = state
+                .cache
+                .get_version_metadata_with_database(package, version, Some(&*state.database))
+                .await
+            {
+                let metadata: Value = serde_json::from_slice(&cache_entry.data).map_err(|e| {
+                    ApiError::InternalServerError(format!("Failed to parse cached metadata: {e}"))
+                })?;
+
+                return Ok(metadata);
+            } else {
+                // This shouldn't happen - we sent If-None-Match but don't have cached data
+                warn!("Received 304 but no cached data found for {package}@{version}");
+                return Err(ApiError::InternalServerError(
+                    "Received 304 Not Modified but no cached data available".to_string(),
+                ));
             }
         } else if response.status() == 404 {
             info!("Package version not found upstream: {package}@{version}");
@@ -714,6 +920,11 @@ impl RegistryService {
                 }
             }
 
+            // Prioritize database package description over package.json description
+            if package_description.is_none() && pkg.description.is_some() {
+                package_description = pkg.description.clone();
+            }
+
             if let Some(pkg_with_versions) = state
                 .database
                 .get_package_with_versions(&pkg.name)
@@ -732,7 +943,7 @@ impl RegistryService {
                             latest_version = version.clone();
                         }
 
-                        // Set description from first package if not set
+                        // Set description from package.json only as fallback if not set from database
                         if package_description.is_none() {
                             package_description = package_json
                                 .get("description")
