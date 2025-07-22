@@ -1,6 +1,7 @@
 use super::connection::{DbPool, get_connection_with_retry};
+use crate::models::organization::OrganizationRole;
 use crate::models::package::*;
-use crate::schema::{package_owners, packages};
+use crate::schema::{organization_members, package_owners, packages};
 use diesel::prelude::*;
 
 /// Package ownership-related database operations
@@ -14,15 +15,13 @@ impl<'a> PackageOwnerOperations<'a> {
     }
 
     /// Checks if a user has read permission for a package
-    /// All packages are now public by default, so this always returns true
-    /// unless the package exists locally and the user doesn't have any permission
+    /// For scoped packages, checks organization membership
+    /// For regular packages, all are public by default
     pub fn has_read_permission(
         &self,
         package_name: &str,
-        _user_id: Option<i32>,
+        user_id: Option<i32>,
     ) -> Result<bool, diesel::result::Error> {
-        // All packages are now public by default
-        // We only need to check if the package exists locally
         let mut conn = get_connection_with_retry(self.pool).map_err(|e| {
             diesel::result::Error::DatabaseError(
                 diesel::result::DatabaseErrorKind::UnableToSendCommand,
@@ -30,22 +29,46 @@ impl<'a> PackageOwnerOperations<'a> {
             )
         })?;
 
-        use crate::schema::packages;
+        // Check if package exists locally
         let package = packages::table
             .filter(packages::name.eq(package_name))
-            .first::<crate::models::package::Package>(&mut conn)
+            .first::<Package>(&mut conn)
             .optional()?;
 
         match package {
-            Some(_pkg) => {
-                // Package exists locally - all packages are public now
-                Ok(true)
+            Some(pkg) => {
+                // Package exists locally
+                // If it's published locally (has author_id), it's public regardless of organization
+                if pkg.author_id.is_some() {
+                    Ok(true) // Published packages are public
+                } else if let Some(org_id) = pkg.organization_id {
+                    // Cached organization package - check organization membership
+                    if let Some(uid) = user_id {
+                        // Check if user is a member of the organization
+                        let is_member = organization_members::table
+                            .filter(organization_members::organization_id.eq(org_id))
+                            .filter(organization_members::user_id.eq(uid))
+                            .first::<crate::models::organization::OrganizationMember>(&mut conn)
+                            .optional()?
+                            .is_some();
+
+                        Ok(is_member)
+                    } else {
+                        // No user provided, deny access to cached organization packages
+                        Ok(false)
+                    }
+                } else {
+                    // Regular cached package - all are public
+                    Ok(true)
+                }
             }
             None => Ok(true), // Package doesn't exist locally = allow access (will proxy to upstream)
         }
     }
 
     /// Checks if a user has write permission for a package
+    /// For scoped packages, checks organization membership
+    /// For regular packages, checks individual ownership
     pub fn has_write_permission(
         &self,
         package_name: &str,
@@ -58,6 +81,7 @@ impl<'a> PackageOwnerOperations<'a> {
             )
         })?;
 
+        // First check individual ownership (for both scoped and regular packages)
         let owner = package_owners::table
             .filter(package_owners::package_name.eq(package_name))
             .filter(package_owners::user_id.eq(user_id))
@@ -69,7 +93,35 @@ impl<'a> PackageOwnerOperations<'a> {
             .first::<PackageOwner>(&mut conn)
             .optional()?;
 
-        Ok(owner.is_some())
+        if owner.is_some() {
+            return Ok(true);
+        }
+
+        // If no individual ownership, check organization membership for scoped packages
+        let package = packages::table
+            .filter(packages::name.eq(package_name))
+            .first::<Package>(&mut conn)
+            .optional()?;
+
+        if let Some(pkg) = package {
+            if let Some(org_id) = pkg.organization_id {
+                // Check if user is a member of the organization with at least member role
+                let member = organization_members::table
+                    .filter(organization_members::organization_id.eq(org_id))
+                    .filter(organization_members::user_id.eq(user_id))
+                    .first::<crate::models::organization::OrganizationMember>(&mut conn)
+                    .optional()?;
+
+                if let Some(member) = member {
+                    // All organization members can publish packages
+                    let user_role = OrganizationRole::from_role_str(&member.role)
+                        .unwrap_or(OrganizationRole::Member);
+                    return Ok(user_role.can_publish_packages());
+                }
+            }
+        }
+
+        Ok(false)
     }
 
     /// Checks if a package exists (has any owners)

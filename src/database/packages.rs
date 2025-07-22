@@ -1,6 +1,6 @@
 use super::connection::{DbPool, get_connection_with_retry};
 use crate::models::package::*;
-use crate::schema::packages;
+use crate::schema::{organizations, packages};
 use diesel::prelude::*;
 
 /// Package-related database operations
@@ -51,6 +51,7 @@ impl<'a> PackageOperations<'a> {
             {
                 let update_package = UpdatePackage {
                     description: description.clone(),
+                    author_id: Some(author_id), // Update author_id when publishing
                     homepage: None,
                     repository_url: None,
                     license: None,
@@ -119,6 +120,7 @@ impl<'a> PackageOperations<'a> {
 
         let update_package = UpdatePackage {
             description: None, // Don't update description here
+            author_id: None,   // Don't update author_id here
             homepage,
             repository_url,
             license,
@@ -508,5 +510,183 @@ impl<'a> PackageOperations<'a> {
         }
 
         Ok(result)
+    }
+
+    /// Creates a package with organization link for scoped packages
+    pub fn create_or_get_package_with_organization(
+        &self,
+        name: &str,
+        description: Option<String>,
+        author_id: Option<i32>,
+        organization_id: Option<i32>,
+    ) -> Result<Package, diesel::result::Error> {
+        let mut conn = get_connection_with_retry(self.pool).map_err(|e| {
+            diesel::result::Error::DatabaseError(
+                diesel::result::DatabaseErrorKind::UnableToSendCommand,
+                Box::new(e.to_string()),
+            )
+        })?;
+
+        // Try to get existing package first
+        if let Some(existing_package) = packages::table
+            .filter(packages::name.eq(name))
+            .first::<Package>(&mut conn)
+            .optional()?
+        {
+            // Update the package with new information
+            let update_package = UpdatePackage {
+                description: description.clone(),
+                author_id: Some(author_id), // Update author_id when publishing
+                homepage: None,
+                repository_url: None,
+                license: None,
+                keywords: None,
+                updated_at: Some(chrono::Utc::now().naive_utc()),
+            };
+
+            diesel::update(packages::table.find(existing_package.id))
+                .set(&update_package)
+                .execute(&mut conn)?;
+
+            // If organization_id is provided and different, update it
+            if let Some(org_id) = organization_id {
+                if existing_package.organization_id != Some(org_id) {
+                    diesel::update(packages::table.find(existing_package.id))
+                        .set(packages::organization_id.eq(org_id))
+                        .execute(&mut conn)?;
+                }
+            }
+
+            return packages::table
+                .find(existing_package.id)
+                .first::<Package>(&mut conn);
+        }
+
+        // Create new package with organization
+        let new_package = NewPackage::new_with_organization(
+            name.to_string(),
+            description,
+            author_id,
+            organization_id,
+        );
+
+        diesel::insert_into(packages::table)
+            .values(&new_package)
+            .execute(&mut conn)?;
+
+        packages::table
+            .filter(packages::name.eq(name))
+            .first::<Package>(&mut conn)
+    }
+
+    /// Extracts organization name from scoped package name
+    /// Returns None for non-scoped packages
+    pub fn extract_organization_name(package_name: &str) -> Option<String> {
+        if package_name.starts_with('@') {
+            if let Some(slash_pos) = package_name.find('/') {
+                // Extract the scope name without the @ symbol
+                let scope = &package_name[1..slash_pos];
+                return Some(scope.to_string());
+            }
+        }
+        None
+    }
+
+    /// Gets or creates organization for a scoped package
+    pub fn get_or_create_organization_for_package(
+        &self,
+        package_name: &str,
+        creator_user_id: Option<i32>,
+    ) -> Result<Option<i32>, diesel::result::Error> {
+        if let Some(org_name) = Self::extract_organization_name(package_name) {
+            let mut conn = get_connection_with_retry(self.pool).map_err(|e| {
+                diesel::result::Error::DatabaseError(
+                    diesel::result::DatabaseErrorKind::UnableToSendCommand,
+                    Box::new(e.to_string()),
+                )
+            })?;
+
+            // Try to find existing organization
+            if let Some(org) = organizations::table
+                .filter(organizations::name.eq(&org_name))
+                .first::<crate::models::organization::Organization>(&mut conn)
+                .optional()?
+            {
+                return Ok(Some(org.id));
+            }
+
+            // Create organization if it doesn't exist and we have a creator
+            if let Some(user_id) = creator_user_id {
+                use crate::models::organization::{
+                    NewOrganization, NewOrganizationMember, OrganizationRole,
+                };
+                use crate::schema::organization_members;
+
+                return conn.transaction(|conn| {
+                    // Create the organization
+                    let new_org = NewOrganization::new(org_name.clone(), None, None);
+
+                    diesel::insert_into(organizations::table)
+                        .values(&new_org)
+                        .execute(conn)?;
+
+                    let organization = organizations::table
+                        .filter(organizations::name.eq(&org_name))
+                        .first::<crate::models::organization::Organization>(conn)?;
+
+                    // Add the creator as an owner
+                    let new_member = NewOrganizationMember::new(
+                        user_id,
+                        organization.id,
+                        OrganizationRole::Owner.to_string(),
+                    );
+
+                    diesel::insert_into(organization_members::table)
+                        .values(&new_member)
+                        .execute(conn)?;
+
+                    Ok(Some(organization.id))
+                });
+            }
+        }
+
+        Ok(None)
+    }
+
+    /// Updates package to link with organization
+    pub fn link_package_to_organization(
+        &self,
+        package_id: i32,
+        organization_id: i32,
+    ) -> Result<Package, diesel::result::Error> {
+        let mut conn = get_connection_with_retry(self.pool).map_err(|e| {
+            diesel::result::Error::DatabaseError(
+                diesel::result::DatabaseErrorKind::UnableToSendCommand,
+                Box::new(e.to_string()),
+            )
+        })?;
+
+        diesel::update(packages::table.find(package_id))
+            .set(packages::organization_id.eq(organization_id))
+            .execute(&mut conn)?;
+
+        packages::table.find(package_id).first::<Package>(&mut conn)
+    }
+
+    /// Gets all packages for an organization
+    pub fn get_packages_by_organization(
+        &self,
+        organization_id: i32,
+    ) -> Result<Vec<Package>, diesel::result::Error> {
+        let mut conn = get_connection_with_retry(self.pool).map_err(|e| {
+            diesel::result::Error::DatabaseError(
+                diesel::result::DatabaseErrorKind::UnableToSendCommand,
+                Box::new(e.to_string()),
+            )
+        })?;
+
+        packages::table
+            .filter(packages::organization_id.eq(organization_id))
+            .load::<Package>(&mut conn)
     }
 }

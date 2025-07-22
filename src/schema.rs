@@ -25,6 +25,27 @@ diesel::table! {
 }
 
 diesel::table! {
+    organization_members (id) {
+        id -> Integer,
+        user_id -> Integer,
+        organization_id -> Integer,
+        role -> Text,
+        created_at -> Timestamp,
+    }
+}
+
+diesel::table! {
+    organizations (id) {
+        id -> Integer,
+        name -> Text,
+        display_name -> Nullable<Text>,
+        description -> Nullable<Text>,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
+    }
+}
+
+diesel::table! {
     package_files (id) {
         id -> Integer,
         package_version_id -> Integer,
@@ -47,6 +68,17 @@ diesel::table! {
         user_id -> Integer,
         permission_level -> Text,
         created_at -> Timestamp,
+    }
+}
+
+diesel::table! {
+    package_tags (id) {
+        id -> Integer,
+        package_name -> Text,
+        tag_name -> Text,
+        version -> Text,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
     }
 }
 
@@ -80,6 +112,7 @@ diesel::table! {
         keywords -> Nullable<Text>,
         created_at -> Timestamp,
         updated_at -> Timestamp,
+        organization_id -> Nullable<Integer>,
     }
 }
 
@@ -107,17 +140,23 @@ diesel::table! {
     }
 }
 
+diesel::joinable!(organization_members -> organizations (organization_id));
+diesel::joinable!(organization_members -> users (user_id));
 diesel::joinable!(package_files -> package_versions (package_version_id));
 diesel::joinable!(package_owners -> users (user_id));
 diesel::joinable!(package_versions -> packages (package_id));
+diesel::joinable!(packages -> organizations (organization_id));
 diesel::joinable!(packages -> users (author_id));
 diesel::joinable!(user_tokens -> users (user_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
     cache_stats,
     metadata_cache,
+    organization_members,
+    organizations,
     package_files,
     package_owners,
+    package_tags,
     package_versions,
     packages,
     user_tokens,

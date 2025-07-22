@@ -1,13 +1,37 @@
 use crate::error::ApiError;
 use crate::models::{AuthenticatedUser, NpmPublishRequest, NpmPublishResponse};
+use crate::routes::packages::ScopedPackageName;
 use crate::state::AppState;
 use log::{debug, warn};
 use rocket::serde::json::Json;
 use rocket::{State, put};
 
-/// npm publish endpoint - PUT /registry/:package
-#[put("/registry/<package>", data = "<publish_request>")]
+/// npm publish endpoint for scoped packages - PUT /registry/@scope/package
+#[put("/registry/<scope>/<package>", data = "<publish_request>", rank = 1)]
+pub async fn npm_publish_scoped(
+    scope: ScopedPackageName,
+    package: &str,
+    publish_request: Json<NpmPublishRequest>,
+    user: AuthenticatedUser,
+    state: &State<AppState>,
+) -> Result<Json<NpmPublishResponse>, ApiError> {
+    let full_package_name = format!("{}/{}", scope.0, package);
+    npm_publish_impl(&full_package_name, publish_request, user, state).await
+}
+
+/// npm publish endpoint for regular packages - PUT /registry/:package
+#[put("/registry/<package>", data = "<publish_request>", rank = 2)]
 pub async fn npm_publish(
+    package: &str,
+    publish_request: Json<NpmPublishRequest>,
+    user: AuthenticatedUser,
+    state: &State<AppState>,
+) -> Result<Json<NpmPublishResponse>, ApiError> {
+    npm_publish_impl(package, publish_request, user, state).await
+}
+
+/// Common implementation for both scoped and regular package publishing
+async fn npm_publish_impl(
     package: &str,
     publish_request: Json<NpmPublishRequest>,
     user: AuthenticatedUser,
@@ -77,16 +101,74 @@ pub async fn npm_publish(
 
     debug!("Publishing version: {version}");
 
-    // Create or get the package in the database
-    let pkg = state
-        .database
-        .create_or_get_package_with_update(
-            package,
-            version_data.description.clone(),
-            Some(user.user_id),
-            true, // Update description if provided
-        )
-        .map_err(|e| ApiError::InternalServerError(format!("Database error: {e}")))?;
+    // Check if this is a scoped package and handle organization
+    let organization_id = if let Some(org_name) =
+        crate::database::DatabaseService::extract_organization_name(package)
+    {
+        debug!("Scoped package detected: organization '{org_name}'");
+
+        // Get or create organization for this scoped package
+        let org_id = state
+            .database
+            .get_or_create_organization_for_package(package, Some(user.user_id))
+            .map_err(|e| ApiError::InternalServerError(format!("Organization error: {e}")))?;
+
+        if let Some(org_id) = org_id {
+            // Check if user has permission to publish to this organization
+            let has_permission = state
+                .database
+                .check_organization_permission(
+                    org_id,
+                    user.user_id,
+                    crate::models::organization::OrganizationRole::Member,
+                )
+                .map_err(|e| {
+                    ApiError::InternalServerError(format!("Permission check error: {e}"))
+                })?;
+
+            if !has_permission {
+                return Err(ApiError::Forbidden(format!(
+                    "You don't have permission to publish to organization '{org_name}'"
+                )));
+            }
+
+            debug!("User has permission to publish to organization {org_id}");
+            Some(org_id)
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    // Use package-level description if available, otherwise fall back to version description
+    let package_description = publish_request
+        .description
+        .clone()
+        .or_else(|| version_data.description.clone());
+
+    // Create or get the package in the database with organization link
+    let pkg = if let Some(org_id) = organization_id {
+        state
+            .database
+            .create_or_get_package_with_organization(
+                package,
+                package_description.clone(),
+                Some(user.user_id),
+                Some(org_id),
+            )
+            .map_err(|e| ApiError::InternalServerError(format!("Database error: {e}")))?
+    } else {
+        state
+            .database
+            .create_or_get_package_with_update(
+                package,
+                package_description.clone(),
+                Some(user.user_id),
+                true, // Update description if provided
+            )
+            .map_err(|e| ApiError::InternalServerError(format!("Database error: {e}")))?
+    };
 
     // Update package metadata (license, etc.) from version data
     if version_data.license.is_some() {
@@ -210,6 +292,31 @@ pub async fn npm_publish(
             .map_err(|e| {
                 ApiError::InternalServerError(format!("Failed to create ownership: {e}"))
             })?;
+    }
+
+    // Handle dist-tags if provided
+    if let Some(dist_tags) = &publish_request.dist_tags {
+        for (tag_name, tag_version) in dist_tags {
+            if let Err(e) =
+                state
+                    .database
+                    .create_or_update_package_tag(package, tag_name, tag_version)
+            {
+                warn!("Failed to create/update tag {tag_name} for package {package}: {e}");
+            } else {
+                debug!("Created/updated tag {tag_name} -> {tag_version} for package {package}");
+            }
+        }
+    } else {
+        // If no explicit tags provided, set 'latest' tag to the published version
+        if let Err(e) = state
+            .database
+            .create_or_update_package_tag(package, "latest", version)
+        {
+            warn!("Failed to create/update latest tag for package {package}: {e}");
+        } else {
+            debug!("Set latest tag to {version} for package {package}");
+        }
     }
 
     // Invalidate metadata cache since we've published a new version

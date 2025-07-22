@@ -16,6 +16,7 @@ mod tests {
     fn setup_authenticated_user(client: &ApiClient) -> Option<String> {
         // Register and login a user for publishing tests
         let npm_user_doc = json!({
+            "_id": "org.couchdb.user:publisher",
             "name": "publisher",
             "password": "publisherpassword123",
             "email": "publisher@example.com",
@@ -34,7 +35,11 @@ mod tests {
             let result: serde_json::Value = response.json().ok()?;
             result["token"].as_str().map(|s| s.to_string())
         } else {
-            None
+            panic!(
+                "Failed to register user: {} - {}",
+                response.status(),
+                response.text().unwrap_or_default()
+            );
         }
     }
 
@@ -56,6 +61,7 @@ mod tests {
             let encoded_tarball = BASE64_STANDARD.encode(&tarball_data);
 
             let publish_request = json!({
+                "_id": "test-package",
                 "name": "test-package",
                 "description": "A test package for e2e testing",
                 "versions": {
@@ -138,6 +144,7 @@ mod tests {
             let encoded_tarball = BASE64_STANDARD.encode(&tarball_data);
 
             let publish_request = json!({
+                "_id": "test-package-apache",
                 "name": "test-package-apache",
                 "description": "A test package with Apache license",
                 "versions": {
@@ -178,6 +185,7 @@ mod tests {
 
             // Test 2: Package without license
             let publish_request_no_license = json!({
+                "_id": "test-package-no-license",
                 "name": "test-package-no-license",
                 "description": "A test package without license",
                 "versions": {
@@ -280,6 +288,7 @@ mod tests {
             let encoded_tarball = BASE64_STANDARD.encode(&tarball_data);
 
             let publish_request = json!({
+                "_id": "@testscope/scoped-package",
                 "name": "@testscope/scoped-package",
                 "description": "A scoped test package",
                 "versions": {
@@ -512,6 +521,7 @@ mod tests {
 
         // Setup first user
         let npm_user_doc1 = json!({
+            "_id": "org.couchdb.user:owner1",
             "name": "owner1",
             "password": "owner1password123",
             "email": "owner1@example.com",
@@ -533,6 +543,7 @@ mod tests {
 
             // Setup second user
             let npm_user_doc2 = json!({
+                "_id": "org.couchdb.user:owner2",
                 "name": "owner2",
                 "password": "owner2password123",
                 "email": "owner2@example.com",
@@ -589,6 +600,110 @@ mod tests {
 
                     assert!(!unauthorized_response.status().is_success());
                 }
+            } else {
+                panic!(
+                    "Failed to register user: {} - {}",
+                    response2.status(),
+                    response2.text().unwrap_or_default()
+                );
+            }
+        } else {
+            panic!(
+                "Failed to register user: {} - {}",
+                response1.status(),
+                response1.text().unwrap_or_default()
+            );
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn test_database_priority_over_upstream() {
+        init_test_env();
+        let server = TestServer::new();
+        let _handle = server.start();
+
+        let project = TestProject::new(&server.base_url);
+        let client = ApiClient::new(server.base_url.clone());
+
+        // First, fetch a package from upstream to cache it in database
+        let response = client.get("/registry/lodash").send().unwrap();
+        assert!(response.status().is_success());
+        let upstream_data: serde_json::Value = response.json().unwrap();
+
+        // Verify it's upstream data (should have many versions)
+        assert!(upstream_data["versions"].as_object().unwrap().len() > 10);
+        println!(
+            "Upstream lodash has {} versions",
+            upstream_data["versions"].as_object().unwrap().len()
+        );
+
+        // Now publish our own version of "lodash"
+        project.create_test_package("lodash", "999.0.0"); // Use a version that doesn't exist upstream
+
+        // Register user and get auth token
+        let npm_user_doc = json!({
+            "_id": "org.couchdb.user:testuser",
+            "name": "testuser",
+            "password": "testpassword123",
+            "email": "testuser@example.com",
+            "type": "user",
+            "roles": [],
+            "date": "2025-07-18T00:00:00.000Z"
+        });
+
+        let response = client
+            .put("/registry/-/user/org.couchdb.user:testuser")
+            .json(&npm_user_doc)
+            .send()
+            .unwrap();
+
+        if response.status().is_success() {
+            let result: serde_json::Value = response.json().unwrap();
+            if let Some(token) = result["token"].as_str() {
+                // Create .npmrc with auth token
+                let npmrc_content = format!(
+                    "registry={}/registry\n//127.0.0.1:{}/:_authToken={}\n",
+                    server.base_url, server.port, token
+                );
+                std::fs::write(&project.npmrc_path, npmrc_content)
+                    .expect("Failed to write .npmrc with auth");
+
+                // Publish our version of lodash
+                let publish_output = project.run_command(
+                    &PackageManager::Npm,
+                    &PackageManager::Npm
+                        .publish_args()
+                        .iter()
+                        .map(|s| s.to_string())
+                        .collect::<Vec<_>>(),
+                );
+
+                if publish_output.status.success() {
+                    // Now fetch lodash again - should get our published version, not upstream
+                    let response = client.get("/registry/lodash").send().unwrap();
+                    assert!(response.status().is_success());
+                    let local_data: serde_json::Value = response.json().unwrap();
+
+                    // Should now have our version 999.0.0
+                    assert!(
+                        local_data["versions"]["999.0.0"].is_object(),
+                        "Should contain our published version 999.0.0"
+                    );
+
+                    // Should still have upstream versions but our version should be in dist-tags
+                    assert_eq!(
+                        local_data["dist-tags"]["latest"], "999.0.0",
+                        "Our version should be the latest"
+                    );
+
+                    println!("✅ Database package correctly takes priority over upstream");
+                } else {
+                    println!(
+                        "Publish failed: {}",
+                        String::from_utf8_lossy(&publish_output.stderr)
+                    );
+                }
             }
         }
     }
@@ -610,6 +725,7 @@ mod tests {
 
         // Register user via API (since npm login is interactive)
         let npm_user_doc = json!({
+            "_id": "org.couchdb.user:npmuser",
             "name": "npmuser",
             "password": "npmpassword123",
             "email": "npmuser@example.com",
@@ -629,7 +745,7 @@ mod tests {
             if let Some(token) = result["token"].as_str() {
                 // Create .npmrc with auth token
                 let npmrc_content = format!(
-                    "registry={}/registry\n//127.0.0.1:{}/registry/:_authToken={}\n",
+                    "registry={}/registry\n//127.0.0.1:{}/:_authToken={}\n",
                     server.base_url, server.port, token
                 );
                 std::fs::write(&project.npmrc_path, npmrc_content)
@@ -678,6 +794,12 @@ mod tests {
                     );
                 }
             }
+        } else {
+            panic!(
+                "Failed to register user: {} - {}",
+                response.status(),
+                response.text().unwrap_or_default()
+            );
         }
     }
 
@@ -697,6 +819,7 @@ mod tests {
         let client = ApiClient::new(server.base_url.clone());
 
         let npm_user_doc = json!({
+            "_id": "org.couchdb.user:scopeduser",
             "name": "scopeduser",
             "password": "scopedpassword123",
             "email": "scopeduser@example.com",
@@ -716,7 +839,7 @@ mod tests {
             if let Some(token) = result["token"].as_str() {
                 // Create .npmrc with auth token and scoped registry config
                 let npmrc_content = format!(
-                    "registry={}/registry\n//127.0.0.1:{}/registry/:_authToken={}\n@testorg:registry={}/registry\n",
+                    "registry={}/registry\n//127.0.0.1:{}/:_authToken={}\n@testorg:registry={}/registry\n",
                     server.base_url, server.port, token, server.base_url
                 );
                 std::fs::write(&project.npmrc_path, npmrc_content)
@@ -768,6 +891,12 @@ mod tests {
                     );
                 }
             }
+        } else {
+            panic!(
+                "Failed to register user: {} - {}",
+                response.status(),
+                response.text().unwrap_or_default()
+            );
         }
     }
 
@@ -787,6 +916,7 @@ mod tests {
         let client = ApiClient::new(server.base_url.clone());
 
         let npm_user_doc = json!({
+            "_id": "org.couchdb.user:publicuser",
             "name": "publicuser",
             "password": "publicpassword123",
             "email": "publicuser@example.com",
@@ -806,7 +936,7 @@ mod tests {
             if let Some(token) = result["token"].as_str() {
                 // Create .npmrc with auth token
                 let npmrc_content = format!(
-                    "registry={}/registry\n//127.0.0.1:{}/registry/:_authToken={}\n@publicorg:registry={}/registry\n",
+                    "registry={}/registry\n//127.0.0.1:{}/:_authToken={}\n@publicorg:registry={}/registry\n",
                     server.base_url, server.port, token, server.base_url
                 );
                 std::fs::write(&project.npmrc_path, npmrc_content)
@@ -858,6 +988,12 @@ mod tests {
                     );
                 }
             }
+        } else {
+            panic!(
+                "Failed to register user: {} - {}",
+                response.status(),
+                response.text().unwrap_or_default()
+            );
         }
     }
 
@@ -877,6 +1013,7 @@ mod tests {
         let client = ApiClient::new(server.base_url.clone());
 
         let npm_user_doc = json!({
+            "_id": "org.couchdb.user:pnpmuser",
             "name": "pnpmuser",
             "password": "pnpmpassword123",
             "email": "pnpmuser@example.com",
@@ -896,7 +1033,7 @@ mod tests {
             if let Some(token) = result["token"].as_str() {
                 // Create .npmrc with auth token for pnpm
                 let npmrc_content = format!(
-                    "registry={}/registry\n//127.0.0.1:{}/registry/:_authToken={}\n",
+                    "registry={}/registry\n//127.0.0.1:{}/:_authToken={}\n",
                     server.base_url, server.port, token
                 );
                 std::fs::write(&project.npmrc_path, npmrc_content)
@@ -945,6 +1082,12 @@ mod tests {
                     );
                 }
             }
+        } else {
+            panic!(
+                "Failed to register user: {} - {}",
+                response.status(),
+                response.text().unwrap_or_default()
+            );
         }
     }
 
@@ -964,6 +1107,7 @@ mod tests {
         let client = ApiClient::new(server.base_url.clone());
 
         let npm_user_doc = json!({
+            "_id": "org.couchdb.user:pnpmscopeduser",
             "name": "pnpmscopeduser",
             "password": "pnpmscopedpassword123",
             "email": "pnpmscopeduser@example.com",
@@ -983,7 +1127,7 @@ mod tests {
             if let Some(token) = result["token"].as_str() {
                 // Create .npmrc with auth token and scoped registry config for pnpm
                 let npmrc_content = format!(
-                    "registry={}/registry\n//127.0.0.1:{}/registry/:_authToken={}\n@pnpmorg:registry={}/registry\n",
+                    "registry={}/registry\n//127.0.0.1:{}/:_authToken={}\n@pnpmorg:registry={}/registry\n",
                     server.base_url, server.port, token, server.base_url
                 );
                 std::fs::write(&project.npmrc_path, npmrc_content)
@@ -1035,6 +1179,12 @@ mod tests {
                     );
                 }
             }
+        } else {
+            panic!(
+                "Failed to register user: {} - {}",
+                response.status(),
+                response.text().unwrap_or_default()
+            );
         }
     }
 
@@ -1054,6 +1204,7 @@ mod tests {
         let client = ApiClient::new(server.base_url.clone());
 
         let npm_user_doc = json!({
+            "_id": "org.couchdb.user:versionuser",
             "name": "versionuser",
             "password": "versionpassword123",
             "email": "versionuser@example.com",
@@ -1073,7 +1224,7 @@ mod tests {
             if let Some(token) = result["token"].as_str() {
                 // Create .npmrc with auth token
                 let npmrc_content = format!(
-                    "registry={}/registry\n//127.0.0.1:{}/registry/:_authToken={}\n",
+                    "registry={}/registry\n//127.0.0.1:{}/:_authToken={}\n",
                     server.base_url, server.port, token
                 );
                 std::fs::write(&project.npmrc_path, npmrc_content)
@@ -1193,6 +1344,7 @@ mod tests {
         let client = ApiClient::new(server.base_url.clone());
 
         let npm_user_doc = json!({
+            "_id": "org.couchdb.user:duplicateuser",
             "name": "duplicateuser",
             "password": "duplicatepassword123",
             "email": "duplicateuser@example.com",
@@ -1212,7 +1364,7 @@ mod tests {
             if let Some(token) = result["token"].as_str() {
                 // Create .npmrc with auth token
                 let npmrc_content = format!(
-                    "registry={}/registry\n//127.0.0.1:{}/registry/:_authToken={}\n",
+                    "registry={}/registry\n//127.0.0.1:{}/:_authToken={}\n",
                     server.base_url, server.port, token
                 );
                 std::fs::write(&project.npmrc_path, npmrc_content)
@@ -1257,6 +1409,12 @@ mod tests {
                     println!("First publish failed, skipping duplicate test");
                 }
             }
+        } else {
+            panic!(
+                "Failed to register user: {} - {}",
+                response.status(),
+                response.text().unwrap_or_default()
+            );
         }
     }
 
@@ -1273,6 +1431,7 @@ mod tests {
         let client = ApiClient::new(server.base_url.clone());
 
         let npm_user_doc = json!({
+            "_id": "org.couchdb.user:whoamiuser",
             "name": "whoamiuser",
             "password": "whoamipassword123",
             "email": "whoamiuser@example.com",
@@ -1292,7 +1451,7 @@ mod tests {
             if let Some(token) = result["token"].as_str() {
                 // Create .npmrc with auth token
                 let npmrc_content = format!(
-                    "registry={}/registry\n//127.0.0.1:{}/registry/:_authToken={}\n",
+                    "registry={}/registry\n//127.0.0.1:{}/:_authToken={}\n",
                     server.base_url, server.port, token
                 );
                 std::fs::write(&project.npmrc_path, npmrc_content)
@@ -1333,6 +1492,12 @@ mod tests {
                     );
                 }
             }
+        } else {
+            panic!(
+                "Failed to register user: {} - {}",
+                response.status(),
+                response.text().unwrap_or_default()
+            );
         }
     }
 
@@ -1354,6 +1519,7 @@ mod tests {
             let encoded_tarball_v1 = BASE64_STANDARD.encode(&tarball_data_v1);
 
             let publish_request_v1 = json!({
+                "_id": "metadata-revalidation-test",
                 "name": "metadata-revalidation-test",
                 "description": "Initial description",
                 "versions": {
@@ -1415,6 +1581,7 @@ mod tests {
             let encoded_tarball_v2 = BASE64_STANDARD.encode(&tarball_data_v2);
 
             let publish_request_v2 = json!({
+                "_id": "metadata-revalidation-test",
                 "name": "metadata-revalidation-test",
                 "description": "Updated description",
                 "versions": {
@@ -1510,6 +1677,7 @@ mod tests {
         let client = ApiClient::new(server.base_url.clone());
 
         let npm_user_doc = json!({
+            "_id": "org.couchdb.user:taguser",
             "name": "taguser",
             "password": "tagpassword123",
             "email": "taguser@example.com",
@@ -1529,7 +1697,7 @@ mod tests {
             if let Some(token) = result["token"].as_str() {
                 // Create .npmrc with auth token
                 let npmrc_content = format!(
-                    "registry={}/registry\n//127.0.0.1:{}/registry/:_authToken={}\n",
+                    "registry={}/registry\n//127.0.0.1:{}/:_authToken={}\n",
                     server.base_url, server.port, token
                 );
                 std::fs::write(&project.npmrc_path, npmrc_content)
@@ -1581,6 +1749,12 @@ mod tests {
                     );
                 }
             }
+        } else {
+            panic!(
+                "Failed to register user: {} - {}",
+                response.status(),
+                response.text().unwrap_or_default()
+            );
         }
     }
 }

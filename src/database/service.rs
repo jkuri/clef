@@ -3,11 +3,16 @@ use super::cache_stats::CacheStatsOperations;
 use super::connection::{DbConnection, DbPool, create_pool, get_connection_with_retry};
 use super::files::{CompletePackageParams, FileOperations, PackageFileParams};
 use super::metadata_cache::MetadataCacheOperations;
+use super::organizations::OrganizationOperations;
 use super::package_owners::PackageOwnerOperations;
 use super::packages::PackageOperations;
 use super::versions::VersionOperations;
 use crate::models::metadata_cache::{MetadataCacheRecord, MetadataCacheStats};
+use crate::models::organization::*;
 use crate::models::package::*;
+use crate::models::user::User;
+use crate::schema::users;
+use diesel::prelude::*;
 
 /// Main database service that provides a unified interface to all database operations
 #[derive(Debug)]
@@ -20,6 +25,18 @@ impl DatabaseService {
     pub fn new(database_url: &str) -> Result<Self, Box<dyn std::error::Error>> {
         let pool = create_pool(database_url)?;
         Ok(Self { pool })
+    }
+
+    pub fn run_migrations(&self) -> Result<(), Box<dyn std::error::Error>> {
+        use diesel_migrations::{EmbeddedMigrations, MigrationHarness, embed_migrations};
+
+        const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations");
+
+        let mut conn = get_connection_with_retry(&self.pool)?;
+        match conn.run_pending_migrations(MIGRATIONS) {
+            Ok(_) => Ok(()),
+            Err(e) => Err(format!("Migration error: {e}").into()),
+        }
     }
 
     /// Gets a connection from the pool with retry logic
@@ -356,5 +373,156 @@ impl DatabaseService {
     ) -> Result<bool, diesel::result::Error> {
         let ops = PackageOwnerOperations::new(&self.pool);
         ops.can_publish_package(package_name, user_id)
+    }
+
+    // Organization operations
+    pub fn create_organization(
+        &self,
+        name: &str,
+        display_name: Option<String>,
+        description: Option<String>,
+        creator_user_id: i32,
+    ) -> Result<Organization, diesel::result::Error> {
+        let ops = OrganizationOperations::new(&self.pool);
+        ops.create_organization(name, display_name, description, creator_user_id)
+    }
+
+    pub fn get_organization_by_name(
+        &self,
+        name: &str,
+    ) -> Result<Option<Organization>, diesel::result::Error> {
+        let ops = OrganizationOperations::new(&self.pool);
+        ops.get_organization_by_name(name)
+    }
+
+    pub fn get_organization_by_id(
+        &self,
+        id: i32,
+    ) -> Result<Option<Organization>, diesel::result::Error> {
+        let ops = OrganizationOperations::new(&self.pool);
+        ops.get_organization_by_id(id)
+    }
+
+    pub fn update_organization(
+        &self,
+        id: i32,
+        display_name: Option<String>,
+        description: Option<String>,
+    ) -> Result<Organization, diesel::result::Error> {
+        let ops = OrganizationOperations::new(&self.pool);
+        ops.update_organization(id, display_name, description)
+    }
+
+    pub fn delete_organization(&self, id: i32) -> Result<(), diesel::result::Error> {
+        let ops = OrganizationOperations::new(&self.pool);
+        ops.delete_organization(id)
+    }
+
+    pub fn add_organization_member(
+        &self,
+        organization_id: i32,
+        user_id: i32,
+        role: &str,
+    ) -> Result<OrganizationMember, diesel::result::Error> {
+        let ops = OrganizationOperations::new(&self.pool);
+        ops.add_member(organization_id, user_id, role)
+    }
+
+    pub fn update_organization_member_role(
+        &self,
+        organization_id: i32,
+        user_id: i32,
+        new_role: &str,
+    ) -> Result<OrganizationMember, diesel::result::Error> {
+        let ops = OrganizationOperations::new(&self.pool);
+        ops.update_member_role(organization_id, user_id, new_role)
+    }
+
+    pub fn remove_organization_member(
+        &self,
+        organization_id: i32,
+        user_id: i32,
+    ) -> Result<(), diesel::result::Error> {
+        let ops = OrganizationOperations::new(&self.pool);
+        ops.remove_member(organization_id, user_id)
+    }
+
+    pub fn get_organization_members(
+        &self,
+        organization_id: i32,
+    ) -> Result<Vec<OrganizationMemberWithUser>, diesel::result::Error> {
+        let ops = OrganizationOperations::new(&self.pool);
+        ops.get_organization_members(organization_id)
+    }
+
+    pub fn check_organization_permission(
+        &self,
+        organization_id: i32,
+        user_id: i32,
+        required_role: OrganizationRole,
+    ) -> Result<bool, diesel::result::Error> {
+        let ops = OrganizationOperations::new(&self.pool);
+        ops.check_user_permission(organization_id, user_id, required_role)
+    }
+
+    // Package-Organization operations
+    pub fn create_or_get_package_with_organization(
+        &self,
+        name: &str,
+        description: Option<String>,
+        author_id: Option<i32>,
+        organization_id: Option<i32>,
+    ) -> Result<Package, diesel::result::Error> {
+        let ops = PackageOperations::new(&self.pool);
+        ops.create_or_get_package_with_organization(name, description, author_id, organization_id)
+    }
+
+    pub fn get_or_create_organization_for_package(
+        &self,
+        package_name: &str,
+        creator_user_id: Option<i32>,
+    ) -> Result<Option<i32>, diesel::result::Error> {
+        let ops = PackageOperations::new(&self.pool);
+        ops.get_or_create_organization_for_package(package_name, creator_user_id)
+    }
+
+    pub fn link_package_to_organization(
+        &self,
+        package_id: i32,
+        organization_id: i32,
+    ) -> Result<Package, diesel::result::Error> {
+        let ops = PackageOperations::new(&self.pool);
+        ops.link_package_to_organization(package_id, organization_id)
+    }
+
+    pub fn get_packages_by_organization(
+        &self,
+        organization_id: i32,
+    ) -> Result<Vec<Package>, diesel::result::Error> {
+        let ops = PackageOperations::new(&self.pool);
+        ops.get_packages_by_organization(organization_id)
+    }
+
+    pub fn extract_organization_name(package_name: &str) -> Option<String> {
+        PackageOperations::extract_organization_name(package_name)
+    }
+
+    // User operations
+    pub fn get_user_by_username(
+        &self,
+        username: &str,
+    ) -> Result<Option<User>, diesel::result::Error> {
+        let mut conn = get_connection_with_retry(&self.pool).map_err(|e| {
+            diesel::result::Error::DatabaseError(
+                diesel::result::DatabaseErrorKind::UnableToSendCommand,
+                Box::new(e.to_string()),
+            )
+        })?;
+
+        users::table
+            .filter(users::username.eq(username))
+            .filter(users::is_active.eq(true))
+            .first::<User>(&mut conn)
+            .optional()
     }
 }

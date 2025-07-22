@@ -9,6 +9,8 @@ pub struct NpmPublishRequest {
     pub description: Option<String>,
     pub versions: std::collections::HashMap<String, NpmPackageVersion>,
     pub _attachments: std::collections::HashMap<String, NpmAttachment>,
+    #[serde(rename = "dist-tags")]
+    pub dist_tags: Option<std::collections::HashMap<String, String>>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]

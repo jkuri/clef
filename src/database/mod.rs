@@ -9,6 +9,7 @@
 //! - `cache_stats`: Cache statistics operations
 //! - `metadata_cache`: Metadata cache operations
 //! - `package_owners`: Package ownership management operations
+//! - `organizations`: Organization and membership management operations
 //! - `service`: Main DatabaseService that provides a unified interface
 
 pub mod analytics;
@@ -16,7 +17,9 @@ pub mod cache_stats;
 pub mod connection;
 pub mod files;
 pub mod metadata_cache;
+pub mod organizations;
 pub mod package_owners;
+pub mod package_tags;
 pub mod packages;
 pub mod service;
 pub mod versions;
@@ -30,6 +33,7 @@ pub use analytics::AnalyticsOperations;
 pub use cache_stats::CacheStatsOperations;
 pub use files::FileOperations;
 pub use metadata_cache::MetadataCacheOperations;
+pub use organizations::OrganizationOperations;
 pub use package_owners::PackageOwnerOperations;
 pub use packages::PackageOperations;
 pub use versions::VersionOperations;

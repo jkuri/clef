@@ -13,6 +13,7 @@ pub enum ApiError {
     Unauthorized(String),
     Forbidden(String),
     NotFound(String),
+    Conflict(String),
     InternalServerError(String),
 }
 
@@ -28,6 +29,7 @@ impl<'r> Responder<'r, 'static> for ApiError {
             ApiError::Unauthorized(msg) => (Status::Unauthorized, msg),
             ApiError::Forbidden(msg) => (Status::Forbidden, msg),
             ApiError::NotFound(msg) => (Status::NotFound, msg),
+            ApiError::Conflict(msg) => (Status::Conflict, msg),
             ApiError::InternalServerError(msg) => (Status::InternalServerError, msg),
         };
 

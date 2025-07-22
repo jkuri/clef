@@ -1,0 +1,9 @@
+CREATE TABLE package_tags (
+    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+    package_name TEXT NOT NULL,
+    tag_name TEXT NOT NULL,
+    version TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(package_name, tag_name)
+);

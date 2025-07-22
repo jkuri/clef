@@ -396,7 +396,7 @@ impl TestProject {
             if let Some(token) = result["token"].as_str() {
                 // Update .npmrc with auth token
                 let npmrc_content = format!(
-                    "registry={}/registry\n//127.0.0.1:{}/registry/:_authToken={}\n",
+                    "registry={}/registry\n//127.0.0.1:{}/:_authToken={}\n",
                     registry_url, server_port, token
                 );
 

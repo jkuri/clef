@@ -32,6 +32,7 @@ pub struct Package {
     pub keywords: Option<String>, // JSON array as text
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
+    pub organization_id: Option<i32>,
 }
 
 #[derive(Insertable, Debug)]
@@ -46,12 +47,14 @@ pub struct NewPackage {
     pub keywords: Option<String>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
+    pub organization_id: Option<i32>,
 }
 
 #[derive(AsChangeset, Debug)]
 #[diesel(table_name = packages)]
 pub struct UpdatePackage {
     pub description: Option<String>,
+    pub author_id: Option<Option<i32>>, // Option<Option<i32>> to allow setting to Some(user_id) or None
     pub homepage: Option<String>,
     pub repository_url: Option<String>,
     pub license: Option<String>,
@@ -233,6 +236,28 @@ impl NewPackage {
             keywords: None,
             created_at: now,
             updated_at: now,
+            organization_id: None,
+        }
+    }
+
+    pub fn new_with_organization(
+        name: String,
+        description: Option<String>,
+        author_id: Option<i32>,
+        organization_id: Option<i32>,
+    ) -> Self {
+        let now = chrono::Utc::now().naive_utc();
+        Self {
+            name,
+            description,
+            author_id,
+            homepage: None,
+            repository_url: None,
+            license: None,
+            keywords: None,
+            created_at: now,
+            updated_at: now,
+            organization_id,
         }
     }
 }

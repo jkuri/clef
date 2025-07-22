@@ -1,5 +1,6 @@
 pub mod api;
 pub mod auth;
+pub mod organizations;
 pub mod packages;
 pub mod publish;
 pub mod security;
@@ -21,6 +22,14 @@ pub fn get_routes() -> Vec<rocket::Route> {
         api::reprocess_cache,
         api::login,
         api::register,
+        // Organization routes
+        organizations::create_organization,
+        organizations::get_organization,
+        organizations::update_organization,
+        organizations::delete_organization,
+        organizations::add_member,
+        organizations::update_member_role,
+        organizations::remove_member,
         // Registry routes (used by npm client - no prefix change)
         // Scoped package routes (higher priority)
         packages::handle_scoped_package_metadata,
@@ -43,7 +52,8 @@ pub fn get_routes() -> Vec<rocket::Route> {
         auth::npm_login,
         auth::npm_whoami,
         auth::npm_logout,
-        // NPM publish route
+        // NPM publish routes
+        publish::npm_publish_scoped,
         publish::npm_publish,
     ];
 

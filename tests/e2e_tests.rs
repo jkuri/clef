@@ -12,6 +12,8 @@ mod authentication;
 mod cache_management;
 #[path = "e2e/compatibility.rs"]
 mod compatibility;
+#[path = "e2e/organizations.rs"]
+mod organizations;
 #[path = "e2e/package_management.rs"]
 mod package_management;
 #[path = "e2e/package_ownership.rs"]

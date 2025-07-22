@@ -262,32 +262,50 @@ impl RegistryService {
 
         info!("Metadata cache miss for package: {package}, generating fresh metadata");
 
-        // First check if we have any published versions of this package in our database
+        // First check if we have any versions of this package in our database (published or cached)
         let mut conn = state.database.get_connection().map_err(|e| {
             ApiError::InternalServerError(format!("Database connection error: {e}"))
         })?;
 
         use crate::schema::packages;
-        let published_packages: Vec<Package> = packages::table
+        let database_packages: Vec<Package> = packages::table
             .filter(packages::name.eq(package))
-            .filter(packages::author_id.is_not_null()) // Only published packages have author_id
             .load::<Package>(&mut conn)
             .map_err(|e| ApiError::InternalServerError(format!("Database query error: {e}")))?;
 
-        let metadata = if !published_packages.is_empty() {
-            // We have published versions, generate metadata from our database
-            info!(
-                "Found {} published versions for package: {}",
-                published_packages.len(),
-                package
-            );
-            Self::generate_metadata_from_published_packages(
-                package,
-                &published_packages,
-                state,
-                request_host,
-                request_scheme,
-            )?
+        let metadata = if !database_packages.is_empty() {
+            // We have this package in our database, check if it's published locally
+            let published_packages: Vec<&Package> = database_packages
+                .iter()
+                .filter(|pkg| pkg.author_id.is_some())
+                .collect();
+
+            if !published_packages.is_empty() {
+                // We have locally published versions, generate metadata from our database
+                info!(
+                    "Found {} locally published versions for package: {}",
+                    published_packages.len(),
+                    package
+                );
+                Self::generate_metadata_from_published_packages(
+                    package,
+                    &database_packages, // Use all database packages, not just published ones
+                    state,
+                    request_host,
+                    request_scheme,
+                )?
+            } else {
+                // Package exists in database but not published locally
+                // For now, still generate metadata from database to prioritize local data
+                info!("Found cached package in database: {package}, using database data");
+                Self::generate_metadata_from_published_packages(
+                    package,
+                    &database_packages,
+                    state,
+                    request_host,
+                    request_scheme,
+                )?
+            }
         } else {
             // No published versions found, proxy to upstream
             let url = format!("{}/{package}", state.config.upstream_registry);
@@ -752,8 +770,23 @@ impl RegistryService {
             }
         }
 
-        // Set dist-tags
-        dist_tags.insert("latest".to_string(), latest_version);
+        // Get dist-tags from database
+        match state.database.get_package_tags_map(package_name) {
+            Ok(db_tags) => {
+                if !db_tags.is_empty() {
+                    // Use tags from database
+                    dist_tags = db_tags;
+                } else {
+                    // No tags in database, set default latest tag
+                    dist_tags.insert("latest".to_string(), latest_version);
+                }
+            }
+            Err(e) => {
+                warn!("Failed to get package tags for {package_name}: {e}");
+                // Fallback to default latest tag
+                dist_tags.insert("latest".to_string(), latest_version);
+            }
+        }
 
         // Create the complete package metadata
         let mut metadata = json!({

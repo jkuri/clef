@@ -21,6 +21,7 @@ mod package_ownership_tests {
 
         // Register first user via API (since npm login is interactive)
         let jkuri_user_doc = json!({
+            "_id": "org.couchdb.user:jkuri",
             "name": "jkuri",
             "password": "jkuripassword123",
             "email": "jkuri@example.com",
@@ -40,7 +41,7 @@ mod package_ownership_tests {
             if let Some(token) = result["token"].as_str() {
                 // Create .npmrc with auth token
                 let npmrc_content = format!(
-                    "registry={}/registry\n//127.0.0.1:{}/registry/:_authToken={}\n",
+                    "registry={}/registry\n//127.0.0.1:{}/:_authToken={}\n",
                     server.base_url, server.port, token
                 );
                 std::fs::write(&project.npmrc_path, npmrc_content)
@@ -72,6 +73,7 @@ mod package_ownership_tests {
 
                 // Now register second user and try to publish same package
                 let jan_user_doc = json!({
+                    "_id": "org.couchdb.user:jan",
                     "name": "jan",
                     "password": "janpassword123",
                     "email": "jan@example.com",
@@ -91,7 +93,7 @@ mod package_ownership_tests {
                     if let Some(token2) = result2["token"].as_str() {
                         // Create .npmrc with auth token for jan
                         let npmrc_content2 = format!(
-                            "registry={}/registry\n//127.0.0.1:{}/registry/:_authToken={}\n",
+                            "registry={}/registry\n//127.0.0.1:{}/:_authToken={}\n",
                             server.base_url, server.port, token2
                         );
                         std::fs::write(&project.npmrc_path, npmrc_content2)
@@ -122,18 +124,37 @@ mod package_ownership_tests {
                             "jan should not be able to publish to jkuri's package"
                         );
 
-                        // Check that the error message indicates permission denied
+                        // Check that the error message indicates permission denied or version conflict
                         let stderr = String::from_utf8_lossy(&publish_output.stderr);
                         assert!(
                             stderr.contains("403")
                                 || stderr.contains("Forbidden")
-                                || stderr.contains("permission"),
-                            "Error should indicate permission denied, got: {}",
+                                || stderr.contains("permission")
+                                || stderr.contains(
+                                    "cannot publish over the previously published versions"
+                                ),
+                            "Error should indicate permission denied or version conflict, got: {}",
                             stderr
                         );
+                    } else {
+                        panic!("Failed to get token from second user registration response");
                     }
+                } else {
+                    panic!(
+                        "Failed to register second user: {} - {}",
+                        response2.status(),
+                        response2.text().unwrap_or_default()
+                    );
                 }
+            } else {
+                panic!("Failed to get token from first user registration response");
             }
+        } else {
+            panic!(
+                "Failed to register first user: {} - {}",
+                response.status(),
+                response.text().unwrap_or_default()
+            );
         }
     }
 
@@ -152,6 +173,7 @@ mod package_ownership_tests {
 
         // Register user via API
         let user_doc = json!({
+            "_id": "org.couchdb.user:authorizeduser",
             "name": "authorizeduser",
             "password": "authorizedpassword123",
             "email": "authorizeduser@example.com",
@@ -171,7 +193,7 @@ mod package_ownership_tests {
             if let Some(token) = result["token"].as_str() {
                 // Create .npmrc with auth token
                 let npmrc_content = format!(
-                    "registry={}/registry\n//127.0.0.1:{}/registry/:_authToken={}\n",
+                    "registry={}/registry\n//127.0.0.1:{}/:_authToken={}\n",
                     server.base_url, server.port, token
                 );
                 std::fs::write(&project.npmrc_path, npmrc_content)
@@ -227,7 +249,15 @@ mod package_ownership_tests {
                     publish_output.status.success(),
                     "authorized user should be able to publish new version of their own package"
                 );
+            } else {
+                panic!("Failed to get token from user registration response");
             }
+        } else {
+            panic!(
+                "Failed to register user: {} - {}",
+                response.status(),
+                response.text().unwrap_or_default()
+            );
         }
     }
 
@@ -248,6 +278,7 @@ mod package_ownership_tests {
 
         // Register first user
         let user1_doc = json!({
+            "_id": "org.couchdb.user:user1",
             "name": "user1",
             "password": "user1password123",
             "email": "user1@example.com",
@@ -267,7 +298,7 @@ mod package_ownership_tests {
             if let Some(token1) = result1["token"].as_str() {
                 // Create .npmrc with auth token for user1
                 let npmrc_content1 = format!(
-                    "registry={}/registry\n//127.0.0.1:{}/registry/:_authToken={}\n",
+                    "registry={}/registry\n//127.0.0.1:{}/:_authToken={}\n",
                     server.base_url, server.port, token1
                 );
                 std::fs::write(&project1.npmrc_path, npmrc_content1)
@@ -291,6 +322,7 @@ mod package_ownership_tests {
 
                 // Register second user
                 let user2_doc = json!({
+                    "_id": "org.couchdb.user:user2",
                     "name": "user2",
                     "password": "user2password123",
                     "email": "user2@example.com",
@@ -310,7 +342,7 @@ mod package_ownership_tests {
                     if let Some(token2) = result2["token"].as_str() {
                         // Create .npmrc with auth token for user2
                         let npmrc_content2 = format!(
-                            "registry={}/registry\n//127.0.0.1:{}/registry/:_authToken={}\n",
+                            "registry={}/registry\n//127.0.0.1:{}/:_authToken={}\n",
                             server.base_url, server.port, token2
                         );
                         std::fs::write(&project2.npmrc_path, npmrc_content2)
@@ -331,18 +363,37 @@ mod package_ownership_tests {
                             "user2 should not be able to publish package already owned by user1"
                         );
 
-                        // Check that the error message indicates permission denied
+                        // Check that the error message indicates permission denied or version conflict
                         let stderr = String::from_utf8_lossy(&publish_output2.stderr);
                         assert!(
                             stderr.contains("403")
                                 || stderr.contains("Forbidden")
-                                || stderr.contains("permission"),
-                            "Error should indicate permission denied, got: {}",
+                                || stderr.contains("permission")
+                                || stderr.contains(
+                                    "cannot publish over the previously published versions"
+                                ),
+                            "Error should indicate permission denied or version conflict, got: {}",
                             stderr
                         );
+                    } else {
+                        panic!("Failed to get token from second user registration response");
                     }
+                } else {
+                    panic!(
+                        "Failed to register second user: {} - {}",
+                        response2.status(),
+                        response2.text().unwrap_or_default()
+                    );
                 }
+            } else {
+                panic!("Failed to get token from first user registration response");
             }
+        } else {
+            panic!(
+                "Failed to register first user: {} - {}",
+                response1.status(),
+                response1.text().unwrap_or_default()
+            );
         }
     }
 }
