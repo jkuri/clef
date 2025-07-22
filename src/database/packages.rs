@@ -509,29 +509,4 @@ impl<'a> PackageOperations<'a> {
 
         Ok(result)
     }
-
-    /// Updates package privacy setting
-    pub fn update_package_privacy(
-        &self,
-        package_name: &str,
-        is_private: bool,
-    ) -> Result<Package, diesel::result::Error> {
-        let mut conn = get_connection_with_retry(self.pool).map_err(|e| {
-            diesel::result::Error::DatabaseError(
-                diesel::result::DatabaseErrorKind::UnableToSendCommand,
-                Box::new(e.to_string()),
-            )
-        })?;
-
-        diesel::update(packages::table.filter(packages::name.eq(package_name)))
-            .set((
-                packages::is_private.eq(is_private),
-                packages::updated_at.eq(chrono::Utc::now().naive_utc()),
-            ))
-            .execute(&mut conn)?;
-
-        packages::table
-            .filter(packages::name.eq(package_name))
-            .first::<Package>(&mut conn)
-    }
 }

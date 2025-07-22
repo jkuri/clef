@@ -104,16 +104,6 @@ pub async fn npm_publish(
             })?;
     }
 
-    // Update package privacy if specified in the publish request
-    if let Some(is_private) = publish_request.private {
-        state
-            .database
-            .update_package_privacy(package, is_private)
-            .map_err(|e| {
-                ApiError::InternalServerError(format!("Failed to update package privacy: {e}"))
-            })?;
-    }
-
     debug!("Package ID: {}", pkg.id);
 
     // Create or get the package version

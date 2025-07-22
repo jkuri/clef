@@ -30,7 +30,6 @@ pub struct Package {
     pub repository_url: Option<String>,
     pub license: Option<String>,
     pub keywords: Option<String>, // JSON array as text
-    pub is_private: bool,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
 }
@@ -45,7 +44,6 @@ pub struct NewPackage {
     pub repository_url: Option<String>,
     pub license: Option<String>,
     pub keywords: Option<String>,
-    pub is_private: bool,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
 }
@@ -233,7 +231,6 @@ impl NewPackage {
             repository_url: None,
             license: None,
             keywords: None,
-            is_private: false,
             created_at: now,
             updated_at: now,
         }

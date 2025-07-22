@@ -1,10 +1,10 @@
 # Clef
 
-> Unlock private NPM registry, sealed in Rust.
+> Self-hosted NPM registry, sealed in Rust.
 
 [![API](https://github.com/jkuri/clef/actions/workflows/clef.yml/badge.svg)](https://github.com/jkuri/clef/actions/workflows/clef.yml)
 
-A high-performance private npm registry built with Rust and Rocket. Clef provides secure package hosting with intelligent upstream proxying, authentication, and caching—delivering the reliability and speed your development workflow demands.
+A high-performance npm registry built with Rust and Rocket. Clef provides secure package hosting with intelligent upstream proxying, authentication, and caching—delivering the reliability and speed your development workflow demands.
 
 ## Features
 
@@ -66,7 +66,7 @@ npm login --registry http://localhost:8000/registry
 npm publish
 
 # Install packages
-npm install my-private-package
+npm install my-package
 npm install @myorg/my-scoped-package
 ```
 
@@ -83,7 +83,7 @@ yarn login --registry http://localhost:8000/registry
 yarn publish
 
 # Install
-yarn add my-private-package
+yarn add my-package
 yarn add @myorg/my-scoped-package
 ```
 
@@ -100,7 +100,7 @@ pnpm login --registry http://localhost:8000/registry
 pnpm publish
 
 # Install
-pnpm add my-private-package
+pnpm add my-package
 pnpm add @myorg/my-scoped-package
 ```
 

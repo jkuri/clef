@@ -78,7 +78,6 @@ diesel::table! {
         repository_url -> Nullable<Text>,
         license -> Nullable<Text>,
         keywords -> Nullable<Text>,
-        is_private -> Bool,
         created_at -> Timestamp,
         updated_at -> Timestamp,
     }

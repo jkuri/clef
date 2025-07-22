@@ -14,15 +14,15 @@ impl<'a> PackageOwnerOperations<'a> {
     }
 
     /// Checks if a user has read permission for a package
-    /// Returns true if:
-    /// - Package is public (not private)
-    /// - Package is private and user has any permission level (read, write, admin)
-    /// - User is None and package is public
+    /// All packages are now public by default, so this always returns true
+    /// unless the package exists locally and the user doesn't have any permission
     pub fn has_read_permission(
         &self,
         package_name: &str,
-        user_id: Option<i32>,
+        _user_id: Option<i32>,
     ) -> Result<bool, diesel::result::Error> {
+        // All packages are now public by default
+        // We only need to check if the package exists locally
         let mut conn = get_connection_with_retry(self.pool).map_err(|e| {
             diesel::result::Error::DatabaseError(
                 diesel::result::DatabaseErrorKind::UnableToSendCommand,
@@ -30,7 +30,6 @@ impl<'a> PackageOwnerOperations<'a> {
             )
         })?;
 
-        // First check if the package exists and if it's private
         use crate::schema::packages;
         let package = packages::table
             .filter(packages::name.eq(package_name))
@@ -38,24 +37,9 @@ impl<'a> PackageOwnerOperations<'a> {
             .optional()?;
 
         match package {
-            Some(pkg) => {
-                if !pkg.is_private {
-                    // Public package - everyone can read
-                    Ok(true)
-                } else {
-                    // Private package - check if user has any permission
-                    match user_id {
-                        Some(uid) => {
-                            let owner = package_owners::table
-                                .filter(package_owners::package_name.eq(package_name))
-                                .filter(package_owners::user_id.eq(uid))
-                                .first::<PackageOwner>(&mut conn)
-                                .optional()?;
-                            Ok(owner.is_some())
-                        }
-                        None => Ok(false), // No user, private package = no access
-                    }
-                }
+            Some(_pkg) => {
+                // Package exists locally - all packages are public now
+                Ok(true)
             }
             None => Ok(true), // Package doesn't exist locally = allow access (will proxy to upstream)
         }

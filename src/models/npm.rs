@@ -7,7 +7,6 @@ pub struct NpmPublishRequest {
     pub _id: String,
     pub name: String,
     pub description: Option<String>,
-    pub private: Option<bool>,
     pub versions: std::collections::HashMap<String, NpmPackageVersion>,
     pub _attachments: std::collections::HashMap<String, NpmAttachment>,
 }
