@@ -1,6 +1,6 @@
 use crate::config::AppConfig;
 use crate::error::ApiError;
-use crate::models::Package;
+use crate::models::{Package, PackageVersion};
 use crate::state::AppState;
 use diesel::prelude::*;
 use log::{debug, error, info, warn};
@@ -262,6 +262,215 @@ impl RegistryService {
         }
 
         true
+    }
+
+    async fn generate_version_metadata_from_database(
+        pkg: &Package,
+        pkg_version: &PackageVersion,
+        state: &AppState,
+    ) -> Result<Value, ApiError> {
+        use serde_json::json;
+
+        // Get the package.json file for this version
+        let package_json_path = format!(
+            "{}/{}/{}-{}.json",
+            state.config.cache_dir,
+            pkg.name,
+            if pkg.name.starts_with('@') {
+                pkg.name.split('/').next_back().unwrap_or(&pkg.name)
+            } else {
+                &pkg.name
+            },
+            pkg_version.version
+        );
+
+        // Read the package.json file
+        let package_json_content = match std::fs::read_to_string(&package_json_path) {
+            Ok(content) => content,
+            Err(e) => {
+                warn!(
+                    "Failed to read package.json for {}/{}: {e}",
+                    pkg.name, pkg_version.version
+                );
+                // Fallback to constructing from database fields
+                return Self::construct_version_metadata_from_db_fields(pkg, pkg_version, state)
+                    .await;
+            }
+        };
+
+        let mut package_json: Value = match serde_json::from_str(&package_json_content) {
+            Ok(json) => json,
+            Err(e) => {
+                warn!(
+                    "Failed to parse package.json for {}/{}: {e}",
+                    pkg.name, pkg_version.version
+                );
+                // Fallback to constructing from database fields
+                return Self::construct_version_metadata_from_db_fields(pkg, pkg_version, state)
+                    .await;
+            }
+        };
+
+        // Add README from database if available
+        if let Some(readme) = &pkg_version.readme {
+            package_json["readme"] = json!(readme);
+        }
+
+        // Ensure dist field has correct tarball URL
+        let tarball_filename = if pkg.name.starts_with('@') {
+            let package_name = pkg.name.split('/').next_back().unwrap_or(&pkg.name);
+            format!("{package_name}-{}.tgz", pkg_version.version)
+        } else {
+            format!("{}-{}.tgz", pkg.name, pkg_version.version)
+        };
+
+        let tarball_url = format!(
+            "http://{}/registry/{}/-/{}",
+            state.config.host, pkg.name, tarball_filename
+        );
+
+        if let Some(dist) = package_json.get_mut("dist") {
+            if let Some(dist_obj) = dist.as_object_mut() {
+                dist_obj.insert("tarball".to_string(), json!(tarball_url));
+            }
+        } else {
+            package_json["dist"] = json!({
+                "tarball": tarball_url
+            });
+        }
+
+        Ok(package_json)
+    }
+
+    async fn construct_version_metadata_from_db_fields(
+        pkg: &Package,
+        pkg_version: &PackageVersion,
+        state: &AppState,
+    ) -> Result<Value, ApiError> {
+        use serde_json::json;
+
+        // Construct basic version metadata from database fields
+        let mut version_data = json!({
+            "name": pkg.name,
+            "version": pkg_version.version,
+        });
+
+        if let Some(description) = &pkg_version.description {
+            version_data["description"] = json!(description);
+        }
+
+        if let Some(main_file) = &pkg_version.main_file {
+            version_data["main"] = json!(main_file);
+        }
+
+        if let Some(scripts) = &pkg_version.scripts {
+            if let Ok(scripts_obj) = serde_json::from_str::<Value>(scripts) {
+                version_data["scripts"] = scripts_obj;
+            }
+        }
+
+        if let Some(dependencies) = &pkg_version.dependencies {
+            if let Ok(deps_obj) = serde_json::from_str::<Value>(dependencies) {
+                version_data["dependencies"] = deps_obj;
+            }
+        }
+
+        if let Some(dev_dependencies) = &pkg_version.dev_dependencies {
+            if let Ok(dev_deps_obj) = serde_json::from_str::<Value>(dev_dependencies) {
+                version_data["devDependencies"] = dev_deps_obj;
+            }
+        }
+
+        if let Some(peer_dependencies) = &pkg_version.peer_dependencies {
+            if let Ok(peer_deps_obj) = serde_json::from_str::<Value>(peer_dependencies) {
+                version_data["peerDependencies"] = peer_deps_obj;
+            }
+        }
+
+        if let Some(engines) = &pkg_version.engines {
+            if let Ok(engines_obj) = serde_json::from_str::<Value>(engines) {
+                version_data["engines"] = engines_obj;
+            }
+        }
+
+        // Add README from database if available
+        if let Some(readme) = &pkg_version.readme {
+            version_data["readme"] = json!(readme);
+        }
+
+        // Add dist field with tarball URL
+        let tarball_filename = if pkg.name.starts_with('@') {
+            let package_name = pkg.name.split('/').next_back().unwrap_or(&pkg.name);
+            format!("{package_name}-{}.tgz", pkg_version.version)
+        } else {
+            format!("{}-{}.tgz", pkg.name, pkg_version.version)
+        };
+
+        let tarball_url = format!(
+            "http://{}/registry/{}/-/{}",
+            state.config.host, pkg.name, tarball_filename
+        );
+
+        let mut dist = json!({
+            "tarball": tarball_url
+        });
+
+        if let Some(shasum) = &pkg_version.shasum {
+            dist["shasum"] = json!(shasum);
+        }
+
+        version_data["dist"] = dist;
+
+        Ok(version_data)
+    }
+
+    async fn get_readme_from_package_cache(package: &str, state: &AppState) -> Option<String> {
+        // First check if we have the package metadata cached
+        if let Some(cache_entry) = state
+            .cache
+            .get_metadata_with_database(package, Some(&*state.database))
+            .await
+        {
+            if let Ok(package_metadata) = serde_json::from_slice::<Value>(&cache_entry.data) {
+                if let Some(readme) = package_metadata.get("readme") {
+                    if let Some(readme_str) = readme.as_str() {
+                        return Some(readme_str.to_string());
+                    }
+                }
+            }
+        }
+
+        // If not cached, fetch from upstream
+        let url = format!("{}/{package}", state.config.upstream_registry);
+        let client = reqwest::Client::new();
+
+        match client.get(&url).send().await {
+            Ok(response) if response.status().is_success() => {
+                match response.json::<Value>().await {
+                    Ok(package_metadata) => {
+                        if let Some(readme) = package_metadata.get("readme") {
+                            if let Some(readme_str) = readme.as_str() {
+                                return Some(readme_str.to_string());
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        warn!("Failed to parse package metadata for README: {e}");
+                    }
+                }
+            }
+            Ok(response) => {
+                warn!(
+                    "Failed to fetch package metadata for README: HTTP {}",
+                    response.status()
+                );
+            }
+            Err(e) => {
+                warn!("Failed to fetch package metadata for README: {e}");
+            }
+        }
+
+        None
     }
 
     pub async fn get_package_metadata(
@@ -585,6 +794,29 @@ impl RegistryService {
             return Ok(metadata);
         }
 
+        // First check if this is a locally published package version
+        let mut conn = state.database.get_connection().map_err(|e| {
+            ApiError::InternalServerError(format!("Database connection error: {e}"))
+        })?;
+
+        use crate::schema::{package_versions, packages};
+
+        // Check if we have this specific version published locally
+        let local_version = packages::table
+            .inner_join(package_versions::table)
+            .filter(packages::name.eq(package))
+            .filter(package_versions::version.eq(version))
+            .filter(packages::author_id.is_not_null()) // Only published packages have author_id
+            .select((packages::all_columns, package_versions::all_columns))
+            .first::<(Package, PackageVersion)>(&mut conn)
+            .optional()
+            .map_err(|e| ApiError::InternalServerError(format!("Database query error: {e}")))?;
+
+        if let Some((pkg, pkg_version)) = local_version {
+            info!("Found locally published version: {package}@{version}");
+            return Self::generate_version_metadata_from_database(&pkg, &pkg_version, state).await;
+        }
+
         info!(
             "Version metadata cache miss for package: {package}@{version}, fetching from upstream"
         );
@@ -617,12 +849,21 @@ impl RegistryService {
                 .map(|s| s.to_string());
 
             match response.json::<Value>().await {
-                Ok(json) => {
+                Ok(mut json) => {
                     info!(
                         "Successfully proxied metadata for package: {package} version: {version}"
                     );
 
-                    // Store version metadata in database for analytics and future use
+                    // Add README from package-level metadata if not present
+                    if json.get("readme").is_none() {
+                        if let Some(readme) =
+                            Self::get_readme_from_package_cache(package, state).await
+                        {
+                            json["readme"] = serde_json::Value::String(readme);
+                        }
+                    }
+
+                    // Store version metadata in database for analytics and future use (after README is added)
                     if let Err(e) =
                         Self::store_version_metadata_in_database(package, version, &json, state)
                             .await

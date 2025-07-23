@@ -1,4 +1,5 @@
 import { Database, HardDrive, Package, TrendingUp } from "lucide-react";
+import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -121,9 +122,13 @@ export function Dashboard() {
                 ))}
               </div>
             ) : data?.most_popular_packages && data.most_popular_packages.length > 0 ? (
-              <div className="space-y-3">
+              <div className="space-y-1">
                 {data.most_popular_packages.map((pkg, index) => (
-                  <div key={pkg.name} className="flex items-center justify-between">
+                  <Link
+                    key={pkg.name}
+                    to={`/packages/${pkg.name}`}
+                    className="flex items-center justify-between rounded-lg p-2 transition-colors hover:bg-muted/50"
+                  >
                     <div className="flex items-center space-x-3">
                       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10">
                         <span className="font-medium text-xs">{index + 1}</span>
@@ -137,10 +142,10 @@ export function Dashboard() {
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="font-medium text-sm">{pkg.total_downloads}</p>
+                      <p className="font-medium text-sm">{formatNumber(pkg.total_downloads)}</p>
                       <p className="text-muted-foreground text-xs">downloads</p>
                     </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
             ) : (
@@ -158,7 +163,7 @@ export function Dashboard() {
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <div className="space-y-3">
+              <div className="space-y-1">
                 {Array.from({ length: 5 }).map((_, i) => (
                   <div key={i} className="flex items-center space-x-3">
                     <Skeleton className="h-8 w-8 rounded-full" />
@@ -170,9 +175,13 @@ export function Dashboard() {
                 ))}
               </div>
             ) : data?.recent_packages && data.recent_packages.length > 0 ? (
-              <div className="space-y-3">
+              <div className="space-y-1">
                 {data.recent_packages.slice(0, 5).map((recentPackage) => (
-                  <div key={recentPackage.package.id} className="flex items-start space-x-3">
+                  <Link
+                    key={recentPackage.package.id}
+                    to={`/packages/${recentPackage.package.name}`}
+                    className="flex items-start space-x-3 rounded-lg p-2 transition-colors hover:bg-muted/50"
+                  >
                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10">
                       <Package className="h-4 w-4" />
                     </div>
@@ -186,7 +195,7 @@ export function Dashboard() {
                           : "No description"}
                       </p>
                     </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
             ) : (

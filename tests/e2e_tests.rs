@@ -25,6 +25,8 @@ mod performance;
 mod proxied_metadata;
 #[path = "e2e/publishing.rs"]
 mod publishing;
+#[path = "e2e/readme_functionality.rs"]
+mod readme_functionality;
 #[path = "e2e/scoped_packages.rs"]
 mod scoped_packages;
 #[path = "e2e/security.rs"]

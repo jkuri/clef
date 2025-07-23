@@ -95,6 +95,7 @@ diesel::table! {
         peer_dependencies -> Nullable<Text>,
         engines -> Nullable<Text>,
         shasum -> Nullable<Text>,
+        readme -> Nullable<Text>,
         created_at -> Timestamp,
         updated_at -> Timestamp,
     }

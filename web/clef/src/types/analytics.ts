@@ -31,6 +31,7 @@ export interface PackageVersion {
   peer_dependencies: string | null;
   engines: string | null;
   shasum: string | null;
+  readme: string | null;
   created_at: string;
   updated_at: string;
 }

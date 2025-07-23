@@ -367,6 +367,11 @@ impl TestProject {
     }
 
     #[allow(dead_code)]
+    pub fn register_and_login_user(&self, _registry_url: &str, server_port: u16) {
+        self.set_auth_token("testuser", "testpass123", server_port);
+    }
+
+    #[allow(dead_code)]
     pub fn set_auth_token(&self, username: &str, password: &str, server_port: u16) {
         // Register/login user via API to get the proper auth token
         let client = reqwest::blocking::Client::new();

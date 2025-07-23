@@ -92,13 +92,21 @@ impl<'a> VersionOperations<'a> {
                 // Store the existing version ID for updating
                 existing_version_id = Some(existing_version.id);
             } else {
-                // If version exists but has no metadata, update it with metadata
+                // If version exists but has no metadata or missing README, update it with metadata
                 if existing_version.description.is_none()
                     && existing_version.scripts.is_none()
                     && existing_version.dependencies.is_none()
                     && existing_version.dev_dependencies.is_none()
                 {
                     // Store the existing version ID for updating
+                    existing_version_id = Some(existing_version.id);
+                } else if existing_version.readme.is_none()
+                    || existing_version
+                        .readme
+                        .as_ref()
+                        .map_or(true, |r| r.is_empty())
+                {
+                    // If README is missing or empty, update the record to include README
                     existing_version_id = Some(existing_version.id);
                 } else {
                     return Ok(existing_version);
@@ -137,6 +145,12 @@ impl<'a> VersionOperations<'a> {
             .and_then(|shasum| shasum.as_str())
             .map(|s| s.to_string());
 
+        // Extract README content if available
+        let readme = package_json
+            .get("readme")
+            .and_then(|readme| readme.as_str())
+            .map(|s| s.to_string());
+
         // Extract publication time if available
         let created_at = package_json
             .get("_published_time")
@@ -157,6 +171,7 @@ impl<'a> VersionOperations<'a> {
             peer_dependencies,
             engines,
             shasum,
+            readme,
             created_at,
         };
         let new_version =
@@ -179,6 +194,7 @@ impl<'a> VersionOperations<'a> {
                 package_versions::peer_dependencies.eq(&new_version.peer_dependencies),
                 package_versions::engines.eq(&new_version.engines),
                 package_versions::shasum.eq(&new_version.shasum),
+                package_versions::readme.eq(&new_version.readme),
                 package_versions::updated_at.eq(chrono::Utc::now().naive_utc()),
             ))
             .execute(&mut conn)?;

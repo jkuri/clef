@@ -14,6 +14,7 @@ pub struct PackageVersionMetadata {
     pub peer_dependencies: Option<String>,
     pub engines: Option<String>,
     pub shasum: Option<String>,
+    pub readme: Option<String>,
     pub created_at: Option<NaiveDateTime>,
 }
 
@@ -78,6 +79,7 @@ pub struct PackageVersion {
     pub peer_dependencies: Option<String>, // JSON object as text
     pub engines: Option<String>,           // JSON object as text
     pub shasum: Option<String>,
+    pub readme: Option<String>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
 }
@@ -95,6 +97,7 @@ pub struct NewPackageVersion {
     pub peer_dependencies: Option<String>,
     pub engines: Option<String>,
     pub shasum: Option<String>,
+    pub readme: Option<String>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
 }
@@ -276,6 +279,7 @@ impl NewPackageVersion {
             peer_dependencies: None,
             engines: None,
             shasum: None,
+            readme: None,
             created_at: now,
             updated_at: now,
         }
@@ -299,6 +303,7 @@ impl NewPackageVersion {
             peer_dependencies: metadata.peer_dependencies,
             engines: metadata.engines,
             shasum: metadata.shasum,
+            readme: metadata.readme,
             created_at,
             updated_at: now,
         }

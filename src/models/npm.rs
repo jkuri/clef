@@ -26,6 +26,7 @@ pub struct NpmPackageVersion {
     pub keywords: Option<Vec<String>>,
     pub author: Option<Value>,
     pub license: Option<String>,
+    pub readme: Option<String>,
     pub dist: NpmDist,
 }
 
