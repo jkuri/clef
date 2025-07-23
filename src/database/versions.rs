@@ -104,7 +104,7 @@ impl<'a> VersionOperations<'a> {
                     || existing_version
                         .readme
                         .as_ref()
-                        .map_or(true, |r| r.is_empty())
+                        .is_none_or(|r| r.is_empty())
                 {
                     // If README is missing or empty, update the record to include README
                     existing_version_id = Some(existing_version.id);
