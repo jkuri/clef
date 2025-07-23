@@ -5,7 +5,6 @@ import { format, isValid, parseISO } from "date-fns";
 import { ArrowDown, ArrowUp, ArrowUpDown, MoreHorizontal, Package } from "lucide-react";
 import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,25 +22,6 @@ interface ColumnProps {
 }
 
 export const createColumns = ({ onSort, sortField, sortOrder }: ColumnProps): ColumnDef<PackageWithVersions>[] => [
-  {
-    id: "select",
-    header: ({ table }) => (
-      <Checkbox
-        checked={table.getIsAllPageRowsSelected() || (table.getIsSomePageRowsSelected() && "indeterminate")}
-        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-        aria-label="Select all"
-      />
-    ),
-    cell: ({ row }) => (
-      <Checkbox
-        checked={row.getIsSelected()}
-        onCheckedChange={(value) => row.toggleSelected(!!value)}
-        aria-label="Select row"
-      />
-    ),
-    enableSorting: false,
-    enableHiding: false,
-  },
   {
     accessorKey: "name",
     header: () => {
@@ -75,8 +55,8 @@ export const createColumns = ({ onSort, sortField, sortOrder }: ColumnProps): Co
               <p className="truncate font-medium text-sm leading-none">{pkg.name}</p>
               <p className="mt-1 text-muted-foreground text-xs">
                 {pkg.description
-                  ? pkg.description.length > 60
-                    ? `${pkg.description.substring(0, 60)}...`
+                  ? pkg.description.length > 40
+                    ? `${pkg.description.substring(0, 40)}...`
                     : pkg.description
                   : "No description"}
               </p>
@@ -95,7 +75,7 @@ export const createColumns = ({ onSort, sortField, sortOrder }: ColumnProps): Co
       return (
         <div className="text-sm">
           <span className="font-medium">{versions.length}</span>
-          <span className="ml-1 text-muted-foreground">version{versions.length !== 1 ? "s" : ""}</span>
+          <span className="ml-1 hidden text-muted-foreground sm:inline">version{versions.length !== 1 ? "s" : ""}</span>
         </div>
       );
     },
@@ -167,7 +147,7 @@ export const createColumns = ({ onSort, sortField, sortOrder }: ColumnProps): Co
           return (
             <div className="text-sm">
               <div className="font-medium">{format(date, "MMM d, yyyy")}</div>
-              <div className="text-muted-foreground text-xs">{format(date, "h:mm a")}</div>
+              <div className="hidden text-muted-foreground text-xs sm:block">{format(date, "h:mm a")}</div>
             </div>
           );
         }
@@ -178,7 +158,7 @@ export const createColumns = ({ onSort, sortField, sortOrder }: ColumnProps): Co
           return (
             <div className="text-sm">
               <div className="font-medium">{format(fallbackDate, "MMM d, yyyy")}</div>
-              <div className="text-muted-foreground text-xs">{format(fallbackDate, "h:mm a")}</div>
+              <div className="hidden text-muted-foreground text-xs sm:block">{format(fallbackDate, "h:mm a")}</div>
             </div>
           );
         }
@@ -217,7 +197,7 @@ export const createColumns = ({ onSort, sortField, sortOrder }: ColumnProps): Co
           return (
             <div className="text-sm">
               <div className="font-medium">{format(date, "MMM d, yyyy")}</div>
-              <div className="text-muted-foreground text-xs">{format(date, "h:mm a")}</div>
+              <div className="hidden text-muted-foreground text-xs sm:block">{format(date, "h:mm a")}</div>
             </div>
           );
         }
@@ -228,7 +208,7 @@ export const createColumns = ({ onSort, sortField, sortOrder }: ColumnProps): Co
           return (
             <div className="text-sm">
               <div className="font-medium">{format(fallbackDate, "MMM d, yyyy")}</div>
-              <div className="text-muted-foreground text-xs">{format(fallbackDate, "h:mm a")}</div>
+              <div className="hidden text-muted-foreground text-xs sm:block">{format(fallbackDate, "h:mm a")}</div>
             </div>
           );
         }

@@ -101,19 +101,19 @@ const findLatestStableVersion = (versions: PackageVersionWithFiles[]): PackageVe
 const DependencyTable = ({ dependencies, title }: { dependencies: Record<string, string>; title: string }) => (
   <div>
     <h4 className="mb-3 font-medium text-sm">{title}</h4>
-    <div className="rounded border">
+    <div className="overflow-x-auto rounded border">
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-2/3">Package</TableHead>
-            <TableHead className="w-1/3">Version</TableHead>
+            <TableHead className="w-2/3 min-w-0">Package</TableHead>
+            <TableHead className="w-1/3 min-w-0">Version</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {Object.entries(dependencies).map(([pkg, version]) => (
             <TableRow key={pkg}>
-              <TableCell className="break-all font-medium">{pkg}</TableCell>
-              <TableCell className="font-mono text-sm">{version}</TableCell>
+              <TableCell className="break-all font-medium text-xs sm:text-sm">{pkg}</TableCell>
+              <TableCell className="font-mono text-xs sm:text-sm">{version}</TableCell>
             </TableRow>
           ))}
         </TableBody>
@@ -142,36 +142,39 @@ const VersionList = ({
     {versions.slice(0, maxDisplay).map((versionData) => (
       <div
         key={versionData.version.id}
-        className={`flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-muted/50 ${
+        className={`flex flex-col gap-3 rounded-lg border p-3 transition-colors hover:bg-muted/50 sm:flex-row sm:items-center sm:justify-between ${
           currentVersion === versionData.version.version ? "bg-muted" : ""
         }`}
       >
-        <div className="flex items-center gap-3">
-          <GitBranch className="h-4 w-4 text-muted-foreground" />
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-medium">{versionData.version.version}</span>
+        <div className="flex items-start gap-3 sm:items-center">
+          <GitBranch className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground sm:mt-0" />
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+              <span className="break-all font-medium text-sm sm:text-base">{versionData.version.version}</span>
               {(versionData === sortedVersions[0] || versionData === latestStableVersion) && (
-                <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 font-medium text-blue-700 text-xs ring-1 ring-blue-600/20 ring-inset dark:bg-blue-950 dark:text-blue-300 dark:ring-blue-800">
+                <span className="inline-flex items-center rounded-md bg-blue-50 px-1.5 py-0.5 font-medium text-blue-700 text-xs ring-1 ring-blue-600/20 ring-inset sm:px-2 sm:py-1 dark:bg-blue-950 dark:text-blue-300 dark:ring-blue-800">
                   Latest
                 </span>
               )}
               {versionData === latestStableVersion && (
-                <span className="inline-flex items-center rounded-md bg-green-50 px-2 py-1 font-medium text-green-700 text-xs ring-1 ring-green-600/20 ring-inset dark:bg-green-950 dark:text-green-300 dark:ring-green-800">
+                <span className="inline-flex items-center rounded-md bg-green-50 px-1.5 py-0.5 font-medium text-green-700 text-xs ring-1 ring-green-600/20 ring-inset sm:px-2 sm:py-1 dark:bg-green-950 dark:text-green-300 dark:ring-green-800">
                   Stable
                 </span>
               )}
               {!isStableVersion(versionData.version.version) && (
-                <span className="inline-flex items-center rounded-md bg-yellow-50 px-2 py-1 font-medium text-xs text-yellow-700 ring-1 ring-yellow-600/20 ring-inset dark:bg-yellow-950 dark:text-yellow-300 dark:ring-yellow-800">
+                <span className="inline-flex items-center rounded-md bg-yellow-50 px-1.5 py-0.5 font-medium text-xs text-yellow-700 ring-1 ring-yellow-600/20 ring-inset sm:px-2 sm:py-1 dark:bg-yellow-950 dark:text-yellow-300 dark:ring-yellow-800">
                   Prerelease
                 </span>
               )}
             </div>
-            <div className="space-y-1">
-              <div className="flex items-center gap-4 text-muted-foreground text-sm">
+            <div className="mt-1 space-y-1">
+              <div className="flex flex-wrap items-center gap-2 text-muted-foreground text-xs sm:gap-4 sm:text-sm">
                 <span className="flex items-center gap-1">
                   <Calendar className="h-3 w-3" />
-                  {format(new Date(versionData.version.created_at), "MMM d, yyyy 'at' h:mm a")}
+                  <span className="hidden sm:inline">
+                    {format(new Date(versionData.version.created_at), "MMM d, yyyy 'at' h:mm a")}
+                  </span>
+                  <span className="sm:hidden">{format(new Date(versionData.version.created_at), "MMM d, yyyy")}</span>
                 </span>
               </div>
               {versionData.version.description && (
@@ -184,6 +187,7 @@ const VersionList = ({
           variant={currentVersion === versionData.version.version ? "default" : "outline"}
           size="sm"
           onClick={() => onSelectVersion(versionData.version.version)}
+          className="shrink-0 self-start sm:self-center"
         >
           {currentVersion === versionData.version.version ? "Selected" : "Select"}
         </Button>
@@ -316,11 +320,11 @@ export function Package() {
     return (
       <div className="space-y-6">
         <div>
-          <Skeleton className="mb-2 h-8 w-64" />
-          <Skeleton className="h-4 w-96" />
+          <Skeleton className="mb-2 h-6 w-48 sm:h-8 sm:w-64" />
+          <Skeleton className="h-4 w-full max-w-96" />
         </div>
-        <div className="grid gap-6 md:grid-cols-3">
-          <div className="space-y-6 md:col-span-2">
+        <div className="flex flex-col gap-6 lg:grid lg:grid-cols-3">
+          <div className="order-2 space-y-6 lg:order-1 lg:col-span-2">
             <Card>
               <CardHeader>
                 <Skeleton className="h-6 w-32" />
@@ -328,19 +332,19 @@ export function Package() {
               <CardContent>
                 <div className="space-y-4">
                   {Array.from({ length: 3 }).map((_, i) => (
-                    <div key={i} className="flex items-center justify-between">
-                      <Skeleton className="h-4 w-24" />
-                      <Skeleton className="h-4 w-16" />
+                    <div key={i} className="flex items-center justify-between gap-2">
+                      <Skeleton className="h-4 w-20 sm:w-24" />
+                      <Skeleton className="h-4 w-12 sm:w-16" />
                     </div>
                   ))}
                 </div>
               </CardContent>
             </Card>
           </div>
-          <div className="space-y-6">
+          <div className="order-1 space-y-6 lg:order-2">
             <Card>
               <CardHeader>
-                <Skeleton className="h-6 w-24" />
+                <Skeleton className="h-6 w-20 sm:w-24" />
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
@@ -385,55 +389,55 @@ export function Package() {
       {/* Header Section */}
       <div className="border-b">
         <div className="py-4">
-          <div className="flex items-start justify-between">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="flex-1">
-              <div className="mb-3 flex items-center gap-3">
-                <PackageIcon className="h-8 w-8 text-primary" />
-                <div>
-                  <h1 className="font-bold text-4xl tracking-tight">{pkg.name}</h1>
-                  <div className="mt-1 flex items-center gap-2">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="outline" className="font-mono text-lg">
-                          {currentVersion}
-                          <ChevronDown className="ml-2 h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="start" className="max-h-64 overflow-y-auto">
-                        {dropdownSortedVersions.map((versionData) => (
-                          <DropdownMenuItem
-                            key={versionData.version.id}
-                            onClick={() => setSelectedVersion(versionData.version.version)}
-                            className="font-mono"
-                          >
-                            {versionData.version.version}
-                            {versionData.version.version === sortedVersions[0]?.version.version && (
-                              <span className="ml-2 text-muted-foreground text-xs">(latest)</span>
-                            )}
-                          </DropdownMenuItem>
-                        ))}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                    {pkg.is_private ? (
-                      <span className="inline-flex items-center rounded-md bg-yellow-50 px-2 py-1 font-medium text-xs text-yellow-800 ring-1 ring-yellow-600/20 ring-inset dark:bg-yellow-950 dark:text-yellow-300 dark:ring-yellow-800">
-                        Private
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center rounded-md bg-green-50 px-2 py-1 font-medium text-green-700 text-xs ring-1 ring-green-600/20 ring-inset dark:bg-green-950 dark:text-green-300 dark:ring-green-800">
-                        Public
-                      </span>
-                    )}
-                    {latestStableVersion && currentVersion === latestStableVersion.version.version && (
-                      <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 font-medium text-blue-700 text-xs ring-1 ring-blue-600/20 ring-inset dark:bg-blue-950 dark:text-blue-300 dark:ring-blue-800">
-                        Latest
-                      </span>
-                    )}
-                  </div>
+              <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div className="flex items-center gap-3">
+                  <PackageIcon className="h-6 w-6 text-primary sm:h-8 sm:w-8" />
+                  <h1 className="font-bold text-2xl tracking-tight sm:text-3xl lg:text-4xl">{pkg.name}</h1>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" className="font-mono text-sm sm:text-base lg:text-lg">
+                        {currentVersion}
+                        <ChevronDown className="ml-2 h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="max-h-64 overflow-y-auto">
+                      {dropdownSortedVersions.map((versionData) => (
+                        <DropdownMenuItem
+                          key={versionData.version.id}
+                          onClick={() => setSelectedVersion(versionData.version.version)}
+                          className="font-mono"
+                        >
+                          {versionData.version.version}
+                          {versionData.version.version === sortedVersions[0]?.version.version && (
+                            <span className="ml-2 text-muted-foreground text-xs">(latest)</span>
+                          )}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  {pkg.is_private ? (
+                    <span className="inline-flex items-center rounded-md bg-yellow-50 px-2 py-1 font-medium text-xs text-yellow-800 ring-1 ring-yellow-600/20 ring-inset dark:bg-yellow-950 dark:text-yellow-300 dark:ring-yellow-800">
+                      Private
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center rounded-md bg-green-50 px-2 py-1 font-medium text-green-700 text-xs ring-1 ring-green-600/20 ring-inset dark:bg-green-950 dark:text-green-300 dark:ring-green-800">
+                      Public
+                    </span>
+                  )}
+                  {latestStableVersion && currentVersion === latestStableVersion.version.version && (
+                    <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 font-medium text-blue-700 text-xs ring-1 ring-blue-600/20 ring-inset dark:bg-blue-950 dark:text-blue-300 dark:ring-blue-800">
+                      Latest
+                    </span>
+                  )}
                 </div>
               </div>
-              {pkg.description && <p className="text-muted-foreground">{pkg.description}</p>}
+              {pkg.description && <p className="text-muted-foreground text-sm sm:text-base">{pkg.description}</p>}
             </div>
-            <Button variant="outline" size="sm" onClick={() => navigate(-1)}>
+            <Button variant="outline" size="sm" onClick={() => navigate(-1)} className="self-start">
               ← Back
             </Button>
           </div>
@@ -442,30 +446,39 @@ export function Package() {
 
       {/* Main Content */}
       <div className="py-4">
-        <div className="grid gap-8 lg:grid-cols-5">
+        <div className="flex flex-col gap-8 lg:grid lg:grid-cols-5">
           {/* Main Content Area */}
-          <div className="fade-in-50 slide-in-from-left-4 animate-in duration-500 lg:col-span-3">
+          <div className="fade-in-50 slide-in-from-left-4 order-2 animate-in duration-500 lg:order-1 lg:col-span-3">
             <Tabs defaultValue="readme" className="w-full">
-              <TabsList className="grid w-full grid-cols-4">
-                <TabsTrigger value="readme" className="flex items-center gap-2">
+              <TabsList className="flex h-auto w-full overflow-x-auto p-1 sm:grid sm:grid-cols-4">
+                <TabsTrigger value="readme" className="flex shrink-0 items-center gap-1 text-xs sm:gap-2 sm:text-sm">
                   README
                 </TabsTrigger>
-                <TabsTrigger value="versions" className="flex items-center gap-2">
-                  Versions
-                  <span className="rounded-full bg-muted px-2 py-0.5 text-xs">{sortedVersions.length}</span>
+                <TabsTrigger value="versions" className="flex shrink-0 items-center gap-1 text-xs sm:gap-2 sm:text-sm">
+                  <span className="hidden sm:inline">Versions</span>
+                  <span className="sm:hidden">Ver.</span>
+                  <span className="rounded-full bg-muted px-1.5 py-0.5 text-xs sm:px-2">{sortedVersions.length}</span>
                 </TabsTrigger>
-                <TabsTrigger value="dependencies" className="flex items-center gap-2">
-                  Dependencies
+                <TabsTrigger
+                  value="dependencies"
+                  className="flex shrink-0 items-center gap-1 text-xs sm:gap-2 sm:text-sm"
+                >
+                  <span className="hidden sm:inline">Dependencies</span>
+                  <span className="sm:hidden">Deps</span>
                   {currentVersionData && (
-                    <span className="rounded-full bg-muted px-2 py-0.5 text-xs">
+                    <span className="rounded-full bg-muted px-1.5 py-0.5 text-xs sm:px-2">
                       {Object.keys(safeJsonParse(currentVersionData.version.dependencies) || {}).length}
                     </span>
                   )}
                 </TabsTrigger>
-                <TabsTrigger value="dev-dependencies" className="flex items-center gap-2">
-                  Dev Dependencies
+                <TabsTrigger
+                  value="dev-dependencies"
+                  className="flex shrink-0 items-center gap-1 text-xs sm:gap-2 sm:text-sm"
+                >
+                  <span className="hidden sm:inline">Dev Dependencies</span>
+                  <span className="sm:hidden">Dev</span>
                   {currentVersionData && (
-                    <span className="rounded-full bg-muted px-2 py-0.5 text-xs">
+                    <span className="rounded-full bg-muted px-1.5 py-0.5 text-xs sm:px-2">
                       {Object.keys(safeJsonParse(currentVersionData.version.dev_dependencies) || {}).length}
                     </span>
                   )}
@@ -627,7 +640,7 @@ export function Package() {
           </div>
 
           {/* Sidebar */}
-          <div className="slide-in-from-right-4 animate-in space-y-6 duration-500 lg:col-span-2">
+          <div className="slide-in-from-right-4 order-1 animate-in space-y-6 duration-500 lg:order-2 lg:col-span-2">
             {/* Install Command */}
             <Card>
               <CardHeader>
@@ -637,14 +650,15 @@ export function Package() {
                 <div className="space-y-3">
                   <div>
                     <p className="mb-2 text-muted-foreground text-sm">npm</p>
-                    <div className="flex items-center gap-2 rounded-md bg-muted p-3">
-                      <code className="flex-1 font-mono text-xs">npm install {pkg.name}</code>
+                    <div className="flex items-center gap-2 rounded-md bg-muted p-2 sm:p-3">
+                      <code className="flex-1 overflow-x-auto font-mono text-xs">{`npm install ${pkg.name}`}</code>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => copyToClipboard(`npm install ${pkg.name}`, "npm")}
+                            className="shrink-0"
                           >
                             {copiedCommand === "npm" ? <Check className="h-4 w-4" /> : "Copy"}
                           </Button>
@@ -655,14 +669,15 @@ export function Package() {
                   </div>
                   <div>
                     <p className="mb-2 text-muted-foreground text-sm">yarn</p>
-                    <div className="flex items-center gap-2 rounded-md bg-muted p-3">
-                      <code className="flex-1 font-mono text-xs">yarn add {pkg.name}</code>
+                    <div className="flex items-center gap-2 rounded-md bg-muted p-2 sm:p-3">
+                      <code className="flex-1 overflow-x-auto font-mono text-xs">{`yarn add ${pkg.name}`}</code>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => copyToClipboard(`yarn add ${pkg.name}`, "yarn")}
+                            className="shrink-0"
                           >
                             {copiedCommand === "yarn" ? <Check className="h-4 w-4" /> : "Copy"}
                           </Button>
@@ -673,14 +688,15 @@ export function Package() {
                   </div>
                   <div>
                     <p className="mb-2 text-muted-foreground text-sm">pnpm</p>
-                    <div className="flex items-center gap-2 rounded-md bg-muted p-3">
-                      <code className="flex-1 font-mono text-xs">pnpm add {pkg.name}</code>
+                    <div className="flex items-center gap-2 rounded-md bg-muted p-2 sm:p-3">
+                      <code className="flex-1 overflow-x-auto font-mono text-xs">{`pnpm add ${pkg.name}`}</code>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => copyToClipboard(`pnpm add ${pkg.name}`, "pnpm")}
+                            className="shrink-0"
                           >
                             {copiedCommand === "pnpm" ? <Check className="h-4 w-4" /> : "Copy"}
                           </Button>
@@ -696,22 +712,22 @@ export function Package() {
             {/* Package Info */}
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <PackageIcon className="h-5 w-5" />
+                <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
+                  <PackageIcon className="h-4 w-4 sm:h-5 sm:w-5" />
                   Package Info
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2">
                     <span className="text-muted-foreground text-sm">Version</span>
-                    <span className="font-mono text-sm">{currentVersion}</span>
+                    <span className="break-all font-mono text-sm">{currentVersion}</span>
                   </div>
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2">
                     <span className="text-muted-foreground text-sm">License</span>
-                    <span className="text-sm">{pkg.license || "N/A"}</span>
+                    <span className="text-right text-sm">{pkg.license || "N/A"}</span>
                   </div>
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2">
                     <span className="text-muted-foreground text-sm">Visibility</span>
                     {pkg.is_private ? (
                       <span className="inline-flex items-center rounded-md bg-yellow-50 px-2 py-1 font-medium text-xs text-yellow-800 ring-1 ring-yellow-600/20 ring-inset dark:bg-yellow-950 dark:text-yellow-300 dark:ring-yellow-800">
@@ -723,13 +739,13 @@ export function Package() {
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2">
                     <span className="text-muted-foreground text-sm">Created</span>
-                    <span className="text-sm">{format(new Date(pkg.created_at), "MMM d, yyyy")}</span>
+                    <span className="text-right text-sm">{format(new Date(pkg.created_at), "MMM d, yyyy")}</span>
                   </div>
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2">
                     <span className="text-muted-foreground text-sm">Updated</span>
-                    <span className="text-sm">{format(new Date(pkg.updated_at), "MMM d, yyyy")}</span>
+                    <span className="text-right text-sm">{format(new Date(pkg.updated_at), "MMM d, yyyy")}</span>
                   </div>
                 </div>
 
@@ -737,20 +753,20 @@ export function Package() {
                 {(pkg.homepage || pkg.repository_url) && (
                   <div className="space-y-2 border-t pt-4">
                     {pkg.homepage && (
-                      <Button variant="outline" size="sm" className="w-full justify-start" asChild>
+                      <Button variant="outline" size="sm" className="w-full justify-start text-xs sm:text-sm" asChild>
                         <a href={pkg.homepage} target="_blank" rel="noopener noreferrer">
-                          <Globe className="h-4 w-4" />
-                          Homepage
-                          <ExternalLink className="ml-auto h-3 w-3" />
+                          <Globe className="h-3 w-3 sm:h-4 sm:w-4" />
+                          <span className="truncate">Homepage</span>
+                          <ExternalLink className="ml-auto h-3 w-3 shrink-0" />
                         </a>
                       </Button>
                     )}
                     {pkg.repository_url && (
-                      <Button variant="outline" size="sm" className="w-full justify-start" asChild>
+                      <Button variant="outline" size="sm" className="w-full justify-start text-xs sm:text-sm" asChild>
                         <a href={pkg.repository_url} target="_blank" rel="noopener noreferrer">
-                          <GitBranch className="h-4 w-4" />
-                          Repository
-                          <ExternalLink className="ml-auto h-3 w-3" />
+                          <GitBranch className="h-3 w-3 sm:h-4 sm:w-4" />
+                          <span className="truncate">Repository</span>
+                          <ExternalLink className="ml-auto h-3 w-3 shrink-0" />
                         </a>
                       </Button>
                     )}
@@ -762,35 +778,35 @@ export function Package() {
             {/* Package Statistics */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Statistics</CardTitle>
+                <CardTitle className="text-sm sm:text-base">Statistics</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <span className="text-muted-foreground text-sm">Total Versions</span>
                   <span className="font-medium text-sm">{sortedVersions.length}</span>
                 </div>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <span className="text-muted-foreground text-sm">Stable Releases</span>
                   <span className="font-medium text-sm">{stableVersions.length}</span>
                 </div>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <span className="text-muted-foreground text-sm">Prerelease Versions</span>
                   <span className="font-medium text-sm">{prereleaseVersions.length}</span>
                 </div>
                 {currentVersionData && (
                   <>
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-2">
                       <span className="text-muted-foreground text-sm">Files in v{currentVersion}</span>
                       <span className="font-medium text-sm">{currentVersionData.files.length}</span>
                     </div>
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-2">
                       <span className="text-muted-foreground text-sm">Total Size</span>
-                      <span className="font-medium text-sm">
+                      <span className="text-right font-medium text-sm">
                         {formatBytes(currentVersionData.files.reduce((sum, file) => sum + file.size_bytes, 0))}
                       </span>
                     </div>
                     {currentVersionData.version.dependencies && (
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between gap-2">
                         <span className="text-muted-foreground text-sm">Dependencies</span>
                         <span className="font-medium text-sm">
                           {Object.keys(safeJsonParse(currentVersionData.version.dependencies) || {}).length}
@@ -808,8 +824,8 @@ export function Package() {
               return keywords.length > 0 ? (
                 <Card>
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Tag className="h-5 w-5" />
+                    <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
+                      <Tag className="h-4 w-4 sm:h-5 sm:w-5" />
                       Keywords
                       <span className="ml-auto text-muted-foreground text-xs">
                         {keywords.length} {keywords.length === 1 ? "tag" : "tags"}
@@ -817,11 +833,11 @@ export function Package() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-1.5 sm:gap-2">
                       {keywords.map((keyword, index) => (
                         <span
                           key={`${keyword}-${index}`}
-                          className="inline-flex items-center rounded-full bg-muted px-3 py-1.5 font-medium text-xs ring-1 ring-border ring-inset transition-colors hover:scale-105"
+                          className="inline-flex items-center rounded-full bg-muted px-2 py-1 font-medium text-xs ring-1 ring-border ring-inset transition-colors hover:scale-105 sm:px-3 sm:py-1.5"
                           title={`Keyword: ${keyword}`}
                         >
                           {keyword}

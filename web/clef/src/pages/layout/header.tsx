@@ -1,5 +1,9 @@
+import { Menu } from "lucide-react";
+import { useState } from "react";
 import { NavLink } from "react-router";
 import { Logo } from "@/components/logo";
+import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
 // import { UserMenu } from "./user-menu";
 
@@ -9,6 +13,8 @@ const items = [
 ];
 
 export function Header() {
+  const [isOpen, setIsOpen] = useState(false);
+
   return (
     <header className="sticky top-0 z-50 w-full border-border border-b bg-background-header backdrop-blur supports-[backdrop-filter]:bg-background-header/60">
       <div className="mx-auto w-full max-w-7xl">
@@ -34,6 +40,36 @@ export function Header() {
             </nav>
           </div>
           <div className="ml-auto flex items-center justify-end gap-6">
+            {/* Mobile Navigation */}
+            <Sheet open={isOpen} onOpenChange={setIsOpen}>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon" className="md:hidden">
+                  <Menu className="h-5 w-5" />
+                  <span className="sr-only">Toggle navigation menu</span>
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="right" className="w-[300px] sm:w-[400px]">
+                <SheetHeader>
+                  <SheetTitle>Navigation</SheetTitle>
+                </SheetHeader>
+                <nav className="mt-6 flex flex-col space-y-4">
+                  {items.map((item) => (
+                    <NavLink
+                      key={item.title}
+                      to={item.href}
+                      onClick={() => setIsOpen(false)}
+                      className={({ isActive }) =>
+                        `flex items-center rounded-lg px-3 py-2 font-medium text-sm transition-colors hover:bg-accent hover:text-accent-foreground ${
+                          isActive ? "bg-accent text-accent-foreground" : "text-muted-foreground"
+                        }`
+                      }
+                    >
+                      {item.title}
+                    </NavLink>
+                  ))}
+                </nav>
+              </SheetContent>
+            </Sheet>
             {/* {user && <UserMenu username={user.username} />} */}
           </div>
         </div>

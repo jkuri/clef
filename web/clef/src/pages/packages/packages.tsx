@@ -94,8 +94,8 @@ export function Packages() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-bold text-3xl tracking-tight">Packages</h1>
-        <p className="text-muted-foreground">Manage and explore all packages in your registry.</p>
+        <h1 className="font-bold text-2xl tracking-tight sm:text-3xl">Packages</h1>
+        <p className="text-muted-foreground text-sm sm:text-base">Manage and explore all packages in your registry.</p>
       </div>
 
       {isLoading ? (

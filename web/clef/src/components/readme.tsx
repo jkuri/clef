@@ -91,9 +91,15 @@ export function Readme({ content, packageName, version }: ReadmeProps) {
               img: ({ src, alt }) => (
                 <img
                   src={src}
-                  alt={alt}
-                  className="mr-1 inline-block max-h-6 align-middle"
+                  alt={alt || ""}
+                  className="mr-1 inline-block max-h-6 max-w-full align-middle"
                   style={{ display: "inline-block" }}
+                  loading="lazy"
+                  onError={(e) => {
+                    // Hide broken images gracefully
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = "none";
+                  }}
                 />
               ),
               // Style tables

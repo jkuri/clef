@@ -60,7 +60,6 @@ export function DataTable<TData, TValue>({
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
-  const [rowSelection, setRowSelection] = React.useState({});
 
   const table = useReactTable({
     data,
@@ -72,12 +71,10 @@ export function DataTable<TData, TValue>({
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     onColumnVisibilityChange: setColumnVisibility,
-    onRowSelectionChange: setRowSelection,
     state: {
       sorting,
       columnFilters,
       columnVisibility,
-      rowSelection,
     },
     manualPagination: true,
     manualSorting: true, // Disable client-side sorting
@@ -86,16 +83,16 @@ export function DataTable<TData, TValue>({
 
   return (
     <div className="w-full">
-      <div className="flex items-center py-4">
+      <div className="flex flex-col gap-4 py-4 sm:flex-row sm:items-center">
         <Input
           placeholder="Search packages..."
           value={searchValue}
           onChange={(event) => onSearchChange(event.target.value)}
-          className="max-w-sm"
+          className="w-full sm:max-w-sm"
         />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="ml-auto">
+            <Button variant="outline" className="sm:ml-auto">
               Columns <ChevronDown className="ml-2 h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
@@ -118,14 +115,14 @@ export function DataTable<TData, TValue>({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      <div className="relative rounded-md border">
+      <div className="relative overflow-x-auto rounded-md border">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
                   return (
-                    <TableHead key={header.id}>
+                    <TableHead key={header.id} className="whitespace-nowrap">
                       {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                     </TableHead>
                   );
@@ -136,9 +133,11 @@ export function DataTable<TData, TValue>({
           <TableBody>
             {table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id} data-state={row.getIsSelected() && "selected"}>
+                <TableRow key={row.id}>
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
+                    <TableCell key={cell.id} className="whitespace-nowrap">
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </TableCell>
                   ))}
                 </TableRow>
               ))
@@ -163,8 +162,8 @@ export function DataTable<TData, TValue>({
           </div>
         )}
       </div>
-      <div className="flex items-center justify-between space-x-2 py-4">
-        <div className="flex items-center space-x-2">
+      <div className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col items-center gap-2 sm:flex-row sm:items-center sm:space-x-2">
           <p className="font-medium text-sm">Rows per page</p>
           <Select
             value={`${pagination.limit}`}
@@ -183,15 +182,14 @@ export function DataTable<TData, TValue>({
               ))}
             </SelectContent>
           </Select>
+          <div className="text-muted-foreground text-sm sm:hidden">{totalCount} total packages</div>
         </div>
-        <div className="flex items-center space-x-6 lg:space-x-8">
-          <div className="flex w-[100px] items-center justify-center font-medium text-sm">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:space-x-6 lg:space-x-8">
+          <div className="flex items-center justify-center font-medium text-sm sm:w-[100px]">
             Page {pagination.page} of {pagination.total_pages}
           </div>
-          <div className="text-muted-foreground text-sm">
-            {table.getFilteredSelectedRowModel().rows.length} of {totalCount} row(s) selected.
-          </div>
-          <div className="flex items-center space-x-2">
+          <div className="hidden text-muted-foreground text-sm sm:block">{totalCount} total packages</div>
+          <div className="flex items-center justify-center space-x-2">
             <Button
               variant="outline"
               size="sm"
