@@ -136,6 +136,9 @@ impl RegistryService {
             // Extract time information for versions
             let time_info = json["time"].as_object();
 
+            // Extract README from package-level metadata to include in version metadata
+            let package_readme = json.get("readme").and_then(|r| r.as_str());
+
             for (version_str, version_data) in versions {
                 // Create a mutable copy of version_data to add timestamp information
                 let mut version_data_with_time = version_data.clone();
@@ -144,6 +147,14 @@ impl RegistryService {
                 if let Some(time_obj) = time_info {
                     if let Some(version_time) = time_obj.get(version_str) {
                         version_data_with_time["_published_time"] = version_time.clone();
+                    }
+                }
+
+                // Add README from package-level metadata if not present in version data
+                if version_data_with_time.get("readme").is_none() {
+                    if let Some(readme_content) = package_readme {
+                        version_data_with_time["readme"] =
+                            serde_json::Value::String(readme_content.to_string());
                     }
                 }
 

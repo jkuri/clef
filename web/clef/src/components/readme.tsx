@@ -87,6 +87,15 @@ export function Readme({ content, packageName, version }: ReadmeProps) {
                   {children}
                 </blockquote>
               ),
+              // Style images (including badges)
+              img: ({ src, alt }) => (
+                <img
+                  src={src}
+                  alt={alt}
+                  className="mr-1 inline-block max-h-6 align-middle"
+                  style={{ display: "inline-block" }}
+                />
+              ),
               // Style tables
               table: ({ children }) => (
                 <div className="mb-4 overflow-x-auto">

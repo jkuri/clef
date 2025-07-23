@@ -485,6 +485,310 @@ mod tests {
             }
         }
     }
+
+    /// Test that README is properly fetched and stored from upstream package metadata
+    #[test]
+    #[serial]
+    fn test_upstream_package_readme_fetching_and_storage() {
+        init_test_env();
+        let server = TestServer::new();
+        let _handle = server.start();
+
+        let client = ApiClient::new(server.base_url.clone());
+
+        // Test with a well-known package that has README content
+        // First, fetch package-level metadata to trigger upstream fetching and storage
+        match client.get("/registry/express").send() {
+            Ok(response) => {
+                assert!(
+                    response.status().is_success(),
+                    "Package metadata request failed with status: {}",
+                    response.status()
+                );
+
+                let package_metadata: serde_json::Value = response.json().unwrap();
+
+                // Verify basic package info
+                assert_eq!(package_metadata["name"], "express");
+
+                // Verify README is present at package level
+                assert!(
+                    package_metadata.get("readme").is_some(),
+                    "README field should be present in package metadata"
+                );
+
+                let package_readme = package_metadata["readme"].as_str().unwrap();
+                assert!(
+                    !package_readme.is_empty(),
+                    "Package README should not be empty"
+                );
+                assert!(
+                    package_readme.contains("Express"),
+                    "README should contain package name"
+                );
+
+                println!(
+                    "✅ Package-level README fetched successfully ({} chars)",
+                    package_readme.len()
+                );
+
+                // Now test specific version metadata to ensure README is included
+                match client.get("/registry/express/4.18.2").send() {
+                    Ok(version_response) => {
+                        assert!(
+                            version_response.status().is_success(),
+                            "Version metadata request failed with status: {}",
+                            version_response.status()
+                        );
+
+                        let version_metadata: serde_json::Value = version_response.json().unwrap();
+
+                        // Verify basic version info
+                        assert_eq!(version_metadata["name"], "express");
+                        assert_eq!(version_metadata["version"], "4.18.2");
+
+                        // Verify README is present in version metadata
+                        assert!(
+                            version_metadata.get("readme").is_some(),
+                            "README field should be present in version metadata"
+                        );
+
+                        let version_readme = version_metadata["readme"].as_str().unwrap();
+                        assert!(
+                            !version_readme.is_empty(),
+                            "Version README should not be empty"
+                        );
+
+                        // The version README should match the package README
+                        assert_eq!(
+                            version_readme, package_readme,
+                            "Version README should match package README"
+                        );
+
+                        println!("✅ Version-level README matches package-level README");
+                    }
+                    Err(e) => {
+                        panic!("Failed to fetch version metadata: {e}");
+                    }
+                }
+            }
+            Err(e) => {
+                println!(
+                    "Warning: Upstream package test failed: {e}. This may be due to network issues."
+                );
+            }
+        }
+    }
+
+    /// Test that README is properly stored in database after upstream fetch
+    #[test]
+    #[serial]
+    fn test_upstream_readme_database_storage() {
+        init_test_env();
+        let server = TestServer::new();
+        let _handle = server.start();
+
+        let client = ApiClient::new(server.base_url.clone());
+
+        // Test with a package that has README content
+        match client.get("/registry/lodash").send() {
+            Ok(response) => {
+                if response.status().is_success() {
+                    let package_metadata: serde_json::Value = response.json().unwrap();
+
+                    // Verify README is present
+                    if let Some(readme) = package_metadata.get("readme") {
+                        if let Some(readme_str) = readme.as_str() {
+                            if !readme_str.is_empty() {
+                                println!(
+                                    "✅ Package README fetched from upstream ({} chars)",
+                                    readme_str.len()
+                                );
+
+                                // Now fetch a specific version to ensure README is stored in database
+                                if let Some(versions) = package_metadata["versions"].as_object() {
+                                    if let Some(latest_version) = versions.keys().last() {
+                                        match client
+                                            .get(&format!("/registry/lodash/{}", latest_version))
+                                            .send()
+                                        {
+                                            Ok(version_response) => {
+                                                if version_response.status().is_success() {
+                                                    let version_metadata: serde_json::Value =
+                                                        version_response.json().unwrap();
+
+                                                    // Verify README is present in version metadata
+                                                    assert!(
+                                                        version_metadata.get("readme").is_some(),
+                                                        "README should be present in version metadata after database storage"
+                                                    );
+
+                                                    let version_readme = version_metadata["readme"]
+                                                        .as_str()
+                                                        .unwrap();
+                                                    assert_eq!(
+                                                        version_readme, readme_str,
+                                                        "Version README should match package README after database storage"
+                                                    );
+
+                                                    println!(
+                                                        "✅ README properly stored in database for version {}",
+                                                        latest_version
+                                                    );
+
+                                                    // Fetch the same version again to test database retrieval
+                                                    match client
+                                                        .get(&format!(
+                                                            "/registry/lodash/{}",
+                                                            latest_version
+                                                        ))
+                                                        .send()
+                                                    {
+                                                        Ok(cached_response) => {
+                                                            if cached_response.status().is_success()
+                                                            {
+                                                                let cached_metadata: serde_json::Value = cached_response.json().unwrap();
+
+                                                                // Verify README is still present from database/cache
+                                                                assert!(
+                                                                    cached_metadata
+                                                                        .get("readme")
+                                                                        .is_some(),
+                                                                    "README should be present when retrieved from database/cache"
+                                                                );
+
+                                                                let cached_readme = cached_metadata
+                                                                    ["readme"]
+                                                                    .as_str()
+                                                                    .unwrap();
+                                                                assert_eq!(
+                                                                    cached_readme, readme_str,
+                                                                    "Cached README should match original README"
+                                                                );
+
+                                                                println!(
+                                                                    "✅ README properly retrieved from database/cache"
+                                                                );
+                                                            }
+                                                        }
+                                                        Err(e) => {
+                                                            println!(
+                                                                "Warning: Failed to fetch cached version: {e}"
+                                                            );
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            Err(e) => {
+                                                println!(
+                                                    "Warning: Failed to fetch version metadata: {e}"
+                                                );
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                println!(
+                    "Warning: Upstream package test failed: {e}. This may be due to network issues."
+                );
+            }
+        }
+    }
+
+    /// Test that README is consistently available across multiple versions of an upstream package
+    #[test]
+    #[serial]
+    fn test_upstream_readme_consistency_across_versions() {
+        init_test_env();
+        let server = TestServer::new();
+        let _handle = server.start();
+
+        let client = ApiClient::new(server.base_url.clone());
+
+        // Test with a package that has multiple versions
+        match client.get("/registry/react").send() {
+            Ok(response) => {
+                if response.status().is_success() {
+                    let package_metadata: serde_json::Value = response.json().unwrap();
+
+                    // Verify README is present at package level
+                    if let Some(package_readme) = package_metadata.get("readme") {
+                        if let Some(package_readme_str) = package_readme.as_str() {
+                            if !package_readme_str.is_empty() {
+                                println!(
+                                    "✅ Package README fetched from upstream ({} chars)",
+                                    package_readme_str.len()
+                                );
+
+                                // Test multiple versions to ensure README consistency
+                                let test_versions = vec!["18.2.0", "17.0.2", "16.14.0"];
+
+                                for version in test_versions {
+                                    match client.get(&format!("/registry/react/{}", version)).send()
+                                    {
+                                        Ok(version_response) => {
+                                            if version_response.status().is_success() {
+                                                let version_metadata: serde_json::Value =
+                                                    version_response.json().unwrap();
+
+                                                // Verify README is present in version metadata
+                                                assert!(
+                                                    version_metadata.get("readme").is_some(),
+                                                    "README should be present in version {} metadata",
+                                                    version
+                                                );
+
+                                                let version_readme =
+                                                    version_metadata["readme"].as_str().unwrap();
+                                                assert!(
+                                                    !version_readme.is_empty(),
+                                                    "Version {} README should not be empty",
+                                                    version
+                                                );
+
+                                                // The version README should match the package README
+                                                assert_eq!(
+                                                    version_readme, package_readme_str,
+                                                    "Version {} README should match package README",
+                                                    version
+                                                );
+
+                                                println!(
+                                                    "✅ Version {} README matches package README",
+                                                    version
+                                                );
+                                            } else {
+                                                println!(
+                                                    "Version {} not found - this is acceptable",
+                                                    version
+                                                );
+                                            }
+                                        }
+                                        Err(e) => {
+                                            println!(
+                                                "Warning: Failed to fetch version {} metadata: {e}",
+                                                version
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                println!(
+                    "Warning: Upstream package test failed: {e}. This may be due to network issues."
+                );
+            }
+        }
+    }
 }
 
 impl TestProject {

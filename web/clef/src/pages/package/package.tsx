@@ -11,7 +11,7 @@ import {
   Tag,
 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Link, useParams } from "react-router";
+import { useNavigate, useParams } from "react-router";
 import semver from "semver";
 import { Readme } from "@/components/readme";
 import { Button } from "@/components/ui/button";
@@ -200,6 +200,7 @@ const VersionList = ({
 export function Package() {
   const { "*": packagePath } = useParams<{ "*": string }>();
   const name = packagePath || "";
+  const navigate = useNavigate();
   const { data, isPending: isLoading, error } = usePackage(name || "");
   const [selectedVersion, setSelectedVersion] = useState<string | null>(null);
   const [versionSearch, setVersionSearch] = useState("");
@@ -301,8 +302,8 @@ export function Package() {
               {error instanceof Error ? error.message : "An unknown error occurred"}
             </p>
             <div className="mt-4">
-              <Button asChild variant="outline">
-                <Link to="/packages">← Back to Packages</Link>
+              <Button variant="outline" onClick={() => navigate(-1)}>
+                ← Back
               </Button>
             </div>
           </CardContent>
@@ -364,8 +365,8 @@ export function Package() {
             <CardDescription>The package "{name}" could not be found</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button asChild variant="outline">
-              <Link to="/packages">← Back to Packages</Link>
+            <Button variant="outline" onClick={() => navigate(-1)}>
+              ← Back
             </Button>
           </CardContent>
         </Card>
@@ -383,7 +384,7 @@ export function Package() {
     <>
       {/* Header Section */}
       <div className="border-b">
-        <div className="px-4 py-8">
+        <div className="py-4">
           <div className="flex items-start justify-between">
             <div className="flex-1">
               <div className="mb-3 flex items-center gap-3">
@@ -422,7 +423,7 @@ export function Package() {
                         Public
                       </span>
                     )}
-                    {latestStableVersion && (
+                    {latestStableVersion && currentVersion === latestStableVersion.version.version && (
                       <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 font-medium text-blue-700 text-xs ring-1 ring-blue-600/20 ring-inset dark:bg-blue-950 dark:text-blue-300 dark:ring-blue-800">
                         Latest
                       </span>
@@ -430,17 +431,17 @@ export function Package() {
                   </div>
                 </div>
               </div>
-              {pkg.description && <p className="max-w-3xl text-lg text-muted-foreground">{pkg.description}</p>}
+              {pkg.description && <p className="text-muted-foreground">{pkg.description}</p>}
             </div>
-            <Button asChild variant="outline" size="sm">
-              <Link to="/packages">← Back to Packages</Link>
+            <Button variant="outline" size="sm" onClick={() => navigate(-1)}>
+              ← Back
             </Button>
           </div>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="px-4 py-8">
+      <div className="py-4">
         <div className="grid gap-8 lg:grid-cols-5">
           {/* Main Content Area */}
           <div className="fade-in-50 slide-in-from-left-4 animate-in duration-500 lg:col-span-3">
@@ -637,7 +638,7 @@ export function Package() {
                   <div>
                     <p className="mb-2 text-muted-foreground text-sm">npm</p>
                     <div className="flex items-center gap-2 rounded-md bg-muted p-3">
-                      <code className="flex-1 font-mono text-sm">npm install {pkg.name}</code>
+                      <code className="flex-1 font-mono text-xs">npm install {pkg.name}</code>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Button
@@ -655,7 +656,7 @@ export function Package() {
                   <div>
                     <p className="mb-2 text-muted-foreground text-sm">yarn</p>
                     <div className="flex items-center gap-2 rounded-md bg-muted p-3">
-                      <code className="flex-1 font-mono text-sm">yarn add {pkg.name}</code>
+                      <code className="flex-1 font-mono text-xs">yarn add {pkg.name}</code>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Button
@@ -673,7 +674,7 @@ export function Package() {
                   <div>
                     <p className="mb-2 text-muted-foreground text-sm">pnpm</p>
                     <div className="flex items-center gap-2 rounded-md bg-muted p-3">
-                      <code className="flex-1 font-mono text-sm">pnpm add {pkg.name}</code>
+                      <code className="flex-1 font-mono text-xs">pnpm add {pkg.name}</code>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Button
@@ -817,33 +818,15 @@ export function Package() {
                   </CardHeader>
                   <CardContent>
                     <div className="flex flex-wrap gap-2">
-                      {keywords.map((keyword, index) => {
-                        // Generate a consistent color based on keyword hash
-                        const colors = [
-                          "bg-blue-50 text-blue-700 ring-blue-600/20 dark:bg-blue-950 dark:text-blue-300 dark:ring-blue-800",
-                          "bg-green-50 text-green-700 ring-green-600/20 dark:bg-green-950 dark:text-green-300 dark:ring-green-800",
-                          "bg-purple-50 text-purple-700 ring-purple-600/20 dark:bg-purple-950 dark:text-purple-300 dark:ring-purple-800",
-                          "bg-orange-50 text-orange-700 ring-orange-600/20 dark:bg-orange-950 dark:text-orange-300 dark:ring-orange-800",
-                          "bg-pink-50 text-pink-700 ring-pink-600/20 dark:bg-pink-950 dark:text-pink-300 dark:ring-pink-800",
-                        ];
-
-                        // Simple hash function for consistent colors
-                        const hash = keyword.split("").reduce((a, b) => {
-                          a = (a << 5) - a + b.charCodeAt(0);
-                          return a & a;
-                        }, 0);
-                        const colorClass = colors[Math.abs(hash) % colors.length];
-
-                        return (
-                          <span
-                            key={`${keyword}-${index}`}
-                            className={`inline-flex items-center rounded-full px-3 py-1.5 font-medium text-xs ring-1 ring-inset transition-colors hover:scale-105 ${colorClass}`}
-                            title={`Keyword: ${keyword}`}
-                          >
-                            {keyword}
-                          </span>
-                        );
-                      })}
+                      {keywords.map((keyword, index) => (
+                        <span
+                          key={`${keyword}-${index}`}
+                          className="inline-flex items-center rounded-full bg-muted px-3 py-1.5 font-medium text-xs ring-1 ring-border ring-inset transition-colors hover:scale-105"
+                          title={`Keyword: ${keyword}`}
+                        >
+                          {keyword}
+                        </span>
+                      ))}
                     </div>
                   </CardContent>
                 </Card>
